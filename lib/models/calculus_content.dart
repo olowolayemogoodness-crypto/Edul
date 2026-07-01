@@ -1,0 +1,797 @@
+ // lib/models/calculus_content.dart
+// Hard-coded Calculus content with 100 questions for CBT exam preparation
+
+class Question {
+  final String id;
+  final String question;
+  final List<String> options;
+  final String correctAnswer;
+  final int questionNumber;
+
+  const Question({
+    required this.id,
+    required this.question,
+    required this.options,
+    required this.correctAnswer,
+    required this.questionNumber,
+  });
+}
+
+class CalculusTopic {
+  final String id;
+  final String name;
+  final String description;
+  final String icon;
+  final int totalQuestions;
+  final List<Question> questions;
+
+  const CalculusTopic({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.icon,
+    required this.totalQuestions,
+    required this.questions,
+  });
+}
+
+class CalculusContent {
+  static final List<CalculusTopic> topics = [
+    CalculusTopic(
+      id: 'domain_range',
+      name: 'Domain and Range',
+      description: 'Learn about input and output sets of functions',
+      icon: '📊',
+      totalQuestions: 25,
+      questions: _domainRangeQuestions,
+    ),
+    CalculusTopic(
+      id: 'types_functions',
+      name: 'Types of Functions',
+      description: 'Polynomial, trigonometric, exponential, logarithmic',
+      icon: '⚡',
+      totalQuestions: 25,
+      questions: _typesOfFunctionsQuestions,
+    ),
+    CalculusTopic(
+      id: 'limits',
+      name: 'Limits',
+      description: 'Intuitive concept and evaluation of limits',
+      icon: '🎯',
+      totalQuestions: 25,
+      questions: _limitsQuestions,
+    ),
+    CalculusTopic(
+      id: 'continuity',
+      name: 'Continuity and Discontinuity',
+      description: 'Understanding continuity at points and intervals',
+      icon: '🌊',
+      totalQuestions: 25,
+      questions: _continuityQuestions,
+    ),
+  ];
+
+  // ============================================================
+  // Domain and Range Questions (Q1-Q25)
+  // ============================================================
+  static final List<Question> _domainRangeQuestions = [
+    Question(
+      id: 'q1',
+      question: 'Find the domain of f(x) = 1/(x-2)',
+      options: ['All real numbers', 'x ≠ 2', 'x > 2', 'x < 2'],
+      correctAnswer: 'x ≠ 2',
+      questionNumber: 1,
+    ),
+    Question(
+      id: 'q2',
+      question: 'Find the domain of f(x) = √(x+5)',
+      options: ['x ≥ -5', 'x > -5', 'All real numbers', 'x ≤ -5'],
+      correctAnswer: 'x ≥ -5',
+      questionNumber: 2,
+    ),
+    Question(
+      id: 'q3',
+      question: 'Find the range of f(x) = x² for x ∈ ℝ',
+      options: ['All real numbers', '[0, ∞)', '(-∞, 0]', '[1, ∞)'],
+      correctAnswer: '[0, ∞)',
+      questionNumber: 3,
+    ),
+    Question(
+      id: 'q4',
+      question: 'What is the domain of f(x) = log(x-3)?',
+      options: ['x > 3', 'x ≥ 3', 'All real numbers', 'x < 3'],
+      correctAnswer: 'x > 3',
+      questionNumber: 4,
+    ),
+    Question(
+      id: 'q5',
+      question: 'Find the domain of f(x) = 1/(x²-4)',
+      options: ['x ≠ 2, -2', 'All real numbers', 'x > 2', 'x < -2'],
+      correctAnswer: 'x ≠ 2, -2',
+      questionNumber: 5,
+    ),
+    Question(
+      id: 'q6',
+      question: 'What is the range of f(x) = 1/x?',
+      options: ['All real numbers except 0', 'All real numbers', '(0, ∞)', '[-1, 1]'],
+      correctAnswer: 'All real numbers except 0',
+      questionNumber: 6,
+    ),
+    Question(
+      id: 'q7',
+      question: 'Find the domain of f(x) = √(4-x²)',
+      options: ['[-2, 2]', '(-2, 2)', 'All real numbers', '[0, 4]'],
+      correctAnswer: '[-2, 2]',
+      questionNumber: 7,
+    ),
+    Question(
+      id: 'q8',
+      question: 'What is the range of f(x) = |x|?',
+      options: ['All real numbers', '[0, ∞)', '(-∞, 0]', '[-1, 1]'],
+      correctAnswer: '[0, ∞)',
+      questionNumber: 8,
+    ),
+    Question(
+      id: 'q9',
+      question: 'Find the domain of f(x) = 1/√(x-1)',
+      options: ['x > 1', 'x ≥ 1', 'All real numbers', 'x < 1'],
+      correctAnswer: 'x > 1',
+      questionNumber: 9,
+    ),
+    Question(
+      id: 'q10',
+      question: 'What is the domain of f(x) = ln(x²)?',
+      options: ['x ≠ 0', 'x > 0', 'All real numbers', 'x < 0'],
+      correctAnswer: 'x ≠ 0',
+      questionNumber: 10,
+    ),
+    Question(
+      id: 'q11',
+      question: 'Find the range of f(x) = 2^x',
+      options: ['All real numbers', '(0, ∞)', '[-2, 2]', '[1, ∞)'],
+      correctAnswer: '(0, ∞)',
+      questionNumber: 11,
+    ),
+    Question(
+      id: 'q12',
+      question: 'What is the domain of f(x) = 1/(x²+1)?',
+      options: ['All real numbers', 'x ≠ 1', 'x > 0', 'x < 0'],
+      correctAnswer: 'All real numbers',
+      questionNumber: 12,
+    ),
+    Question(
+      id: 'q13',
+      question: 'Find the range of f(x) = -x²',
+      options: ['(-∞, 0]', '[0, ∞)', 'All real numbers', '[-1, 1]'],
+      correctAnswer: '(-∞, 0]',
+      questionNumber: 13,
+    ),
+    Question(
+      id: 'q14',
+      question: 'What is the domain of f(x) = √(x²-9)?',
+      options: ['[-3, 3]', '(-3, 3)', '(-∞, -3] ∪ [3, ∞)', '(-∞, -3) ∪ (3, ∞)'],
+      correctAnswer: '(-∞, -3] ∪ [3, ∞)',
+      questionNumber: 14,
+    ),
+    Question(
+      id: 'q15',
+      question: 'Find the range of f(x) = sin(x)',
+      options: ['[-1, 1]', 'All real numbers', '(0, 1)', '(-1, 0)'],
+      correctAnswer: '[-1, 1]',
+      questionNumber: 15,
+    ),
+    Question(
+      id: 'q16',
+      question: 'What is the domain of f(x) = arcsin(x)?',
+      options: ['[-1, 1]', 'All real numbers', '[0, 1]', '(0, 1)'],
+      correctAnswer: '[-1, 1]',
+      questionNumber: 16,
+    ),
+    Question(
+      id: 'q17',
+      question: 'Find the range of f(x) = cos(x) + 3',
+      options: ['[-1, 1]', '[2, 4]', '[3, 4]', '[0, 3]'],
+      correctAnswer: '[2, 4]',
+      questionNumber: 17,
+    ),
+    Question(
+      id: 'q18',
+      question: 'What is the domain of f(x) = √(2x-1)?',
+      options: ['x ≥ 1/2', 'x > 1/2', 'All real numbers', 'x ≤ 1/2'],
+      correctAnswer: 'x ≥ 1/2',
+      questionNumber: 18,
+    ),
+    Question(
+      id: 'q19',
+      question: 'Find the range of f(x) = e^x',
+      options: ['(0, ∞)', 'All real numbers', '[-∞, ∞]', '[0, 1]'],
+      correctAnswer: '(0, ∞)',
+      questionNumber: 19,
+    ),
+    Question(
+      id: 'q20',
+      question: 'What is the domain of f(x) = tan(x)?',
+      options: ['All real numbers', 'x ≠ nπ/2 (n odd)', 'x ≠ nπ', 'x > 0'],
+      correctAnswer: 'x ≠ nπ/2 (n odd)',
+      questionNumber: 20,
+    ),
+    Question(
+      id: 'q21',
+      question: 'Find the range of f(x) = log(x)',
+      options: ['(0, ∞)', 'All real numbers', '[0, ∞)', '[-1, 1]'],
+      correctAnswer: 'All real numbers',
+      questionNumber: 21,
+    ),
+    Question(
+      id: 'q22',
+      question: 'What is the domain of f(x) = 1/(ln x)?',
+      options: ['x > 0, x ≠ 1', 'x > 0', 'x ≠ 0', 'All real numbers'],
+      correctAnswer: 'x > 0, x ≠ 1',
+      questionNumber: 22,
+    ),
+    Question(
+      id: 'q23',
+      question: 'Find the range of f(x) = 1/(1+x²)',
+      options: ['(0, 1]', '(0, ∞)', '[0, 1]', 'All real numbers'],
+      correctAnswer: '(0, 1]',
+      questionNumber: 23,
+    ),
+    Question(
+      id: 'q24',
+      question: 'What is the domain of f(x) = √(ln x)?',
+      options: ['x ≥ 1', 'x > 1', 'x > 0', 'All real numbers'],
+      correctAnswer: 'x ≥ 1',
+      questionNumber: 24,
+    ),
+    Question(
+      id: 'q25',
+      question: 'Find the range of f(x) = 3sin(x) - 2',
+      options: ['[-5, 1]', '[-1, 1]', '[0, 3]', 'All real numbers'],
+      correctAnswer: '[-5, 1]',
+      questionNumber: 25,
+    ),
+  ];
+
+  // ============================================================
+  // Types of Functions Questions (Q26-Q50)
+  // ============================================================
+  static final List<Question> _typesOfFunctionsQuestions = [
+    Question(
+      id: 'q26',
+      question: 'Which is a polynomial function?',
+      options: ['f(x) = sin(x)', 'f(x) = 3x³ - 2x² + 5', 'f(x) = e^x', 'f(x) = log(x)'],
+      correctAnswer: 'f(x) = 3x³ - 2x² + 5',
+      questionNumber: 26,
+    ),
+    Question(
+      id: 'q27',
+      question: 'What is the degree of the polynomial f(x) = 4x⁵ - 3x² + 2?',
+      options: ['5', '2', '3', '4'],
+      correctAnswer: '5',
+      questionNumber: 27,
+    ),
+    Question(
+      id: 'q28',
+      question: 'Which function is exponential?',
+      options: ['f(x) = x²', 'f(x) = 2^x', 'f(x) = log(x)', 'f(x) = x^2'],
+      correctAnswer: 'f(x) = 2^x',
+      questionNumber: 28,
+    ),
+    Question(
+      id: 'q29',
+      question: 'For f(x) = a^x where a > 1, the function is:',
+      options: ['Decreasing', 'Increasing', 'Constant', 'Periodic'],
+      correctAnswer: 'Increasing',
+      questionNumber: 29,
+    ),
+    Question(
+      id: 'q30',
+      question: 'Which is a trigonometric function?',
+      options: ['f(x) = e^x', 'f(x) = ln(x)', 'f(x) = sin(x)', 'f(x) = 2^x'],
+      correctAnswer: 'f(x) = sin(x)',
+      questionNumber: 30,
+    ),
+    Question(
+      id: 'q31',
+      question: 'The period of sin(x) is:',
+      options: ['π', '2π', 'π/2', '1'],
+      correctAnswer: '2π',
+      questionNumber: 31,
+    ),
+    Question(
+      id: 'q32',
+      question: 'Which function is logarithmic?',
+      options: ['f(x) = 10^x', 'f(x) = log₁₀(x)', 'f(x) = cos(x)', 'f(x) = x³'],
+      correctAnswer: 'f(x) = log₁₀(x)',
+      questionNumber: 32,
+    ),
+    Question(
+      id: 'q33',
+      question: 'The derivative of sin(x) is:',
+      options: ['cos(x)', '-sin(x)', '-cos(x)', 'tan(x)'],
+      correctAnswer: 'cos(x)',
+      questionNumber: 33,
+    ),
+    Question(
+      id: 'q34',
+      question: 'For exponential f(x) = a^x, if 0 < a < 1, the function is:',
+      options: ['Increasing', 'Decreasing', 'Constant', 'Periodic'],
+      correctAnswer: 'Decreasing',
+      questionNumber: 34,
+    ),
+    Question(
+      id: 'q35',
+      question: 'The derivative of cos(x) is:',
+      options: ['sin(x)', '-sin(x)', 'cos(x)', 'sec(x)'],
+      correctAnswer: '-sin(x)',
+      questionNumber: 35,
+    ),
+    Question(
+      id: 'q36',
+      question: 'Which is an even function?',
+      options: ['f(x) = x³', 'f(x) = x²', 'f(x) = sin(x)', 'f(x) = tan(x)'],
+      correctAnswer: 'f(x) = x²',
+      questionNumber: 36,
+    ),
+    Question(
+      id: 'q37',
+      question: 'Which is an odd function?',
+      options: ['f(x) = x²', 'f(x) = cos(x)', 'f(x) = x³', 'f(x) = 1'],
+      correctAnswer: 'f(x) = x³',
+      questionNumber: 37,
+    ),
+    Question(
+      id: 'q38',
+      question: 'The period of cos(x) is:',
+      options: ['π', '2π', 'π/2', '∞'],
+      correctAnswer: '2π',
+      questionNumber: 38,
+    ),
+    Question(
+      id: 'q39',
+      question: 'For f(x) = ln(x), the base is:',
+      options: ['10', 'e', '2', 'x'],
+      correctAnswer: 'e',
+      questionNumber: 39,
+    ),
+    Question(
+      id: 'q40',
+      question: 'The derivative of e^x is:',
+      options: ['x·e^(x-1)', 'e^x', '1', 'x'],
+      correctAnswer: 'e^x',
+      questionNumber: 40,
+    ),
+    Question(
+      id: 'q41',
+      question: 'Which is a rational function?',
+      options: ['f(x) = (x²+1)/(x-2)', 'f(x) = e^x', 'f(x) = √x', 'f(x) = sin(x)'],
+      correctAnswer: 'f(x) = (x²+1)/(x-2)',
+      questionNumber: 41,
+    ),
+    Question(
+      id: 'q42',
+      question: 'The period of tan(x) is:',
+      options: ['π', '2π', 'π/2', '∞'],
+      correctAnswer: 'π',
+      questionNumber: 42,
+    ),
+    Question(
+      id: 'q43',
+      question: 'For f(x) = log₂(x), what is f(8)?',
+      options: ['2', '3', '4', '8'],
+      correctAnswer: '3',
+      questionNumber: 43,
+    ),
+    Question(
+      id: 'q44',
+      question: 'Which function is unbounded?',
+      options: ['f(x) = sin(x)', 'f(x) = x²', 'f(x) = 1/(1+x²)', 'f(x) = arctan(x)'],
+      correctAnswer: 'f(x) = x²',
+      questionNumber: 44,
+    ),
+    Question(
+      id: 'q45',
+      question: 'The derivative of ln(x) is:',
+      options: ['1/x', 'x', 'log(x)', '1'],
+      correctAnswer: '1/x',
+      questionNumber: 45,
+    ),
+    Question(
+      id: 'q46',
+      question: 'For f(x) = 3^x, what is f(2)?',
+      options: ['6', '9', '27', '8'],
+      correctAnswer: '9',
+      questionNumber: 46,
+    ),
+    Question(
+      id: 'q47',
+      question: 'Which function has a vertical asymptote at x = 0?',
+      options: ['f(x) = 1/x', 'f(x) = x²', 'f(x) = sin(x)', 'f(x) = e^x'],
+      correctAnswer: 'f(x) = 1/x',
+      questionNumber: 47,
+    ),
+    Question(
+      id: 'q48',
+      question: 'The derivative of tan(x) is:',
+      options: ['sec²(x)', 'cot(x)', '-csc²(x)', 'sec(x)tan(x)'],
+      correctAnswer: 'sec²(x)',
+      questionNumber: 48,
+    ),
+    Question(
+      id: 'q49',
+      question: 'For f(x) = 5·2^x, f(0) equals:',
+      options: ['5', '10', '2', '0'],
+      correctAnswer: '5',
+      questionNumber: 49,
+    ),
+    Question(
+      id: 'q50',
+      question: 'Which is NOT a polynomial?',
+      options: ['f(x) = x² - 3x + 2', 'f(x) = 7', 'f(x) = √x', 'f(x) = 5x⁴'],
+      correctAnswer: 'f(x) = √x',
+      questionNumber: 50,
+    ),
+  ];
+
+  // ============================================================
+  // Limits Questions (Q51-Q75)
+  // ============================================================
+  static final List<Question> _limitsQuestions = [
+    Question(
+      id: 'q51',
+      question: 'Find lim(x→2) (3x - 1)',
+      options: ['5', '6', '7', '8'],
+      correctAnswer: '5',
+      questionNumber: 51,
+    ),
+    Question(
+      id: 'q52',
+      question: 'Find lim(x→3) (x² + 2x)',
+      options: ['15', '18', '20', '21'],
+      correctAnswer: '15',
+      questionNumber: 52,
+    ),
+    Question(
+      id: 'q53',
+      question: 'Evaluate lim(x→1) (x³ - 1)/(x - 1)',
+      options: ['0', '1', '3', 'Does not exist'],
+      correctAnswer: '3',
+      questionNumber: 53,
+    ),
+    Question(
+      id: 'q54',
+      question: 'Find lim(x→0) sin(x)/x',
+      options: ['0', '1', '∞', 'Does not exist'],
+      correctAnswer: '1',
+      questionNumber: 54,
+    ),
+    Question(
+      id: 'q55',
+      question: 'Evaluate lim(x→∞) 5x²/(2x² + 3x)',
+      options: ['5/2', '2/5', '∞', '0'],
+      correctAnswer: '5/2',
+      questionNumber: 55,
+    ),
+    Question(
+      id: 'q56',
+      question: 'Find lim(x→2) (x² - 4)/(x - 2)',
+      options: ['0', '2', '4', 'Does not exist'],
+      correctAnswer: '4',
+      questionNumber: 56,
+    ),
+    Question(
+      id: 'q57',
+      question: 'Evaluate lim(x→0⁺) 1/x',
+      options: ['0', '1', '+∞', '-∞'],
+      correctAnswer: '+∞',
+      questionNumber: 57,
+    ),
+    Question(
+      id: 'q58',
+      question: 'Find lim(x→0⁻) 1/x',
+      options: ['0', '1', '+∞', '-∞'],
+      correctAnswer: '-∞',
+      questionNumber: 58,
+    ),
+    Question(
+      id: 'q59',
+      question: 'Evaluate lim(x→∞) (x³ - 5x)/(2x³ + 1)',
+      options: ['1/2', '5/2', '0', '∞'],
+      correctAnswer: '1/2',
+      questionNumber: 59,
+    ),
+    Question(
+      id: 'q60',
+      question: 'Find lim(x→1) (x² - 1)/(x² - 3x + 2)',
+      options: ['0', '-2', '2', 'Does not exist'],
+      correctAnswer: '-2',
+      questionNumber: 60,
+    ),
+    Question(
+      id: 'q61',
+      question: 'Evaluate lim(x→0) (cos(x) - 1)/x',
+      options: ['0', '1', '-1', 'Does not exist'],
+      correctAnswer: '0',
+      questionNumber: 61,
+    ),
+    Question(
+      id: 'q62',
+      question: 'Find lim(x→∞) (1 + 1/x)^x',
+      options: ['e', '1', '∞', '0'],
+      correctAnswer: 'e',
+      questionNumber: 62,
+    ),
+    Question(
+      id: 'q63',
+      question: 'Evaluate lim(x→π) sin(x)',
+      options: ['0', '1', '-1', 'Does not exist'],
+      correctAnswer: '0',
+      questionNumber: 63,
+    ),
+    Question(
+      id: 'q64',
+      question: 'Find lim(x→0) (e^x - 1)/x',
+      options: ['0', '1', 'e', 'Does not exist'],
+      correctAnswer: '1',
+      questionNumber: 64,
+    ),
+    Question(
+      id: 'q65',
+      question: 'Evaluate lim(x→2) √(x + 2)',
+      options: ['√2', '2', '2√2', '4'],
+      correctAnswer: '2',
+      questionNumber: 65,
+    ),
+    Question(
+      id: 'q66',
+      question: 'Find lim(x→∞) e^(-x)',
+      options: ['0', '1', 'e', '∞'],
+      correctAnswer: '0',
+      questionNumber: 66,
+    ),
+    Question(
+      id: 'q67',
+      question: 'Evaluate lim(x→3) (2x + 1)/(x - 1)',
+      options: ['7/2', '3', '2', '∞'],
+      correctAnswer: '7/2',
+      questionNumber: 67,
+    ),
+    Question(
+      id: 'q68',
+      question: 'Find lim(x→1⁻) ln(x)',
+      options: ['0', '1', '-∞', 'Does not exist'],
+      correctAnswer: '-∞',
+      questionNumber: 68,
+    ),
+    Question(
+      id: 'q69',
+      question: 'Evaluate lim(x→∞) ln(x)/x',
+      options: ['0', '1', '∞', 'e'],
+      correctAnswer: '0',
+      questionNumber: 69,
+    ),
+    Question(
+      id: 'q70',
+      question: 'Find lim(x→π/2) tan(x)',
+      options: ['0', '1', '+∞', '-∞'],
+      correctAnswer: '+∞',
+      questionNumber: 70,
+    ),
+    Question(
+      id: 'q71',
+      question: 'Evaluate lim(x→0) tan(x)/x',
+      options: ['0', '1', '∞', 'Does not exist'],
+      correctAnswer: '1',
+      questionNumber: 71,
+    ),
+    Question(
+      id: 'q72',
+      question: 'Find lim(x→-∞) 5^x',
+      options: ['0', '5', '∞', 'Does not exist'],
+      correctAnswer: '0',
+      questionNumber: 72,
+    ),
+    Question(
+      id: 'q73',
+      question: 'Evaluate lim(x→4) (x - 4)/(√x - 2)',
+      options: ['4', '2', '0', 'Does not exist'],
+      correctAnswer: '4',
+      questionNumber: 73,
+    ),
+    Question(
+      id: 'q74',
+      question: 'Find lim(x→0) x·sin(1/x)',
+      options: ['0', '1', '∞', 'Does not exist'],
+      correctAnswer: '0',
+      questionNumber: 74,
+    ),
+    Question(
+      id: 'q75',
+      question: 'Evaluate lim(x→∞) (√(x² + 1) - x)',
+      options: ['0', '1', '∞', 'Does not exist'],
+      correctAnswer: '0',
+      questionNumber: 75,
+    ),
+  ];
+
+  // ============================================================
+  // Continuity and Discontinuity Questions (Q76-Q100)
+  // ============================================================
+  static final List<Question> _continuityQuestions = [
+    Question(
+      id: 'q76',
+      question: 'A function is continuous at x=c if:',
+      options: ['f(c) exists', 'lim(x→c) f(x) exists', 'lim(x→c) f(x) = f(c)', 'All of above'],
+      correctAnswer: 'All of above',
+      questionNumber: 76,
+    ),
+    Question(
+      id: 'q77',
+      question: 'Which function is continuous everywhere?',
+      options: ['f(x) = 1/x', 'f(x) = x²', 'f(x) = tan(x)', 'f(x) = 1/(x-1)'],
+      correctAnswer: 'f(x) = x²',
+      questionNumber: 77,
+    ),
+    Question(
+      id: 'q78',
+      question: 'f(x) = (x² - 1)/(x - 1) has a ___ discontinuity at x=1',
+      options: ['Removable', 'Jump', 'Infinite', 'Oscillating'],
+      correctAnswer: 'Removable',
+      questionNumber: 78,
+    ),
+    Question(
+      id: 'q79',
+      question: 'The discontinuity at x=0 for f(x) = 1/x is:',
+      options: ['Removable', 'Jump', 'Infinite', 'Oscillating'],
+      correctAnswer: 'Infinite',
+      questionNumber: 79,
+    ),
+    Question(
+      id: 'q80',
+      question: 'For f(x) = |x|/x, the left limit at x=0 is:',
+      options: ['0', '1', '-1', 'Does not exist'],
+      correctAnswer: '-1',
+      questionNumber: 80,
+    ),
+    Question(
+      id: 'q81',
+      question: 'For f(x) = |x|/x, the right limit at x=0 is:',
+      options: ['0', '1', '-1', 'Does not exist'],
+      correctAnswer: '1',
+      questionNumber: 81,
+    ),
+    Question(
+      id: 'q82',
+      question: 'At x=0, f(x) = |x|/x has a ___ discontinuity',
+      options: ['Removable', 'Jump', 'Infinite', 'None'],
+      correctAnswer: 'Jump',
+      questionNumber: 82,
+    ),
+    Question(
+      id: 'q83',
+      question: 'Which property does NOT define continuity at x=c?',
+      options: ['f(c) exists', 'f is differentiable at c', 'lim f(x) = f(c)', 'lim f(x) exists'],
+      correctAnswer: 'f is differentiable at c',
+      questionNumber: 83,
+    ),
+    Question(
+      id: 'q84',
+      question: 'If f is continuous at c and g is continuous at f(c), then:',
+      options: ['g∘f is continuous at c', 'f∘g is continuous at c', 'Both', 'Neither'],
+      correctAnswer: 'Both',
+      questionNumber: 84,
+    ),
+    Question(
+      id: 'q85',
+      question: 'The function f(x) = ⌊x⌋ (floor function) is:',
+      options: ['Continuous everywhere', 'Discontinuous at integers', 'Discontinuous everywhere', 'Continuous only at 0'],
+      correctAnswer: 'Discontinuous at integers',
+      questionNumber: 85,
+    ),
+    Question(
+      id: 'q86',
+      question: 'For f(x) = sin(1/x) as x→0, the discontinuity is:',
+      options: ['Removable', 'Jump', 'Infinite', 'Oscillating'],
+      correctAnswer: 'Oscillating',
+      questionNumber: 86,
+    ),
+    Question(
+      id: 'q87',
+      question: 'A continuous function on [a,b] is:',
+      options: ['Bounded', 'Attains its max', 'Attains its min', 'All of above'],
+      correctAnswer: 'All of above',
+      questionNumber: 87,
+    ),
+    Question(
+      id: 'q88',
+      question: 'If f is continuous at c and f(c) ≠ 0, then:',
+      options: ['f(x) ≠ 0 in neighborhood of c', 'f is differentiable at c', 'f is decreasing at c', 'lim(x→c) f(x) = 0'],
+      correctAnswer: 'f(x) ≠ 0 in neighborhood of c',
+      questionNumber: 88,
+    ),
+    Question(
+      id: 'q89',
+      question: 'For f(x) = e^x, at all points:',
+      options: ['Continuous', 'Differentiable', 'Increasing', 'All of above'],
+      correctAnswer: 'All of above',
+      questionNumber: 89,
+    ),
+    Question(
+      id: 'q90',
+      question: 'The Intermediate Value Theorem requires:',
+      options: ['f continuous on [a,b]', 'f(a) ≠ f(b)', 'f differentiable', 'f monotonic'],
+      correctAnswer: 'f continuous on [a,b]',
+      questionNumber: 90,
+    ),
+    Question(
+      id: 'q91',
+      question: 'For f(x) = cos(x), on ℝ:',
+      options: ['Always continuous', 'Discontinuous at x=nπ', 'Discontinuous at x=nπ/2', 'Never continuous'],
+      correctAnswer: 'Always continuous',
+      questionNumber: 91,
+    ),
+    Question(
+      id: 'q92',
+      question: 'A piecewise function can be continuous if:',
+      options: ['Pieces are continuous', 'Pieces connect at breaks', 'Limit = function value at break', 'All of above'],
+      correctAnswer: 'All of above',
+      questionNumber: 92,
+    ),
+    Question(
+      id: 'q93',
+      question: 'If f has a jump discontinuity at c:',
+      options: ['Left and right limits differ', 'Limit doesn\'t exist', 'Function not defined at c', 'a and b'],
+      correctAnswer: 'Left and right limits differ',
+      questionNumber: 93,
+    ),
+    Question(
+      id: 'q94',
+      question: 'For continuity at boundary point c of domain:',
+      options: ['Two-sided limit not required', 'One-sided limit sufficient', 'Must satisfy limit = f(c)', 'b or c'],
+      correctAnswer: 'b or c',
+      questionNumber: 94,
+    ),
+    Question(
+      id: 'q95',
+      question: 'The function f(x) = √(x-1) is continuous on:',
+      options: ['All ℝ', '[1, ∞)', '(1, ∞)', 'ℝ \\ {1}'],
+      correctAnswer: '[1, ∞)',
+      questionNumber: 95,
+    ),
+    Question(
+      id: 'q96',
+      question: 'If lim(x→c) f(x) exists but ≠ f(c):',
+      options: ['Removable discontinuity', 'Jump discontinuity', 'Infinite discontinuity', 'No discontinuity'],
+      correctAnswer: 'Removable discontinuity',
+      questionNumber: 96,
+    ),
+    Question(
+      id: 'q97',
+      question: 'The function f(x) = ln(x) is continuous on:',
+      options: ['All ℝ', '(0, ∞)', '[0, ∞)', '(-∞, 0)'],
+      correctAnswer: '(0, ∞)',
+      questionNumber: 97,
+    ),
+    Question(
+      id: 'q98',
+      question: 'For a function to be continuous on [a,b]:',
+      options: ['Must be differentiable', 'Must be increasing', 'Must satisfy definition at all points', 'Must be monotonic'],
+      correctAnswer: 'Must satisfy definition at all points',
+      questionNumber: 98,
+    ),
+    Question(
+      id: 'q99',
+      question: 'A function with finitely many jump discontinuities on [a,b]:',
+      options: ['Is integrable', 'Is continuous', 'Is differentiable', 'Increases monotonically'],
+      correctAnswer: 'Is integrable',
+      questionNumber: 99,
+    ),
+    Question(
+      id: 'q100',
+      question: 'If f is continuous on [a,b] and differentiable on (a,b):',
+      options: ['f\' exists at endpoints', 'Mean Value Theorem applies', 'f is increasing', 'f is bounded above'],
+      correctAnswer: 'Mean Value Theorem applies',
+      questionNumber: 100,
+    ),
+  ];
+}

@@ -1,0 +1,83 @@
+name: edul
+description: AI-powered learning platform for secondary and university students.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # HTTP & API
+  http: ^1.1.0
+  # State management
+  flutter_bloc: ^9.1.1
+  bloc: ^9.2.1
+  equatable: ^2.0.5
+
+  # Navigation
+  go_router: ^17.3.0
+
+  # Firebase
+  firebase_core: ^4.11.0
+  firebase_auth: ^6.5.4
+  cloud_firestore: ^6.6.0
+  firebase_database: ^12.4.4
+  firebase_storage: ^13.4.3
+  firebase_messaging: ^16.4.1
+  cloud_functions: ^6.3.3
+
+  #Authentication Providers
+
+  # Dependency injection
+  get_it: ^9.2.1
+  injectable: ^3.0.0
+
+  # Fonts & UI
+  google_fonts: ^8.1.0
+  cached_network_image: ^3.3.1
+  shimmer: ^3.0.0
+  lottie: ^3.1.0
+  flutter_svg: ^2.0.10+1
+
+  # Functional programming
+  dartz: ^0.10.1
+
+  # Networking
+  dio: ^5.4.3+1
+  connectivity_plus: ^7.1.1
+
+  # Local storage
+  shared_preferences: ^2.2.3
+  flutter_secure_storage: ^10.3.1
+
+  # Payments
+  webview_flutter: ^4.7.0
+
+  # Camera & Image
+  camera: ^0.12.0+1
+  image_picker: ^1.1.1
+
+  # Utils
+  intl: ^0.20.3
+  uuid: ^4.4.0
+  logger: ^2.3.0
+  url_launcher: ^6.2.5
+  package_info_plus: ^10.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  injectable_generator: ^3.0.2
+  build_runner: ^2.4.9
+  mockito: ^5.4.4
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/edulink_logo.png
+    - assets/icons/ 
+    - assets/animations/
+    - assets/fonts/
