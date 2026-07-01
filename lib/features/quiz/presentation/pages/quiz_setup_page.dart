@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/data/course_catalog/subjects_data.dart';
+import '../../data/topic_question_source.dart';
 import '../bloc/quiz_bloc.dart';
 import '../../domain/models/quiz_question.dart';
 
@@ -14,117 +18,364 @@ class QuizSetupPage extends StatefulWidget {
 }
 
 class _QuizSetupPageState extends State<QuizSetupPage> {
-  late String _selectedTopic;
+  // The course currently selected (subjectsData key, e.g. 'MTS 102'),
+  // and the specific fine-grained topics (lessonIds) chosen within it.
+  // If _selectedTopicIds is empty, the whole course is used (pooled).
+  String? _selectedCourseKey;
+  String _selectedCourseName = 'Select a course';
+  List<String> _selectedTopicIds = [];
+  List<String> _unlockedCourses = [];
   QuizDifficulty _difficulty = QuizDifficulty.easy;
   QuizMode _mode = QuizMode.timed;
-
-  // Topic data
-  final Map<String, Map<String, dynamic>> _topics = {
-    'Data Structures': {'emoji': '⚡', 'questions': 10, 'time': '5m'},
-    'Algorithms': {'emoji': '🔄', 'questions': 12, 'time': '6m'},
-    'Database Design': {'emoji': '🗄️', 'questions': 10, 'time': '5m'},
-    'Web Development': {'emoji': '🌐', 'questions': 15, 'time': '8m'},
-    'Calculus': {'emoji': '∫', 'questions': 10, 'time': '5m'},
-    'Linear Algebra': {'emoji': '📐', 'questions': 10, 'time': '5m'},
-    'Probability': {'emoji': '🎲', 'questions': 12, 'time': '6m'},
-  };
 
   @override
   void initState() {
     super.initState();
-    _selectedTopic = widget.topic;
+    _loadUnlockedCourses();
+  }
+
+  Future<void> _loadUnlockedCourses() async {
+    final prefs = await SharedPreferences.getInstance();
+    final unlocked = prefs.getStringList('unlocked_courses') ?? [];
+    setState(() => _unlockedCourses = unlocked);
+  }
+
+  /// Resolves a catalog course code (e.g. 'MTS102') to a subjectsData
+  /// key (e.g. 'MTS 102'), if a real question bank exists for it.
+  String? _resolveToSubjectsDataKey(String catalogCode) {
+    final normalized = catalogCode.replaceAll(' ', '').toUpperCase();
+    for (final key in subjectsData.keys) {
+      if (key.replaceAll(' ', '').toUpperCase() == normalized) {
+        return TopicQuestionSource.hasQuestionBank(key) ? key : null;
+      }
+    }
+    return null;
+  }
+
+  int get _questionCount {
+    if (_selectedCourseKey == null) return 0;
+    if (_selectedTopicIds.isEmpty) {
+      return TopicQuestionSource.questionsForCourse(_selectedCourseKey!).length;
+    }
+    return TopicQuestionSource.questionsForSelectedTopics(
+      courseKey: _selectedCourseKey!,
+      lessonIds: _selectedTopicIds,
+    ).length;
   }
 
   void _showTopicPicker() {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.surface,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      isScrollControlled: true,
-      builder: (context) => Container(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.7,
-        ),
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Select a Topic',
-              style: GoogleFonts.dmSans(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
+      builder: (context) {
+        // Track which course's topics are currently expanded, and the
+        // in-progress topic selection for that course during this sheet.
+        String? expandedCourseKey;
+        List<String> workingTopicIds = List.from(_selectedTopicIds);
+        String? workingCourseKey = _selectedCourseKey;
+
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            // Build the list of courses to show: only unlocked ones,
+            // each flagged whether it has a real question bank.
+            final courseEntries = _unlockedCourses.map((code) {
+              final key = _resolveToSubjectsDataKey(code);
+              final rawKey = subjectsData.keys.firstWhere(
+                (k) => k.replaceAll(' ', '').toUpperCase() ==
+                    code.replaceAll(' ', '').toUpperCase(),
+                orElse: () => code,
+              );
+              final courseData = subjectsData[rawKey];
+              return {
+                'catalogCode': code,
+                'subjectsDataKey': key, // null if no question bank
+                'displayKey': rawKey,
+                'fullName': courseData?['fullName'] as String? ?? code,
+                'available': key != null,
+              };
+            }).toList();
+
+            return Container(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.75,
               ),
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  children: _topics.entries.map((entry) => GestureDetector(
-                    onTap: () {
-                      setState(() => _selectedTopic = entry.key);
-                      Navigator.pop(context);
-                    },
-                    child: Container(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: _selectedTopic == entry.key
-                            ? AppColors.accentSurface
-                            : AppColors.surfaceVariant,
-                        border: Border.all(
-                          color: _selectedTopic == entry.key
-                              ? AppColors.accent
-                              : AppColors.border,
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        children: [
-                          Text(entry.value['emoji'], style: const TextStyle(fontSize: 20)),
-                          const SizedBox(width: 12),
-                          Expanded(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Select a Topic',
+                    style: GoogleFonts.dmSans(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Pick a course, or expand to choose specific topics',
+                    style: GoogleFonts.dmSans(
+                      fontSize: 11,
+                      color: AppColors.textTertiary,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: courseEntries.isEmpty
+                        ? Center(
+                            child: Text(
+                              'No subjects unlocked yet.\nSelect subjects during registration.',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.dmSans(
+                                fontSize: 12,
+                                color: AppColors.textTertiary,
+                              ),
+                            ),
+                          )
+                        : SingleChildScrollView(
                             child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  entry.key,
-                                  style: GoogleFonts.dmSans(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w500,
-                                    color: AppColors.textPrimary,
-                                  ),
-                                ),
-                                Text(
-                                  '${entry.value['questions']} questions · ${entry.value['time']}',
-                                  style: GoogleFonts.dmSans(
-                                    fontSize: 11,
-                                    color: AppColors.textTertiary,
-                                  ),
-                                ),
-                              ],
+                              children: courseEntries.map((course) {
+                                final available = course['available'] as bool;
+                                final displayKey = course['displayKey'] as String;
+                                final fullName = course['fullName'] as String;
+                                final isExpanded = expandedCourseKey == displayKey;
+                                final isCourseSelected =
+                                    workingCourseKey == displayKey;
+                                final topics = available
+                                    ? TopicQuestionSource.topicsForCourse(displayKey)
+                                    : <Map<String, String>>[];
+
+                                return Column(
+                                  children: [
+                                    GestureDetector(
+                                      onTap: !available
+                                          ? null
+                                          : () {
+                                              HapticFeedback.selectionClick();
+                                              setModalState(() {
+                                                if (isExpanded) {
+                                                  expandedCourseKey = null;
+                                                } else {
+                                                  expandedCourseKey = displayKey;
+                                                  workingCourseKey = displayKey;
+                                                  workingTopicIds = [];
+                                                }
+                                              });
+                                            },
+                                      child: Container(
+                                        margin: const EdgeInsets.only(bottom: 8),
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
+                                          color: !available
+                                              ? AppColors.surfaceVariant
+                                                  .withOpacity(0.4)
+                                              : isCourseSelected
+                                                  ? AppColors.accentSurface
+                                                  : AppColors.surfaceVariant,
+                                          border: Border.all(
+                                            color: isCourseSelected && available
+                                                ? AppColors.accent
+                                                : AppColors.border,
+                                          ),
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    fullName,
+                                                    style: GoogleFonts.dmSans(
+                                                      fontSize: 13,
+                                                      fontWeight: FontWeight.w500,
+                                                      color: available
+                                                          ? AppColors.textPrimary
+                                                          : AppColors.textTertiary,
+                                                    ),
+                                                  ),
+                                                  if (available)
+                                                    Text(
+                                                      '${topics.length} topics available',
+                                                      style: GoogleFonts.dmSans(
+                                                        fontSize: 11,
+                                                        color:
+                                                            AppColors.textTertiary,
+                                                      ),
+                                                    ),
+                                                ],
+                                              ),
+                                            ),
+                                            if (!available)
+                                              Container(
+                                                padding: const EdgeInsets
+                                                    .symmetric(
+                                                    horizontal: 8, vertical: 3),
+                                                decoration: BoxDecoration(
+                                                  color:
+                                                      AppColors.surfaceVariant,
+                                                  borderRadius:
+                                                      BorderRadius.circular(20),
+                                                ),
+                                                child: Text(
+                                                  'Coming soon',
+                                                  style: GoogleFonts.dmSans(
+                                                    fontSize: 9,
+                                                    color:
+                                                        AppColors.textTertiary,
+                                                  ),
+                                                ),
+                                              )
+                                            else
+                                              Icon(
+                                                isExpanded
+                                                    ? Icons
+                                                        .keyboard_arrow_up_rounded
+                                                    : Icons
+                                                        .keyboard_arrow_down_rounded,
+                                                color: AppColors.textTertiary,
+                                                size: 20,
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    if (isExpanded)
+                                      Container(
+                                        margin: const EdgeInsets.only(bottom: 8),
+                                        padding: const EdgeInsets.all(10),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.background,
+                                          border: Border.all(
+                                              color: AppColors.border),
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'FINE-GRAINED TOPICS (optional — leave unselected to use the whole course)',
+                                              style: GoogleFonts.dmSans(
+                                                fontSize: 9,
+                                                fontWeight: FontWeight.w600,
+                                                color: AppColors.textTertiary,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 8),
+                                            ...topics.map((topic) {
+                                              final id = topic['id']!;
+                                              final name = topic['name']!;
+                                              final checked =
+                                                  workingTopicIds.contains(id);
+                                              return GestureDetector(
+                                                onTap: () {
+                                                  HapticFeedback
+                                                      .selectionClick();
+                                                  setModalState(() {
+                                                    if (checked) {
+                                                      workingTopicIds
+                                                          .remove(id);
+                                                    } else {
+                                                      workingTopicIds.add(id);
+                                                    }
+                                                  });
+                                                },
+                                                child: Padding(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                          vertical: 6),
+                                                  child: Row(
+                                                    children: [
+                                                      Icon(
+                                                        checked
+                                                            ? Icons
+                                                                .check_box_rounded
+                                                            : Icons
+                                                                .check_box_outline_blank_rounded,
+                                                        size: 18,
+                                                        color: checked
+                                                            ? AppColors.accent
+                                                            : AppColors
+                                                                .textTertiary,
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                      Expanded(
+                                                        child: Text(
+                                                          name,
+                                                          style: GoogleFonts
+                                                              .dmSans(
+                                                            fontSize: 12,
+                                                            color: AppColors
+                                                                .textSecondary,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              );
+                                            }),
+                                          ],
+                                        ),
+                                      ),
+                                  ],
+                                );
+                              }).toList(),
                             ),
                           ),
-                          if (_selectedTopic == entry.key)
-                            const Icon(
-                              Icons.check_circle,
-                              color: AppColors.accent,
-                              size: 20,
-                            ),
-                        ],
+                  ),
+                  const SizedBox(height: 12),
+                  GestureDetector(
+                    onTap: workingCourseKey == null
+                        ? null
+                        : () {
+                            setState(() {
+                              _selectedCourseKey = workingCourseKey;
+                              _selectedCourseName = subjectsData[workingCourseKey]
+                                      ?['fullName'] as String? ??
+                                  workingCourseKey!;
+                              _selectedTopicIds = workingTopicIds;
+                            });
+                            Navigator.pop(context);
+                          },
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      decoration: BoxDecoration(
+                        color: workingCourseKey == null
+                            ? AppColors.border
+                            : AppColors.accent,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Center(
+                        child: Text(
+                          workingTopicIds.isEmpty
+                              ? 'Use whole course'
+                              : 'Use ${workingTopicIds.length} selected topic${workingTopicIds.length == 1 ? "" : "s"}',
+                          style: GoogleFonts.dmSans(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
                       ),
                     ),
-                  )).toList(),
-                ),
+                  ),
+                ],
               ),
-            ),
-          ],
-        ),
-      ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -185,10 +436,12 @@ class _QuizSetupPageState extends State<QuizSetupPage> {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               const SizedBox(height: 8),
               _TopicCard(
-                topic: _selectedTopic,
-                emoji: _topics[_selectedTopic]?['emoji'] ?? '⚡',
-                questions: _topics[_selectedTopic]?['questions'] ?? 10,
-                time: _topics[_selectedTopic]?['time'] ?? '5m',
+                topic: _selectedTopicIds.isEmpty
+                    ? _selectedCourseName
+                    : '$_selectedCourseName (${_selectedTopicIds.length} topics)',
+                emoji: '⚡',
+                questions: _questionCount,
+                time: '${(_questionCount * 0.5).ceil()}m',
               ),
               const SizedBox(height: 20),
               _label('Choose difficulty'),
@@ -200,8 +453,16 @@ class _QuizSetupPageState extends State<QuizSetupPage> {
               _ModeSelector(selected: _mode, onChanged: (m) => setState(() => _mode = m)),
               const SizedBox(height: 28),
               GestureDetector(
-                onTap: () => context.read<QuizBloc>().add(
-                  QuizStarted(topic: _selectedTopic, difficulty: _difficulty, mode: _mode)),
+                onTap: _selectedCourseKey == null
+                    ? null
+                    : () => context.read<QuizBloc>().add(
+                          QuizStarted(
+                            topic: _selectedCourseKey!,
+                            topicIds: _selectedTopicIds,
+                            difficulty: _difficulty,
+                            mode: _mode,
+                          ),
+                        ),
                 child: Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(14),
