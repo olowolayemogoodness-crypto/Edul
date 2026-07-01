@@ -2,14 +2,16 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../domain/models/quiz_question.dart';
 import '../../data/mock_questions.dart';
+import '../../data/topic_question_source.dart';
 
 // ── Events ──
 abstract class QuizEvent {}
 class QuizStarted extends QuizEvent {
   final String topic;
+  final List<String> topicIds;
   final QuizDifficulty difficulty;
   final QuizMode mode;
-  QuizStarted({required this.topic, required this.difficulty, required this.mode});
+  QuizStarted({required this.topic, this.topicIds = const [], required this.difficulty, required this.mode});
 }
 class QuizAnswerSelected extends QuizEvent {
   final int selectedIndex;
@@ -93,9 +95,23 @@ class QuizBloc extends Bloc<QuizEvent, QuizState> {
 
   void _onStarted(QuizStarted event, Emitter<QuizState> emit) {
     _answers.clear(); _times.clear();
-    final questions = MockQuestions.getQuestions(
-      topic: event.topic, difficulty: event.difficulty,
-    );
+
+    List<QuizQuestion> questions;
+    if (TopicQuestionSource.hasQuestionBank(event.topic)) {
+      // event.topic is a subjectsData course key (e.g. 'MTS 102')
+      questions = event.topicIds.isEmpty
+          ? TopicQuestionSource.questionsForCourse(event.topic)
+          : TopicQuestionSource.questionsForSelectedTopics(
+              courseKey: event.topic,
+              lessonIds: event.topicIds,
+            );
+    } else {
+      // Fallback to legacy mock questions (old flow / topics not in the catalog)
+      questions = MockQuestions.getQuestions(
+        topic: event.topic, difficulty: event.difficulty,
+      );
+    }
+
     emit(QuizInProgress(
       questions: questions, currentIndex: 0, lives: 3,
       streak: 0, bestStreak: 0, correct: 0, wrong: 0,

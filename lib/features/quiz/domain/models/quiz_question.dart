@@ -10,7 +10,7 @@ class QuizQuestion {
     required this.question,
     required this.options,
     required this.correctIndex,
-    required this.explanation,
+    this.explanation = '',
     this.formula,
   });
 }
