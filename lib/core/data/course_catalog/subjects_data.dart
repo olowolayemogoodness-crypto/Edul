@@ -145,9 +145,8 @@ final Map<String, Map<String, dynamic>> subjectsData = {
         'name': 'Electrostatics',
         'color': Color(0xFFEF4444),
         'lessons': [
-          {'id': 'phy102_u1_1', 'name': 'Electric Fields', 'icon': '⚡'},
-          {'id': 'phy102_u1_2', 'name': 'Electric Potential', 'icon': '💡'},
-          {'id': 'phy102_u1_3', 'name': 'Applications', 'icon': '🔧'},
+          {'id': 'phy102_u1_1', 'name': 'Charge and Coulomb\'s Law', 'icon': '⚡'},
+          {'id': 'phy102_u1_2', 'name': 'Electric Field and Potential', 'icon': '💡'},
         ]
       },
       {
@@ -155,9 +154,12 @@ final Map<String, Map<String, dynamic>> subjectsData = {
         'name': 'Current Electricity',
         'color': Color(0xFFF87171),
         'lessons': [
-          {'id': 'phy102_u2_1', 'name': 'Circuits', 'icon': '⚙️'},
-          {'id': 'phy102_u2_2', 'name': 'Ohm\'s Law', 'icon': '📊'},
-          {'id': 'phy102_u2_3', 'name': 'Power & Energy', 'icon': '⚡'},
+          {'id': 'phy102_u1_3', 'name': 'Current Electricity Basics', 'icon': '🔧'},
+          {'id': 'phy102_u5_1', 'name': 'Electric Current', 'icon': '🔌'},
+          {'id': 'phy102_u5_2', 'name': 'Resistance and Resistors', 'icon': '📊'},
+          {'id': 'phy102_u5_3', 'name': 'Electrical Power', 'icon': '⚡'},
+          {'id': 'phy102_u5_4', 'name': 'Resistors in Series and Parallel', 'icon': '🔗'},
+          {'id': 'phy102_u5_5', 'name': 'Kirchhoff\'s Law', 'icon': '🧮'},
         ]
       },
       {
@@ -165,9 +167,8 @@ final Map<String, Map<String, dynamic>> subjectsData = {
         'name': 'Magnetism',
         'color': Color(0xFFFCA5A5),
         'lessons': [
-          {'id': 'phy102_u3_1', 'name': 'Magnetic Fields', 'icon': '🧲'},
-          {'id': 'phy102_u3_2', 'name': 'Magnetic Induction', 'icon': '🔄'},
-          {'id': 'phy102_u3_3', 'name': 'Applications', 'icon': '📡'},
+          {'id': 'phy102_u2_1', 'name': 'Magnetic Fields and Forces', 'icon': '🧲'},
+          {'id': 'phy102_u2_2', 'name': 'Self and Mutual Inductance', 'icon': '🔄'},
         ]
       },
       {
@@ -175,9 +176,17 @@ final Map<String, Map<String, dynamic>> subjectsData = {
         'name': 'Electromagnetic Waves',
         'color': Color(0xFFFECACA),
         'lessons': [
-          {'id': 'phy102_u4_1', 'name': 'Wave Properties', 'icon': '〰️'},
-          {'id': 'phy102_u4_2', 'name': 'EM Radiation', 'icon': '☀️'},
-          {'id': 'phy102_u4_3', 'name': 'Applications', 'icon': '📡'},
+          {'id': 'phy102_u2_3', 'name': 'EM Wave Properties', 'icon': '〰️'},
+          {'id': 'phy102_u3_1', 'name': 'EM Wave Applications', 'icon': '📡'},
+        ]
+      },
+      {
+        'unit': 5,
+        'name': 'Applied Physics',
+        'color': Color(0xFFFEE2E2),
+        'lessons': [
+          {'id': 'phy102_u3_2', 'name': 'Motors, Generators and Transformers', 'icon': '⚙️'},
+          {'id': 'phy102_u3_3', 'name': 'Modern Physics Applications', 'icon': '🔬'},
         ]
       },
     ]

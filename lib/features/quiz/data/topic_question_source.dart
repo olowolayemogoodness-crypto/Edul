@@ -11,6 +11,8 @@ import '../../learning/data/lessons/bio102_lessons.dart';
 import '../../learning/data/lessons/che102_lessons.dart';
 import '../../learning/data/lessons/phy102_lessons.dart';
 import '../../learning/data/lessons/gns106_lessons.dart';
+import 'question_banks/mts102_question_bank.dart';
+import 'question_banks/phy102_question_bank.dart';
 import '../../../core/data/course_catalog/subjects_data.dart';
 
 class TopicQuestionSource {
@@ -38,6 +40,28 @@ class TopicQuestionSource {
     }
   }
 
+  // Maps a subjectsData course key to an EXTRA question-bank getter,
+  // if a richer bank exists for that course. Questions returned here
+  // are ADDED ON TOP OF the base lesson questions (append, not
+  // replace) -- see _questionsForLessonId below.
+  //
+  // NOTE: PHY102's extra bank also covers brand-new lessonIds
+  // (phy102_u5_1 .. phy102_u5_5) that have NO entry in
+  // phy102_lessons.dart at all. _questionsForLessonId handles this
+  // gracefully -- base lookups simply return an empty question list
+  // for those ids, so the extra bank's questions are all there is.
+  static List<Map<String, dynamic>> Function(String lessonId)?
+      _extraGetterForCourse(String courseKey) {
+    switch (courseKey) {
+      case 'MTS 102':
+        return getMTS102ExtraQuestions;
+      case 'PHY 102':
+        return getPHY102ExtraQuestions;
+      default:
+        return null; // No extra bank for this course yet
+    }
+  }
+
   /// Whether a course (by subjectsData key, e.g. 'MTS 102') has a
   /// real question bank available.
   static bool hasQuestionBank(String courseKey) {
@@ -45,19 +69,43 @@ class TopicQuestionSource {
   }
 
   /// Converts one lesson's raw question maps into QuizQuestion objects.
-  static List<QuizQuestion> _convertLessonQuestions(
-      Map<String, dynamic> lessonData) {
-    final rawQuestions = lessonData['questions'] as List<dynamic>? ?? [];
+  static List<QuizQuestion> _convertQuestions(
+      List<dynamic> rawQuestions) {
     return rawQuestions.map((q) {
       final map = q as Map<String, dynamic>;
       return QuizQuestion(
         question: map['question'] as String,
         options: List<String>.from(map['options'] as List),
         correctIndex: map['correct'] as int,
-        // Lesson data has no explanation field; defaults to ''.
+        // Lesson/bank data has no explanation field; defaults to ''.
         explanation: (map['explanation'] as String?) ?? '',
       );
     }).toList();
+  }
+
+  /// Returns all questions for one fine-grained topic (lessonId),
+  /// combining the base lesson questions with any extra question-bank
+  /// questions for that course (appended, not replacing).
+  ///
+  /// If a lessonId has no base lesson data at all (e.g. a brand-new
+  /// topic added only via the extra bank), the base lookup safely
+  /// returns an empty list and the extra bank supplies everything.
+  static List<QuizQuestion> _questionsForLessonId(
+      String courseKey, String lessonId) {
+    final getter = _getterForCourse(courseKey);
+    if (getter == null) return [];
+
+    final baseData = getter(lessonId);
+    final baseRaw = baseData['questions'] as List<dynamic>? ?? [];
+    final combined = <QuizQuestion>[..._convertQuestions(baseRaw)];
+
+    final extraGetter = _extraGetterForCourse(courseKey);
+    if (extraGetter != null) {
+      final extraRaw = extraGetter(lessonId);
+      combined.addAll(_convertQuestions(extraRaw));
+    }
+
+    return combined;
   }
 
   /// Returns questions for one fine-grained topic (a single lesson),
@@ -66,10 +114,7 @@ class TopicQuestionSource {
     required String courseKey,
     required String lessonId,
   }) {
-    final getter = _getterForCourse(courseKey);
-    if (getter == null) return [];
-    final lessonData = getter(lessonId);
-    return _convertLessonQuestions(lessonData);
+    return _questionsForLessonId(courseKey, lessonId);
   }
 
   /// Returns every lessonId + display name for a course, in unit order.
@@ -100,8 +145,7 @@ class TopicQuestionSource {
     final topics = topicsForCourse(courseKey);
     final allQuestions = <QuizQuestion>[];
     for (final topic in topics) {
-      final lessonData = getter(topic['id']!);
-      allQuestions.addAll(_convertLessonQuestions(lessonData));
+      allQuestions.addAll(_questionsForLessonId(courseKey, topic['id']!));
     }
     allQuestions.shuffle(Random());
     return allQuestions;
@@ -109,18 +153,44 @@ class TopicQuestionSource {
 
   /// Returns questions pooled from a specific set of fine-grained
   /// topics (lessonIds) within a course, shuffled.
+  ///
+  /// If [minCount] is provided and the selected topics don't have
+  /// enough questions to meet it, additional questions are topped up
+  /// from the course's other topics (in unit order) until minCount is
+  /// reached or the whole course pool is exhausted.
   static List<QuizQuestion> questionsForSelectedTopics({
     required String courseKey,
     required List<String> lessonIds,
+    int? minCount,
   }) {
     final getter = _getterForCourse(courseKey);
     if (getter == null) return [];
-    final allQuestions = <QuizQuestion>[];
+
+    final selectedQuestions = <QuizQuestion>[];
     for (final lessonId in lessonIds) {
-      final lessonData = getter(lessonId);
-      allQuestions.addAll(_convertLessonQuestions(lessonData));
+      selectedQuestions.addAll(_questionsForLessonId(courseKey, lessonId));
     }
-    allQuestions.shuffle(Random());
-    return allQuestions;
+
+    if (minCount == null || selectedQuestions.length >= minCount) {
+      selectedQuestions.shuffle(Random());
+      return selectedQuestions;
+    }
+
+    // Top up from other topics in the same course.
+    final shortfall = minCount - selectedQuestions.length;
+    final topUpQuestions = <QuizQuestion>[];
+    final allTopics = topicsForCourse(courseKey);
+    for (final topic in allTopics) {
+      if (lessonIds.contains(topic['id'])) continue; // already included
+      topUpQuestions.addAll(_questionsForLessonId(courseKey, topic['id']!));
+    }
+    topUpQuestions.shuffle(Random());
+
+    final combined = [
+      ...selectedQuestions,
+      ...topUpQuestions.take(shortfall),
+    ];
+    combined.shuffle(Random());
+    return combined;
   }
 }

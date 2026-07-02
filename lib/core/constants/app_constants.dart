@@ -26,6 +26,13 @@ class AppConstants {
   static const String scholarshipPrize   = '₦1,000,000';
 
   static const List<String> examTypes = ['WAEC', 'JAMB', 'IELTS', 'TOEFL', 'GRE', 'SAT'];
+  
+  // Compulsory Nigerian university GST/core courses, unlocked for every
+  // student regardless of elective subject picks. See subject_picker_page.dart
+  // (_saveAndContinue) and main.dart (_migrateCompulsoryCourses).
+  static const List<String> compulsoryCourseCodes = [
+    'MTS101', 'MTS102', 'PHY102', 'GNS106', 'BIO102', 'CSC102',
+  ];
 
   static const int pageSize    = 20;
   static const String geminiModel = 'gemini-1.5-flash';
