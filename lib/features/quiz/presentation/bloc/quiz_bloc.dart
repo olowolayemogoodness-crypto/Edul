@@ -93,9 +93,21 @@ class QuizBloc extends Bloc<QuizEvent, QuizState> {
     on<QuizReset>(_onReset);
   }
 
+  int _questionCountForDifficulty(QuizDifficulty difficulty) {
+    switch (difficulty) {
+      case QuizDifficulty.easy:
+        return 10;
+      case QuizDifficulty.medium:
+        return 20;
+      case QuizDifficulty.hard:
+        return 30;
+    }
+  }
+
   void _onStarted(QuizStarted event, Emitter<QuizState> emit) {
     _answers.clear(); _times.clear();
 
+    final requestedCount = _questionCountForDifficulty(event.difficulty);
     List<QuizQuestion> questions;
     if (TopicQuestionSource.hasQuestionBank(event.topic)) {
       // event.topic is a subjectsData course key (e.g. 'MTS 102')
@@ -104,12 +116,20 @@ class QuizBloc extends Bloc<QuizEvent, QuizState> {
           : TopicQuestionSource.questionsForSelectedTopics(
               courseKey: event.topic,
               lessonIds: event.topicIds,
+              minCount: requestedCount,
             );
     } else {
       // Fallback to legacy mock questions (old flow / topics not in the catalog)
       questions = MockQuestions.getQuestions(
         topic: event.topic, difficulty: event.difficulty,
       );
+    }
+
+    // Trim to the difficulty's question count. If the pool has fewer
+    // questions than requested, use everything available instead of
+    // throwing a range error.
+    if (questions.length > requestedCount) {
+      questions = questions.take(requestedCount).toList();
     }
 
     emit(QuizInProgress(

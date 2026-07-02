@@ -52,7 +52,7 @@ class _QuizSetupPageState extends State<QuizSetupPage> {
     return null;
   }
 
-  int get _questionCount {
+  int get _availableQuestionCount {
     if (_selectedCourseKey == null) return 0;
     if (_selectedTopicIds.isEmpty) {
       return TopicQuestionSource.questionsForCourse(_selectedCourseKey!).length;
@@ -61,6 +61,27 @@ class _QuizSetupPageState extends State<QuizSetupPage> {
       courseKey: _selectedCourseKey!,
       lessonIds: _selectedTopicIds,
     ).length;
+  }
+
+  int get _questionCount {
+    final requested = switch (_difficulty) {
+      QuizDifficulty.easy => 10,
+      QuizDifficulty.medium => 20,
+      QuizDifficulty.hard => 30,
+    };
+    if (_selectedCourseKey == null) return 0;
+
+    if (_selectedTopicIds.isEmpty) {
+      // Whole course selected — cap by whatever the course pool has.
+      final available = _availableQuestionCount;
+      return available < requested ? available : requested;
+    }
+
+    // Specific topics selected — account for top-up from the rest
+    // of the course, capped by the total course pool size.
+    final courseTotal =
+        TopicQuestionSource.questionsForCourse(_selectedCourseKey!).length;
+    return courseTotal < requested ? courseTotal : requested;
   }
 
   void _showTopicPicker() {

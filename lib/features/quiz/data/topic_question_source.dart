@@ -109,18 +109,48 @@ class TopicQuestionSource {
 
   /// Returns questions pooled from a specific set of fine-grained
   /// topics (lessonIds) within a course, shuffled.
+  /// Returns questions pooled from a specific set of fine-grained
+  /// topics (lessonIds) within a course, shuffled.
+  ///
+  /// If [minCount] is provided and the selected topics don't have
+  /// enough questions to meet it, additional questions are topped up
+  /// from the course's other topics (in unit order) until minCount is
+  /// reached or the whole course pool is exhausted.
   static List<QuizQuestion> questionsForSelectedTopics({
     required String courseKey,
     required List<String> lessonIds,
+    int? minCount,
   }) {
     final getter = _getterForCourse(courseKey);
     if (getter == null) return [];
-    final allQuestions = <QuizQuestion>[];
+
+    final selectedQuestions = <QuizQuestion>[];
     for (final lessonId in lessonIds) {
       final lessonData = getter(lessonId);
-      allQuestions.addAll(_convertLessonQuestions(lessonData));
+      selectedQuestions.addAll(_convertLessonQuestions(lessonData));
     }
-    allQuestions.shuffle(Random());
-    return allQuestions;
+
+    if (minCount == null || selectedQuestions.length >= minCount) {
+      selectedQuestions.shuffle(Random());
+      return selectedQuestions;
+    }
+
+    // Top up from other topics in the same course.
+    final shortfall = minCount - selectedQuestions.length;
+    final topUpQuestions = <QuizQuestion>[];
+    final allTopics = topicsForCourse(courseKey);
+    for (final topic in allTopics) {
+      if (lessonIds.contains(topic['id'])) continue; // already included
+      final lessonData = getter(topic['id']!);
+      topUpQuestions.addAll(_convertLessonQuestions(lessonData));
+    }
+    topUpQuestions.shuffle(Random());
+
+    final combined = [
+      ...selectedQuestions,
+      ...topUpQuestions.take(shortfall),
+    ];
+    combined.shuffle(Random());
+    return combined;
   }
-}
+  }
