@@ -8,6 +8,8 @@ import 'features/auth/presentation/bloc/auth_bloc.dart';
 import 'features/auth/presentation/bloc/auth_event.dart';
 import 'injection_container.dart';
 import 'firebase_options.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'core/constants/app_constants.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,7 +25,27 @@ void main() async {
   ));
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await initDependencies();
+  await _migrateCompulsoryCourses();
   runApp(const EduLinkApp());
+}
+
+/// One-time migration: ensures compulsory GST/core courses are unlocked
+/// for users who registered before this feature existed. Runs once per
+/// install (guarded by a SharedPreferences flag), then never again.
+/// New registrations also get these via subject_picker_page.dart, so this
+/// is purely a backfill for existing accounts.
+Future<void> _migrateCompulsoryCourses() async {
+  final prefs = await SharedPreferences.getInstance();
+  final alreadyMigrated = prefs.getBool('compulsory_migration_v1_done') ?? false;
+  if (alreadyMigrated) return;
+
+  final unlocked = prefs.getStringList('unlocked_courses') ?? [];
+  final merged = <String>{
+    ...unlocked,
+    ...AppConstants.compulsoryCourseCodes,
+  }.toList();
+  await prefs.setStringList('unlocked_courses', merged);
+  await prefs.setBool('compulsory_migration_v1_done', true);
 }
 
 class EduLinkApp extends StatelessWidget {

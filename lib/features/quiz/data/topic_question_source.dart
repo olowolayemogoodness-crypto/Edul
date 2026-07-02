@@ -12,6 +12,7 @@ import '../../learning/data/lessons/che102_lessons.dart';
 import '../../learning/data/lessons/phy102_lessons.dart';
 import '../../learning/data/lessons/gns106_lessons.dart';
 import 'question_banks/mts102_question_bank.dart';
+import 'question_banks/phy102_question_bank.dart';
 import '../../../core/data/course_catalog/subjects_data.dart';
 
 class TopicQuestionSource {
@@ -43,11 +44,19 @@ class TopicQuestionSource {
   // if a richer bank exists for that course. Questions returned here
   // are ADDED ON TOP OF the base lesson questions (append, not
   // replace) -- see _questionsForLessonId below.
+  //
+  // NOTE: PHY102's extra bank also covers brand-new lessonIds
+  // (phy102_u5_1 .. phy102_u5_5) that have NO entry in
+  // phy102_lessons.dart at all. _questionsForLessonId handles this
+  // gracefully -- base lookups simply return an empty question list
+  // for those ids, so the extra bank's questions are all there is.
   static List<Map<String, dynamic>> Function(String lessonId)?
       _extraGetterForCourse(String courseKey) {
     switch (courseKey) {
       case 'MTS 102':
         return getMTS102ExtraQuestions;
+      case 'PHY 102':
+        return getPHY102ExtraQuestions;
       default:
         return null; // No extra bank for this course yet
     }
@@ -77,6 +86,10 @@ class TopicQuestionSource {
   /// Returns all questions for one fine-grained topic (lessonId),
   /// combining the base lesson questions with any extra question-bank
   /// questions for that course (appended, not replacing).
+  ///
+  /// If a lessonId has no base lesson data at all (e.g. a brand-new
+  /// topic added only via the extra bank), the base lookup safely
+  /// returns an empty list and the extra bank supplies everything.
   static List<QuizQuestion> _questionsForLessonId(
       String courseKey, String lessonId) {
     final getter = _getterForCourse(courseKey);

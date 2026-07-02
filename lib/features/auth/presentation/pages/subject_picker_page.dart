@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/services/user_service.dart';
 import '../../../../models/courses_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -435,10 +436,15 @@ class _SubjectPickerPageState extends State<SubjectPickerPage> {
 
     // Resolve selected subjects to catalog course codes so the
     // Learning Map knows which courses to unlock.
-    final catalogCodes = _selected
+    final selectedCatalogCodes = _selected
         .expand((s) => _getSubject(s.subjectId)?.catalogCodes ?? const <String>[])
-        .toSet()
-        .toList();
+        .toSet();
+    // Compulsory GST/core courses are unlocked for every student
+    // regardless of elective picks (see AppConstants).
+    final catalogCodes = <String>{
+      ...selectedCatalogCodes,
+      ...AppConstants.compulsoryCourseCodes,
+    }.toList();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList('unlocked_courses', catalogCodes);
 
