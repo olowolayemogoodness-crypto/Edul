@@ -14,6 +14,7 @@ import '../../learning/data/lessons/gns106_lessons.dart';
 import 'question_banks/mts102_question_bank.dart';
 import 'question_banks/phy102_question_bank.dart';
 import 'question_banks/gns106_question_bank.dart';
+import 'question_banks/bio102_question_bank.dart';
 import '../../../core/data/course_catalog/subjects_data.dart';
 
 class TopicQuestionSource {
@@ -60,6 +61,8 @@ class TopicQuestionSource {
         return getPHY102ExtraQuestions;
       case 'GNS 106':
         return getGNS106ExtraQuestions;
+      case 'BIO 102':
+        return getBIO102ExtraQuestions;
       default:
         return null; // No extra bank for this course yet
     }
@@ -86,19 +89,25 @@ class TopicQuestionSource {
         // text to display above the question; null for questions with
         // no associated passage.
         passage: map['passage'] as String?,
+        // Diagram-based questions (BIO102) carry a bundled local asset
+        // path to display above the question; null otherwise.
+        imageUrl: map['imageUrl'] as String?,
       );
     }).toList();
   }
 
   /// Courses whose base lesson questions (in their *_lessons.dart file)
   /// should be EXCLUDED from the quiz pool -- the extra bank is the sole
-  /// source instead. Used for GNS106: 39 of its 45 base questions were
-  /// found to be miskeyed (correct answer wrongly marked as option B),
-  /// so they're skipped here for quiz purposes. NOTE: this only affects
-  /// the standalone Quiz tab pool -- gns106_lessons.dart itself is left
-  /// untouched, so the Learning Map's 5-question-per-lesson mini quiz is
+  /// source instead. Used for GNS106 (39/45 base questions miskeyed to
+  /// option B) and BIO102 (33/45 miskeyed to option B) -- same category
+  /// of pre-existing data-quality issue in both. NOTE: this only affects
+  /// the standalone Quiz tab pool -- the *_lessons.dart files themselves
+  /// are left untouched, so each course's Learning Map mini-quiz is
   /// unaffected by this exclusion.
-  static const Set<String> _baseQuestionsExcludedForCourses = {'GNS 106'};
+  static const Set<String> _baseQuestionsExcludedForCourses = {
+    'GNS 106',
+    'BIO 102',
+  };
 
   /// Returns all questions for one fine-grained topic (lessonId),
   /// combining the base lesson questions with any extra question-bank

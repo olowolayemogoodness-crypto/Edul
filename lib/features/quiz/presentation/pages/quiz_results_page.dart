@@ -1,4 +1,3 @@
-
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -72,7 +71,7 @@ class _QuizResultsPageState extends State<QuizResultsPage> with TickerProviderSt
             const SizedBox(height: 16),
             Text(title, style: GoogleFonts.dmSans(fontSize: 20, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
             const SizedBox(height: 4),
-            Text('Data Structures · Binary Trees', style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.textTertiary)),
+            Text(r.topicLabel, style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.textTertiary)),
             const SizedBox(height: 18),
             Container(
               width: double.infinity, padding: const EdgeInsets.all(16),

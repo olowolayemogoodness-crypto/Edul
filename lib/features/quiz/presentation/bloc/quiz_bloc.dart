@@ -1,4 +1,3 @@
-
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../domain/models/quiz_question.dart';
 import '../../data/mock_questions.dart';
@@ -38,6 +37,7 @@ class QuizInProgress extends QuizState {
   final bool answered;
   final QuizMode mode;
   final QuizDifficulty difficulty;
+  final String topicLabel;
 
   QuizInProgress({
     required this.questions,
@@ -49,6 +49,7 @@ class QuizInProgress extends QuizState {
     required this.wrong,
     required this.mode,
     required this.difficulty,
+    required this.topicLabel,
     this.selectedIndex,
     this.answered = false,
   });
@@ -63,6 +64,7 @@ class QuizInProgress extends QuizState {
   }) {
     return QuizInProgress(
       questions: questions, mode: mode, difficulty: difficulty,
+      topicLabel: topicLabel,
       currentIndex: currentIndex ?? this.currentIndex,
       lives: lives ?? this.lives,
       streak: streak ?? this.streak,
@@ -104,6 +106,25 @@ class QuizBloc extends Bloc<QuizEvent, QuizState> {
     }
   }
 
+  /// Builds the real "course · topic" label shown on the question card
+  /// and results screen, replacing what used to be a hardcoded
+  /// "Gemini · Data Structures" placeholder. If exactly one fine-grained
+  /// topic was selected, shows its real display name (e.g.
+  /// "GNS 106 · Schools of Thought"); otherwise (whole course, or
+  /// multiple topics selected) falls back to just the course key
+  /// (e.g. "GNS 106").
+  String _topicLabelFor(QuizStarted event) {
+    if (event.topicIds.length == 1) {
+      final topics = TopicQuestionSource.topicsForCourse(event.topic);
+      final match = topics.firstWhere(
+        (t) => t['id'] == event.topicIds.first,
+        orElse: () => {'name': event.topic},
+      );
+      return '${event.topic} · ${match['name']}';
+    }
+    return event.topic;
+  }
+
   void _onStarted(QuizStarted event, Emitter<QuizState> emit) {
     _answers.clear(); _times.clear();
 
@@ -136,6 +157,7 @@ class QuizBloc extends Bloc<QuizEvent, QuizState> {
       questions: questions, currentIndex: 0, lives: 3,
       streak: 0, bestStreak: 0, correct: 0, wrong: 0,
       mode: event.mode, difficulty: event.difficulty,
+      topicLabel: _topicLabelFor(event),
     ));
   }
 
@@ -190,6 +212,7 @@ class QuizBloc extends Bloc<QuizEvent, QuizState> {
       correct: s.correct, wrong: s.wrong, bestStreak: s.bestStreak,
       avgTimeSeconds: avg, answers: List.from(_answers),
       xpEarned: 50 + s.bestStreak * 5,
+      topicLabel: s.topicLabel,
     )));
   }
 }

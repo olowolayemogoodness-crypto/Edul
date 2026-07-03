@@ -114,7 +114,7 @@ class _QuizQuestionPageState extends State<QuizQuestionPage> with SingleTickerPr
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Column(children: [
-                  _QuestionCard(question: s.currentQuestion, difficulty: s.difficulty),
+                  _QuestionCard(question: s.currentQuestion, difficulty: s.difficulty, topicLabel: s.topicLabel),
                   const SizedBox(height: 14),
                   _OptionsWidget(
                     question: s.currentQuestion,
@@ -183,7 +183,8 @@ class _TimerBadge extends StatelessWidget {
 class _QuestionCard extends StatelessWidget {
   final QuizQuestion question;
   final QuizDifficulty difficulty;
-  const _QuestionCard({required this.question, required this.difficulty});
+  final String topicLabel;
+  const _QuestionCard({required this.question, required this.difficulty, required this.topicLabel});
 
   String get _diffLabel => switch (difficulty) {
     QuizDifficulty.easy => 'Easy',
@@ -203,7 +204,7 @@ class _QuestionCard extends StatelessWidget {
         Row(children: [
           Container(width: 6, height: 6, decoration: const BoxDecoration(color: AppColors.accent, shape: BoxShape.circle)),
           const SizedBox(width: 7),
-          Text('Gemini · Data Structures', style: GoogleFonts.dmSans(fontSize: 9, fontWeight: FontWeight.w500, color: AppColors.accentLight)),
+          Text(topicLabel, style: GoogleFonts.dmSans(fontSize: 9, fontWeight: FontWeight.w500, color: AppColors.accentLight)),
           const Spacer(),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -229,6 +230,17 @@ class _QuestionCard extends StatelessWidget {
                 color: AppColors.textSecondary,
                 height: 1.55,
               ),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+        if (question.imageUrl != null) ...[
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.asset(
+              question.imageUrl!,
+              width: double.infinity,
+              fit: BoxFit.contain,
             ),
           ),
           const SizedBox(height: 12),
