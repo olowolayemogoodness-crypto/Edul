@@ -13,6 +13,7 @@ import '../../learning/data/lessons/phy102_lessons.dart';
 import '../../learning/data/lessons/gns106_lessons.dart';
 import 'question_banks/mts102_question_bank.dart';
 import 'question_banks/phy102_question_bank.dart';
+import 'question_banks/gns106_question_bank.dart';
 import '../../../core/data/course_catalog/subjects_data.dart';
 
 class TopicQuestionSource {
@@ -57,6 +58,8 @@ class TopicQuestionSource {
         return getMTS102ExtraQuestions;
       case 'PHY 102':
         return getPHY102ExtraQuestions;
+      case 'GNS 106':
+        return getGNS106ExtraQuestions;
       default:
         return null; // No extra bank for this course yet
     }
@@ -79,13 +82,29 @@ class TopicQuestionSource {
         correctIndex: map['correct'] as int,
         // Lesson/bank data has no explanation field; defaults to ''.
         explanation: (map['explanation'] as String?) ?? '',
+        // Reading-passage questions (GNS106) carry the source passage
+        // text to display above the question; null for questions with
+        // no associated passage.
+        passage: map['passage'] as String?,
       );
     }).toList();
   }
 
+  /// Courses whose base lesson questions (in their *_lessons.dart file)
+  /// should be EXCLUDED from the quiz pool -- the extra bank is the sole
+  /// source instead. Used for GNS106: 39 of its 45 base questions were
+  /// found to be miskeyed (correct answer wrongly marked as option B),
+  /// so they're skipped here for quiz purposes. NOTE: this only affects
+  /// the standalone Quiz tab pool -- gns106_lessons.dart itself is left
+  /// untouched, so the Learning Map's 5-question-per-lesson mini quiz is
+  /// unaffected by this exclusion.
+  static const Set<String> _baseQuestionsExcludedForCourses = {'GNS 106'};
+
   /// Returns all questions for one fine-grained topic (lessonId),
   /// combining the base lesson questions with any extra question-bank
-  /// questions for that course (appended, not replacing).
+  /// questions for that course (appended, not replacing) -- unless the
+  /// course is in _baseQuestionsExcludedForCourses, in which case only
+  /// the extra bank is used.
   ///
   /// If a lessonId has no base lesson data at all (e.g. a brand-new
   /// topic added only via the extra bank), the base lookup safely
@@ -95,9 +114,12 @@ class TopicQuestionSource {
     final getter = _getterForCourse(courseKey);
     if (getter == null) return [];
 
-    final baseData = getter(lessonId);
-    final baseRaw = baseData['questions'] as List<dynamic>? ?? [];
-    final combined = <QuizQuestion>[..._convertQuestions(baseRaw)];
+    final combined = <QuizQuestion>[];
+    if (!_baseQuestionsExcludedForCourses.contains(courseKey)) {
+      final baseData = getter(lessonId);
+      final baseRaw = baseData['questions'] as List<dynamic>? ?? [];
+      combined.addAll(_convertQuestions(baseRaw));
+    }
 
     final extraGetter = _extraGetterForCourse(courseKey);
     if (extraGetter != null) {

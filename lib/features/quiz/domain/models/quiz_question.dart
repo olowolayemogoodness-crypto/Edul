@@ -1,10 +1,10 @@
-
 class QuizQuestion {
   final String question;
   final List<String> options;
   final int correctIndex;
   final String explanation;
   final String? formula;
+  final String? passage;
 
   const QuizQuestion({
     required this.question,
@@ -12,6 +12,7 @@ class QuizQuestion {
     required this.correctIndex,
     this.explanation = '',
     this.formula,
+    this.passage,
   });
 }
 

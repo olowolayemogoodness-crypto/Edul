@@ -1,4 +1,3 @@
-
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -213,6 +212,27 @@ class _QuestionCard extends StatelessWidget {
           ),
         ]),
         const SizedBox(height: 10),
+        if (question.passage != null) ...[
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(12),
+              border: Border(left: BorderSide(color: AppColors.accent, width: 3)),
+            ),
+            child: Text(
+              question.passage!,
+              style: GoogleFonts.dmSans(
+                fontSize: 12.5,
+                fontStyle: FontStyle.italic,
+                color: AppColors.textSecondary,
+                height: 1.55,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
         Text(question.question, style: GoogleFonts.dmSans(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textPrimary, height: 1.6)),
       ]),
     );
