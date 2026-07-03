@@ -1,4 +1,3 @@
-
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -115,7 +114,7 @@ class _QuizQuestionPageState extends State<QuizQuestionPage> with SingleTickerPr
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Column(children: [
-                  _QuestionCard(question: s.currentQuestion, difficulty: s.difficulty),
+                  _QuestionCard(question: s.currentQuestion, difficulty: s.difficulty, topicLabel: s.topicLabel),
                   const SizedBox(height: 14),
                   _OptionsWidget(
                     question: s.currentQuestion,
@@ -184,7 +183,8 @@ class _TimerBadge extends StatelessWidget {
 class _QuestionCard extends StatelessWidget {
   final QuizQuestion question;
   final QuizDifficulty difficulty;
-  const _QuestionCard({required this.question, required this.difficulty});
+  final String topicLabel;
+  const _QuestionCard({required this.question, required this.difficulty, required this.topicLabel});
 
   String get _diffLabel => switch (difficulty) {
     QuizDifficulty.easy => 'Easy',
@@ -204,7 +204,7 @@ class _QuestionCard extends StatelessWidget {
         Row(children: [
           Container(width: 6, height: 6, decoration: const BoxDecoration(color: AppColors.accent, shape: BoxShape.circle)),
           const SizedBox(width: 7),
-          Text('Gemini · Data Structures', style: GoogleFonts.dmSans(fontSize: 9, fontWeight: FontWeight.w500, color: AppColors.accentLight)),
+          Text(topicLabel, style: GoogleFonts.dmSans(fontSize: 9, fontWeight: FontWeight.w500, color: AppColors.accentLight)),
           const Spacer(),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -213,6 +213,38 @@ class _QuestionCard extends StatelessWidget {
           ),
         ]),
         const SizedBox(height: 10),
+        if (question.passage != null) ...[
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(12),
+              border: Border(left: BorderSide(color: AppColors.accent, width: 3)),
+            ),
+            child: Text(
+              question.passage!,
+              style: GoogleFonts.dmSans(
+                fontSize: 12.5,
+                fontStyle: FontStyle.italic,
+                color: AppColors.textSecondary,
+                height: 1.55,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+        if (question.imageUrl != null) ...[
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.asset(
+              question.imageUrl!,
+              width: double.infinity,
+              fit: BoxFit.contain,
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
         Text(question.question, style: GoogleFonts.dmSans(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textPrimary, height: 1.6)),
       ]),
     );

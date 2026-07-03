@@ -1,10 +1,11 @@
-
 class QuizQuestion {
   final String question;
   final List<String> options;
   final int correctIndex;
   final String explanation;
   final String? formula;
+  final String? passage;
+  final String? imageUrl;
 
   const QuizQuestion({
     required this.question,
@@ -12,6 +13,8 @@ class QuizQuestion {
     required this.correctIndex,
     this.explanation = '',
     this.formula,
+    this.passage,
+    this.imageUrl,
   });
 }
 
@@ -22,6 +25,7 @@ class QuizResult {
   final double avgTimeSeconds;
   final List<QuizAnswerRecord> answers;
   final int xpEarned;
+  final String topicLabel;
 
   const QuizResult({
     required this.correct,
@@ -30,6 +34,7 @@ class QuizResult {
     required this.avgTimeSeconds,
     required this.answers,
     required this.xpEarned,
+    required this.topicLabel,
   });
 
   int get total => correct + wrong;
