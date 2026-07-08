@@ -2,6 +2,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../domain/models/quiz_question.dart';
 import '../../data/mock_questions.dart';
 import '../../data/topic_question_source.dart';
+import '../../../../core/services/quiz_sound_service.dart';
+import '../../../../core/services/lives_service.dart';
 
 // ── Events ──
 abstract class QuizEvent {}
@@ -125,7 +127,7 @@ class QuizBloc extends Bloc<QuizEvent, QuizState> {
     return event.topic;
   }
 
-  void _onStarted(QuizStarted event, Emitter<QuizState> emit) {
+  Future<void> _onStarted(QuizStarted event, Emitter<QuizState> emit) async {
     _answers.clear(); _times.clear();
 
     final requestedCount = _questionCountForDifficulty(event.difficulty);
@@ -153,20 +155,41 @@ class QuizBloc extends Bloc<QuizEvent, QuizState> {
       questions = questions.take(requestedCount).toList();
     }
 
+    // Lives are now GLOBAL/persistent (see LivesService) -- a quiz no
+    // longer starts with a fresh 3 every time; it reflects whatever
+    // the student's real current life count is, including regen that
+    // happened since they last played.
+    final currentLives = await LivesService.getCurrentLives();
+
     emit(QuizInProgress(
-      questions: questions, currentIndex: 0, lives: 3,
+      questions: questions, currentIndex: 0, lives: currentLives,
       streak: 0, bestStreak: 0, correct: 0, wrong: 0,
       mode: event.mode, difficulty: event.difficulty,
       topicLabel: _topicLabelFor(event),
     ));
   }
 
-  void _onAnswerSelected(QuizAnswerSelected event, Emitter<QuizState> emit) {
+  Future<void> _onAnswerSelected(QuizAnswerSelected event, Emitter<QuizState> emit) async {
     final s = state as QuizInProgress;
     if (s.answered) return;
     final isCorrect = event.selectedIndex == s.currentQuestion.correctIndex;
     final newStreak = isCorrect ? s.streak + 1 : 0;
     final newBest = newStreak > s.bestStreak ? newStreak : s.bestStreak;
+    if (isCorrect) {
+      QuizSoundService.playCorrect(newStreak);
+    } else {
+      QuizSoundService.playWrong();
+    }
+
+    // Lives are global/persistent now (see LivesService) -- every 5th
+    // wrong answer, tracked across quiz sessions (not reset per
+    // quiz), costs exactly 1 life. A correct answer never touches this.
+    var newLives = s.lives;
+    if (!isCorrect) {
+      await LivesService.recordWrongAnswer();
+      newLives = await LivesService.getCurrentLives();
+    }
+
     _answers.add(QuizAnswerRecord(
       question: s.currentQuestion.question,
       correct: isCorrect,
@@ -180,7 +203,7 @@ class QuizBloc extends Bloc<QuizEvent, QuizState> {
       wrong: isCorrect ? s.wrong : s.wrong + 1,
       streak: newStreak,
       bestStreak: newBest,
-      lives: isCorrect ? s.lives : s.lives - 1,
+      lives: newLives,
     ));
   }
 
@@ -193,12 +216,18 @@ class QuizBloc extends Bloc<QuizEvent, QuizState> {
     }
   }
 
-  void _onTimedOut(QuizTimedOut event, Emitter<QuizState> emit) {
+  Future<void> _onTimedOut(QuizTimedOut event, Emitter<QuizState> emit) async {
     final s = state as QuizInProgress;
     if (s.answered) return;
+    QuizSoundService.playWrong();
+    await LivesService.recordWrongAnswer();
+    final newLives = await LivesService.getCurrentLives();
     _answers.add(QuizAnswerRecord(question: s.currentQuestion.question, correct: false, secondsTaken: 30));
     _times.add(30);
-    emit(s.copyWith(answered: true, selectedIndex: -1, wrong: s.wrong + 1, streak: 0, lives: s.lives - 1));
+    emit(s.copyWith(
+      answered: true, selectedIndex: -1, wrong: s.wrong + 1, streak: 0,
+      lives: newLives,
+    ));
   }
 
   void _onReset(QuizReset event, Emitter<QuizState> emit) {

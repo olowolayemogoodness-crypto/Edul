@@ -1,8 +1,11 @@
 // lib/features/learning/presentation/pages/lesson_detail_page.dart
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/constants/app_routes.dart';
+import '../../../../core/services/streak_service.dart';
 import '../../data/lessons/mts102_lessons.dart';
 import '../../data/lessons/csc102_lessons.dart';
 import '../../data/lessons/calculus_lessons.dart';
@@ -702,7 +705,22 @@ if (lessonId.startsWith('mts104_')) {
                                 completedLessons,
                               );
                             }
-                            if (mounted) Navigator.pop(context);
+                            // Try to award a streak for completing this lesson.
+                            // If one is awarded (first qualifying activity today),
+                            // navigate to the celebration screen before popping.
+                            // If already awarded today or Firestore unreachable,
+                            // tryAwardStreak() returns null and we just pop as
+                            // before -- no change to normal lesson flow.
+                            final newStreak = await StreakService.recordLessonPassed();
+                            if (!mounted) return;
+                            if (newStreak != null) {
+                              context.push(
+                                AppRoutes.streakCelebration,
+                                extra: {'streakCount': newStreak},
+                              );
+                            } else {
+                              Navigator.pop(context);
+                            }
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.accent,

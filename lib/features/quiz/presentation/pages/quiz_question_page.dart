@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/widgets/lives_badge.dart';
 import '../bloc/quiz_bloc.dart';
 import '../../domain/models/quiz_question.dart';
 
@@ -92,15 +93,7 @@ class _QuizQuestionPageState extends State<QuizQuestionPage> with SingleTickerPr
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
               child: Row(children: [
-                ...List.generate(3, (i) => Padding(
-                  padding: const EdgeInsets.only(right: 2),
-                  child: AnimatedOpacity(
-                    duration: const Duration(milliseconds: 300),
-                    opacity: i < s.lives ? 1.0 : 0.2,
-                    child: const Text('❤️', style: TextStyle(fontSize: 16)),
-                  ),
-                )),
-                Text(' ${s.lives} lives', style: GoogleFonts.dmSans(fontSize: 11, color: AppColors.textTertiary)),
+                const LivesBadge(),
                 const Spacer(),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
@@ -108,6 +101,10 @@ class _QuizQuestionPageState extends State<QuizQuestionPage> with SingleTickerPr
                   child: Text('🔥 ${s.streak}', style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.w500, color: const Color(0xFFE8960F))),
                 ),
               ]),
+            ),
+            if (s.lives <= 0) const Padding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 10),
+              child: _OutOfLivesBanner(),
             ),
             Expanded(child: FadeTransition(
               opacity: _fadeAnim,
@@ -179,6 +176,54 @@ class _TimerBadge extends StatelessWidget {
     );
   }
 }
+
+// Shown when a student hits 0 lives mid-quiz. Deliberately
+// NON-BLOCKING for now -- the quiz stays playable underneath this
+// banner, since no ad SDK is wired up yet and hard-blocking with a
+// button that can't actually do anything would strand the student
+// with no real way through. This does NOT touch LivesService at all
+// (see LivesService.markQuizContinuedViaAd) -- watching an ad here is
+// meant to unlock finishing THIS quiz only, never a permanent life.
+class _OutOfLivesBanner extends StatelessWidget {
+  const _OutOfLivesBanner();
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2A0F0F),
+        border: Border.all(color: const Color(0xFFDC2626), width: 1),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(children: [
+        const Text('💔', style: TextStyle(fontSize: 18)),
+        const SizedBox(width: 10),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Out of lives', style: GoogleFonts.dmSans(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+          Text('Watch an ad to finish this quiz', style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textTertiary)),
+        ])),
+        Opacity(
+          opacity: 0.4,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceVariant,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.play_circle_outline, size: 12, color: AppColors.textDisabled),
+              const SizedBox(width: 3),
+              Text('Watch ad', style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textDisabled)),
+            ]),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
 
 class _QuestionCard extends StatelessWidget {
   final QuizQuestion question;

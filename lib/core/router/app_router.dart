@@ -24,6 +24,7 @@ import '../../features/learning/presentation/pages/lesson_detail_page.dart';
 import '../../features/library/presentation/pages/library_coming_soon_page.dart';
 import '../../features/leaderboard/presentation/pages/compete_coming_soon_page.dart';
 import '../../features/discover/presentation/pages/discover_coming_soon_page.dart';
+import '../../features/streak/presentation/pages/streak_celebration_page.dart';
 
 class AppRouter {
   AppRouter._();
@@ -73,6 +74,14 @@ GoRoute(
       
   },
 ),
+      GoRoute(
+        path: AppRoutes.streakCelebration,
+        name: 'streakCelebration',
+        builder: (context, state) {
+          final count = (state.extra as Map<String, dynamic>?)?['streakCount'] as int? ?? 1;
+          return StreakCelebrationPage(streakCount: count);
+        },
+      ),
     ],
     errorBuilder: (context, state) => Scaffold(
       body: Center(child: Text('Page not found: ${state.error}',

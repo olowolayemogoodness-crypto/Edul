@@ -1,8 +1,11 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/constants/app_routes.dart';
+import '../../../../core/services/streak_service.dart';
 import '../bloc/quiz_bloc.dart';
 import '../../../../core/services/user_service.dart';
 
@@ -31,8 +34,24 @@ class _QuizResultsPageState extends State<QuizResultsPage> with TickerProviderSt
       xpAnim.addListener(() => setState(() => _displayXp = xpAnim.value.round()));
       Future.delayed(const Duration(milliseconds: 300), () { _ringCtrl.forward(); xpCtrl.forward(); });
       UserService.awardXP(state.result.xpEarned, reason: 'quiz');
-      UserService.updateStreak();
       UserService.updateLeaderboard();
+      // Streak gate: only award if quiz was >= 80% accurate AND
+      // streak hasn't already been counted today. If it qualifies,
+      // show the animated celebration screen; home top bar will
+      // reflect the new streak count once the user returns there.
+      if (StreakService.quizQualifiesForStreak(state.result.accuracyPercent)) {
+        StreakService.tryAwardStreak().then((newStreak) {
+          if (newStreak != null && mounted) {
+            // Small delay so the results animation plays first
+            Future.delayed(const Duration(milliseconds: 1200), () {
+              if (mounted) {
+                context.push(AppRoutes.streakCelebration,
+                    extra: {'streakCount': newStreak});
+              }
+            });
+          }
+        });
+      }
     } else {
       _ringAnim = const AlwaysStoppedAnimation(0);
     }

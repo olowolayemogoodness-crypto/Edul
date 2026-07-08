@@ -20,4 +20,5 @@ class AppRoutes {
   static const String practiceTest = '/practice-test';
   static const String library        = '/library';
   static const String subjectPicker  = '/subject-picker';
+  static const String streakCelebration = '/streak-celebration';
 }
