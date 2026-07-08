@@ -1426,6 +1426,585 @@ hf = Φ + KEmax
         ]
       };
 
+    case 'phy102_u5_1':
+      return {
+        'content': '''# Electric Current
+
+## What is Electric Current?
+
+**Definition:**
+Electric current is the rate of flow of electric charge through a conductor.
+
+I = Q/t
+
+Where:
+- I = current (Amperes, A)
+- Q = charge (Coulombs, C)
+- t = time (seconds, s)
+
+**Key Facts:**
+✓ Conventional current flows from + to − (opposite to electron flow)
+✓ 1 Ampere = 1 Coulomb per second
+✓ Current is a scalar quantity
+✓ Requires a closed circuit to flow continuously
+
+## Types of Current
+
+**Direct Current (DC):**
+- Flows in one direction only
+- Produced by batteries, solar cells
+- Used in electronic devices
+- Voltage is constant with time
+
+**Alternating Current (AC):**
+- Direction reverses periodically
+- Frequency = 50 Hz (Nigeria/UK) or 60 Hz (USA)
+- Produced by generators/alternators
+- Used in mains electricity supply
+
+## Current Carriers
+
+**In metallic conductors:**
+- Free electrons are the charge carriers
+- Move from − to + terminal
+- Drift velocity is very slow (~mm/s)
+- But electric field propagates at near light speed
+
+**In electrolytes:**
+- Positive and negative ions both carry charge
+- Used in batteries and electroplating
+
+**In semiconductors:**
+- Both electrons and holes carry charge
+
+## Measuring Current
+
+**Ammeter:**
+- Connected in SERIES with the circuit
+- Has very LOW resistance (ideally zero)
+- Never connect in parallel — damages the meter
+- Symbol: A in a circle
+
+## Current Density
+
+J = I/A
+
+Where:
+- J = current density (A/m²)
+- A = cross-sectional area of conductor
+
+**Drift velocity relationship:**
+I = nAve_d
+
+Where:
+- n = number of charge carriers per unit volume
+- A = cross-sectional area
+- v_d = drift velocity
+- e = electron charge (1.6 × 10⁻¹⁹ C)
+
+## Key Formulas Summary
+
+| Quantity | Formula | Unit |
+|---|---|---|
+| Current | I = Q/t | Ampere (A) |
+| Charge | Q = It | Coulomb (C) |
+| Current density | J = I/A | A/m² |
+| Drift velocity | v_d = I/nAe | m/s |
+''',
+        'questions': [
+          {
+            'question': 'Electric current is defined as:',
+            'options': ['Charge per unit volume', 'Rate of flow of charge', 'Voltage per unit resistance', 'Power per unit time'],
+            'correct': 1,
+          },
+          {
+            'question': 'The SI unit of electric current is:',
+            'options': ['Coulomb', 'Volt', 'Ampere', 'Ohm'],
+            'correct': 2,
+          },
+          {
+            'question': 'Conventional current flows from:',
+            'options': ['Negative to positive terminal', 'Positive to negative terminal', 'Inside the battery only', 'Depends on resistance'],
+            'correct': 1,
+          },
+          {
+            'question': 'An ammeter is connected in:',
+            'options': ['Parallel with the load', 'Series with the load', 'Either series or parallel', 'Diagonal to the circuit'],
+            'correct': 1,
+          },
+          {
+            'question': 'If 10 C of charge flows through a wire in 2 seconds, the current is:',
+            'options': ['20 A', '0.2 A', '5 A', '12 A'],
+            'correct': 2,
+          },
+        ]
+      };
+
+    case 'phy102_u5_2':
+      return {
+        'content': '''# Resistance and Resistors
+
+## What is Resistance?
+
+**Definition:**
+Resistance is the opposition a material offers to the flow of electric current.
+
+R = V/I    (Ohm's Law)
+
+Where:
+- R = resistance (Ohms, Ω)
+- V = potential difference (Volts, V)
+- I = current (Amperes, A)
+
+**1 Ohm** = 1 Volt per Ampere
+
+## Ohm's Law
+
+**Statement:**
+The current through a conductor is directly proportional to the potential difference across it, provided temperature and other physical conditions remain constant.
+
+V = IR
+
+**Ohmic vs Non-Ohmic conductors:**
+- **Ohmic:** V–I graph is a straight line (e.g. metallic resistors at constant temperature)
+- **Non-Ohmic:** V–I graph is curved (e.g. diodes, filament bulbs, thermistors)
+
+## Factors Affecting Resistance
+
+R = ρL/A
+
+Where:
+- ρ = resistivity of material (Ω·m)
+- L = length of conductor (m)
+- A = cross-sectional area (m²)
+
+**Effect of each factor:**
+✓ Longer wire → higher resistance
+✓ Thicker wire → lower resistance
+✓ Higher resistivity material → higher resistance
+✓ Higher temperature → higher resistance (for metals)
+
+## Resistivity Values
+
+| Material | Resistivity (Ω·m) | Type |
+|---|---|---|
+| Silver | 1.6 × 10⁻⁸ | Conductor |
+| Copper | 1.7 × 10⁻⁸ | Conductor |
+| Aluminium | 2.8 × 10⁻⁸ | Conductor |
+| Silicon | 640 | Semiconductor |
+| Glass | 10¹⁰–10¹⁴ | Insulator |
+
+## Temperature Effect
+
+**For metals:**
+R_T = R₀(1 + αT)
+
+Where:
+- R₀ = resistance at 0°C
+- α = temperature coefficient of resistance
+- T = temperature change (°C)
+
+**Key points:**
+✓ Resistance of metals increases with temperature
+✓ Resistance of semiconductors decreases with temperature
+✓ Superconductors have zero resistance below critical temperature
+
+## Types of Resistors
+
+**Fixed resistors:** Carbon composition, wire-wound
+**Variable resistors:** Rheostat (2 terminals), Potentiometer (3 terminals)
+**Special resistors:** Thermistor (temperature-sensitive), LDR (light-sensitive)
+
+## Key Formulas
+
+| Formula | What it gives |
+|---|---|
+| R = V/I | Resistance from Ohm's Law |
+| R = ρL/A | Resistance from geometry |
+| R_T = R₀(1 + αT) | Temperature dependence |
+''',
+        'questions': [
+          {
+            'question': 'Ohm\'s Law states that current is proportional to:',
+            'options': ['Resistance', 'Power', 'Potential difference', 'Charge'],
+            'correct': 2,
+          },
+          {
+            'question': 'Resistance of a wire increases when its length is:',
+            'options': ['Decreased', 'Increased', 'Doubled in area', 'Cooled down'],
+            'correct': 1,
+          },
+          {
+            'question': 'A conductor has resistivity ρ, length L, area A. Its resistance is:',
+            'options': ['ρA/L', 'ρL/A', 'ρ/LA', 'LA/ρ'],
+            'correct': 1,
+          },
+          {
+            'question': 'As temperature increases, resistance of a metal:',
+            'options': ['Decreases', 'Stays the same', 'Increases', 'First increases then decreases'],
+            'correct': 2,
+          },
+          {
+            'question': 'A 12 V battery drives 3 A through a resistor. Its resistance is:',
+            'options': ['36 Ω', '4 Ω', '0.25 Ω', '9 Ω'],
+            'correct': 1,
+          },
+        ]
+      };
+
+    case 'phy102_u5_3':
+      return {
+        'content': '''# Electrical Power and Energy
+
+## Electrical Power
+
+**Definition:**
+Power is the rate at which electrical energy is converted to other forms of energy.
+
+P = VI = I²R = V²/R
+
+Where:
+- P = power (Watts, W)
+- V = voltage (Volts, V)
+- I = current (Amperes, A)
+- R = resistance (Ohms, Ω)
+
+**1 Watt** = 1 Joule per second = 1 Volt × 1 Ampere
+
+## Electrical Energy
+
+E = Pt = VIt = I²Rt = V²t/R
+
+Where:
+- E = energy (Joules, J)
+- t = time (seconds, s)
+
+**Commercial unit of energy:**
+1 kilowatt-hour (kWh) = 3.6 × 10⁶ J = 3.6 MJ
+
+Used by electricity companies for billing.
+
+## Power Dissipation in Resistors
+
+**Heat produced (Joule's Law):**
+Q = I²Rt
+
+Where:
+- Q = heat generated (Joules)
+- I = current (A)
+- R = resistance (Ω)
+- t = time (s)
+
+**Applications:**
+✓ Electric heaters, irons, toasters use this effect
+✓ Filament bulbs — heat causes light emission
+✓ Fuses — melt when excess current generates too much heat
+✓ Unwanted in motors, transformers (efficiency loss)
+
+## Power Ratings
+
+**Every electrical device has a power rating:**
+- 60 W bulb: converts 60 J every second
+- 2 kW kettle: converts 2000 J every second
+
+**From rating, find operating current:**
+I = P/V
+
+Example: 60 W bulb on 240 V mains:
+I = 60/240 = 0.25 A
+
+## Efficiency
+
+η = (Useful power output / Total power input) × 100%
+
+**Power loss in transmission lines:**
+P_loss = I²R_line
+
+This is why high-voltage transmission is used — same power, lower current, much less loss.
+
+## EMF and Internal Resistance
+
+**A real battery has internal resistance (r):**
+
+Terminal voltage: V = E − Ir
+
+Where:
+- E = EMF (electromotive force) of battery
+- I = current drawn
+- r = internal resistance
+- V = terminal (output) voltage
+
+**Maximum power transfer theorem:**
+Maximum power is transferred to external load R when R = r (internal resistance)
+
+## Key Formulas
+
+| Formula | Application |
+|---|---|
+| P = VI | Power from V and I |
+| P = I²R | Power dissipated in resistor |
+| P = V²/R | Power from V and R |
+| E = Pt | Energy from power and time |
+| V = E − Ir | Terminal voltage of battery |
+''',
+        'questions': [
+          {
+            'question': 'Electrical power is given by:',
+            'options': ['P = IR', 'P = VI', 'P = V/I', 'P = I/V'],
+            'correct': 1,
+          },
+          {
+            'question': 'The commercial unit of electrical energy is:',
+            'options': ['Watt', 'Joule', 'Kilowatt-hour', 'Coulomb'],
+            'correct': 2,
+          },
+          {
+            'question': 'Heat produced in a resistor R carrying current I for time t is:',
+            'options': ['IRt', 'I²Rt', 'IR²t', 'It/R'],
+            'correct': 1,
+          },
+          {
+            'question': 'A 100 W bulb operates on 200 V. The current through it is:',
+            'options': ['2 A', '0.5 A', '20 A', '0.05 A'],
+            'correct': 1,
+          },
+          {
+            'question': 'Terminal voltage of a battery is less than EMF because of:',
+            'options': ['External resistance', 'Internal resistance voltage drop', 'Capacitance', 'Inductance'],
+            'correct': 1,
+          },
+        ]
+      };
+
+    case 'phy102_u5_4':
+      return {
+        'content': '''# Resistors in Series and Parallel
+
+## Series Circuits
+
+**Connection:** Resistors connected end-to-end, same current through all.
+
+**Total resistance:**
+R_total = R₁ + R₂ + R₃ + ...
+
+**Key properties:**
+✓ Same current flows through all resistors: I = I₁ = I₂ = I₃
+✓ Voltages add up: V = V₁ + V₂ + V₃
+✓ Total resistance is always greater than any individual resistor
+✓ If one component fails (open circuit), whole circuit stops
+
+**Voltage divider:**
+V₁/V₂ = R₁/R₂
+
+Voltage across each resistor is proportional to its resistance.
+
+## Parallel Circuits
+
+**Connection:** Both ends of each resistor connected to the same two nodes.
+
+**Total resistance:**
+1/R_total = 1/R₁ + 1/R₂ + 1/R₃ + ...
+
+**Special case — two resistors in parallel:**
+R_total = R₁R₂/(R₁ + R₂)
+
+**Key properties:**
+✓ Same voltage across all resistors: V = V₁ = V₂ = V₃
+✓ Currents add up: I = I₁ + I₂ + I₃
+✓ Total resistance is always less than any individual resistor
+✓ If one branch fails, others continue working
+
+**Current divider (two resistors):**
+I₁/I₂ = R₂/R₁
+
+Current splits inversely proportional to resistance.
+
+## Comparison Table
+
+| Property | Series | Parallel |
+|---|---|---|
+| Current | Same everywhere | Splits at junction |
+| Voltage | Splits across each | Same across each |
+| Total R | Increases | Decreases |
+| Failure | All stop | Others continue |
+| Use | Christmas lights (old style), fuses | Household wiring |
+
+## Mixed Circuits
+
+**Strategy to solve:**
+1. Identify series and parallel groups
+2. Simplify parallel groups first → single equivalent R
+3. Then add remaining series resistors
+4. Use V = IR to find current and voltages
+
+**Example:**
+R₁ = 6 Ω in series with (R₂ = 4 Ω parallel with R₃ = 4 Ω)
+- Parallel part: R₂₃ = 4×4/(4+4) = 2 Ω
+- Total: R = 6 + 2 = 8 Ω
+
+## Power in Combinations
+
+**Series:** Device with highest resistance dissipates most power
+**Parallel:** Device with lowest resistance dissipates most power
+
+P = V²/R → for same V, smaller R gives more power
+P = I²R → for same I, larger R gives more power
+
+## Practical Applications
+
+**Series:** Fuse (protection), voltage dividers, sensor circuits
+**Parallel:** Household outlets, car electrical systems, battery banks
+''',
+        'questions': [
+          {
+            'question': 'In a series circuit, which quantity is the same through all components?',
+            'options': ['Voltage', 'Power', 'Current', 'Resistance'],
+            'correct': 2,
+          },
+          {
+            'question': 'Two 6 Ω resistors in parallel give a total resistance of:',
+            'options': ['12 Ω', '6 Ω', '3 Ω', '1 Ω'],
+            'correct': 2,
+          },
+          {
+            'question': 'In a parallel circuit, the voltage across each branch is:',
+            'options': ['Different for each branch', 'The same', 'Zero', 'Depends on resistance'],
+            'correct': 1,
+          },
+          {
+            'question': 'Three 9 Ω resistors in series give a total resistance of:',
+            'options': ['3 Ω', '9 Ω', '27 Ω', '18 Ω'],
+            'correct': 2,
+          },
+          {
+            'question': 'Household electrical appliances are connected in parallel because:',
+            'options': ['It uses less current', 'Each gets full supply voltage independently', 'It reduces total resistance to zero', 'Series connection is more complex'],
+            'correct': 1,
+          },
+        ]
+      };
+
+    case 'phy102_u5_5':
+      return {
+        'content': '''# Kirchhoff's Laws
+
+## Why We Need Kirchhoff's Laws
+
+Ohm's Law alone cannot solve complex circuits with multiple loops and branches. Kirchhoff's Laws (KCL and KVL) provide a systematic method for any circuit, no matter how complex.
+
+## Kirchhoff's Current Law (KCL)
+
+**Statement:**
+The algebraic sum of all currents at any junction (node) in a circuit equals zero.
+
+ΣI_in = ΣI_out
+
+Or equivalently: ΣI = 0 at any node
+
+**Physical basis:** Conservation of electric charge — charge cannot accumulate at a junction.
+
+**Sign convention:**
+- Currents entering a node: positive (+)
+- Currents leaving a node: negative (−)
+
+**Example:**
+If I₁ = 5 A and I₂ = 3 A enter a node, and I₃ leaves:
+I₃ = I₁ + I₂ = 8 A
+
+## Kirchhoff's Voltage Law (KVL)
+
+**Statement:**
+The algebraic sum of all EMFs and potential drops around any closed loop in a circuit equals zero.
+
+ΣEMF = ΣIR    (around any closed loop)
+
+Or: ΣV = 0 around any closed loop
+
+**Physical basis:** Conservation of energy — energy gained from EMF sources equals energy dissipated in resistors.
+
+**Sign convention:**
+- Traverse in direction of current through resistor → voltage DROP (negative)
+- Traverse against current through resistor → voltage RISE (positive)
+- Traverse from − to + through EMF source → voltage RISE (positive)
+- Traverse from + to − through EMF source → voltage DROP (negative)
+
+## Applying Kirchhoff's Laws — Method
+
+**Step-by-step approach:**
+1. Label all branch currents with assumed directions
+2. Apply KCL at each independent node
+3. Apply KVL around each independent loop
+4. Solve the simultaneous equations
+5. Negative answer means assumed direction was wrong
+
+**Number of equations needed:**
+- KCL equations: (nodes − 1)
+- KVL equations: number of independent loops
+- Total equations = number of unknown currents
+
+## Worked Example
+
+**Two-loop circuit with:**
+- E₁ = 12 V (loop 1), E₂ = 6 V (loop 2)
+- R₁ = 2 Ω, R₂ = 4 Ω, R₃ = 6 Ω
+
+**At node A (KCL):** I₁ = I₂ + I₃
+
+**Loop 1 (KVL):** 12 = 2I₁ + 4I₂
+**Loop 2 (KVL):** 6 = 4I₂ − 6I₃
+
+Solving simultaneously gives I₁, I₂, I₃.
+
+## Applications
+
+✓ Analysing bridge circuits (Wheatstone bridge)
+✓ Finding unknown currents in multi-branch networks
+✓ Circuit design and fault-finding
+✓ Essential for electronics and electrical engineering
+
+## Common Mistakes to Avoid
+
+✗ Forgetting signs when traversing loops
+✗ Not assigning a current to every branch
+✗ Using more equations than unknowns
+✗ Mixing up KCL and KVL — KCL is for nodes, KVL is for loops
+
+## Summary
+
+| Law | Based on | Applies to | Equation |
+|---|---|---|---|
+| KCL | Charge conservation | Nodes/junctions | ΣI = 0 |
+| KVL | Energy conservation | Closed loops | ΣV = 0 |
+''',
+        'questions': [
+          {
+            'question': 'Kirchhoff\'s Current Law is based on conservation of:',
+            'options': ['Energy', 'Momentum', 'Charge', 'Power'],
+            'correct': 2,
+          },
+          {
+            'question': 'KCL states that at any junction, the sum of currents is:',
+            'options': ['Maximum', 'Minimum', 'Zero', 'Equal to the EMF'],
+            'correct': 2,
+          },
+          {
+            'question': 'Kirchhoff\'s Voltage Law is based on conservation of:',
+            'options': ['Charge', 'Energy', 'Mass', 'Current'],
+            'correct': 1,
+          },
+          {
+            'question': 'KVL states that around any closed loop, the sum of voltages is:',
+            'options': ['Equal to the supply voltage', 'Zero', 'Equal to total current', 'Maximum'],
+            'correct': 1,
+          },
+          {
+            'question': 'KCL applies to circuit:',
+            'options': ['Loops', 'Nodes/junctions', 'Resistors only', 'Voltage sources only'],
+            'correct': 1,
+          },
+        ]
+      };
+
     default:
       return {
         'content': 'Lesson content coming soon...',

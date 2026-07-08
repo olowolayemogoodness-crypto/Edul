@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/app_text_styles.dart';
+import '../../../../core/widgets/lives_badge.dart';
 
 class HomeTopBar extends StatefulWidget {
   final int streakCount;
@@ -90,23 +91,9 @@ class _HomeTopBarState extends State<HomeTopBar>
             ),
           ),
           const SizedBox(width: AppSpacing.sm),
-          // Hearts
-          Row(
-  mainAxisSize: MainAxisSize.min,
-  children: [
-    ...List.generate(3, (_) => const Padding(
-          padding: EdgeInsets.only(left: 2),
-          child: Text('❤️', style: TextStyle(fontSize: 13)),
-        )),
-    ...List.generate(2, (_) => const Padding(
-          padding: EdgeInsets.only(left: 2),
-          child: Opacity(
-            opacity: 0.25,
-            child: Text('❤️', style: TextStyle(fontSize: 13)),
-          ),
-        )),
-  ],
-),
+          // Hearts -- real, persistent lives (see LivesService),
+          // shared with the quiz screen so both always match.
+          const LivesBadge(compact: true),
         ],
       ),
     );

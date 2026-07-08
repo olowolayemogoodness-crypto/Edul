@@ -41,6 +41,16 @@ dependencies:
   lottie: ^3.1.0
   flutter_svg: ^2.0.10+1
 
+  # Audio (quiz sound effects)
+  audioplayers: ^6.1.0
+
+  # Ads (rewarded ads for lives refill / quiz continuation)
+  google_mobile_ads: ^5.2.0
+
+  # Share streak card as image + get temp directory for the PNG
+  share_plus: ^13.2.0
+  path_provider: ^2.1.4
+
   # Functional programming
   dartz: ^0.10.1
 
@@ -81,3 +91,4 @@ flutter:
     - assets/icons/ 
     - assets/animations/
     - assets/fonts/
+    - assets/sounds/
