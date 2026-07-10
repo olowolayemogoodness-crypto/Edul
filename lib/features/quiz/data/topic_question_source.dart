@@ -15,6 +15,7 @@ import 'question_banks/mts102_question_bank.dart';
 import 'question_banks/phy102_question_bank.dart';
 import 'question_banks/gns106_question_bank.dart';
 import 'question_banks/bio102_question_bank.dart';
+import 'question_banks/cos102_question_bank.dart';
 import '../../../core/data/course_catalog/subjects_data.dart';
 
 class TopicQuestionSource {
@@ -63,6 +64,8 @@ class TopicQuestionSource {
         return getGNS106ExtraQuestions;
       case 'BIO 102':
         return getBIO102ExtraQuestions;
+      case 'COS 102':
+        return getCOS102ExtraQuestions;
       default:
         return null; // No extra bank for this course yet
     }
@@ -71,7 +74,8 @@ class TopicQuestionSource {
   /// Whether a course (by subjectsData key, e.g. 'MTS 102') has a
   /// real question bank available.
   static bool hasQuestionBank(String courseKey) {
-    return _getterForCourse(courseKey) != null;
+    return _getterForCourse(courseKey) != null ||
+        _extraGetterForCourse(courseKey) != null;
   }
 
   /// Converts one lesson's raw question maps into QuizQuestion objects.
@@ -107,6 +111,7 @@ class TopicQuestionSource {
   static const Set<String> _baseQuestionsExcludedForCourses = {
     'GNS 106',
     'BIO 102',
+    'COS 102',
   };
 
   /// Returns all questions for one fine-grained topic (lessonId),
@@ -121,10 +126,8 @@ class TopicQuestionSource {
   static List<QuizQuestion> _questionsForLessonId(
       String courseKey, String lessonId) {
     final getter = _getterForCourse(courseKey);
-    if (getter == null) return [];
-
     final combined = <QuizQuestion>[];
-    if (!_baseQuestionsExcludedForCourses.contains(courseKey)) {
+    if (getter != null && !_baseQuestionsExcludedForCourses.contains(courseKey)) {
       final baseData = getter(lessonId);
       final baseRaw = baseData['questions'] as List<dynamic>? ?? [];
       combined.addAll(_convertQuestions(baseRaw));

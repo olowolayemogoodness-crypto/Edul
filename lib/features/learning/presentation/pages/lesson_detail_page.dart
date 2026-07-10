@@ -14,6 +14,7 @@ import '../../data/lessons/che102_lessons.dart';
 import '../../data/lessons/phy102_lessons.dart';
 import '../../data/lessons/gns106_lessons.dart';
 import '../../data/lessons/mts104_lessons.dart';
+import '../../data/lessons/cos102_lessons.dart';
 
 class LessonDetailPage extends StatefulWidget {
   final String lessonId;
@@ -74,6 +75,7 @@ if (lessonId.startsWith('phy102_')) {
   return getPHY102LessonData(lessonId);
 }
 if (lessonId.startsWith('gns106_')) return getGNS106LessonData(lessonId);
+if (lessonId.startsWith('cos102_')) return getCOS102LessonData(lessonId);
 if (lessonId.startsWith('mts104_')) {
   return getMTS104LessonData(lessonId);
 }
