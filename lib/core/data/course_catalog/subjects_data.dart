@@ -345,6 +345,62 @@ final Map<String, Map<String, dynamic>> subjectsData = {
       },
     ]
   },
+  'COS 102': {
+    'fullName': 'INTRODUCTION TO PROBLEM SOLVING',
+    'color': Color(0xFF34D399),
+    'units': [
+      {
+        'unit': 1,
+        'name': 'Foundations of Problem Solving',
+        'color': Color(0xFF34D399),
+        'lessons': [
+          {'id': 'cos102_u1_1', 'name': 'Problem Solving Basics', 'icon': '🧩'},
+          {'id': 'cos102_u1_2', 'name': 'Information & Algorithms', 'icon': '📊'},
+          {'id': 'cos102_u1_3', 'name': 'Computational Thinking', 'icon': '🧠'},
+        ]
+      },
+      {
+        'unit': 2,
+        'name': 'Solvability & Complexity',
+        'color': Color(0xFF6EE7B7),
+        'lessons': [
+          {'id': 'cos102_u2_1', 'name': 'Decidability & Turing', 'icon': '🤖'},
+          {'id': 'cos102_u2_2', 'name': 'Complexity & Big O', 'icon': '📈'},
+          {'id': 'cos102_u2_3', 'name': 'Heuristics', 'icon': '🎯'},
+        ]
+      },
+      {
+        'unit': 3,
+        'name': 'Solution Techniques I',
+        'color': Color(0xFF10B981),
+        'lessons': [
+          {'id': 'cos102_u3_1', 'name': 'Abstraction & Analogy', 'icon': '🔍'},
+          {'id': 'cos102_u3_2', 'name': 'Brainstorming & Trial-Error', 'icon': '💡'},
+          {'id': 'cos102_u3_3', 'name': 'Reduction & Problem Types', 'icon': '✂️'},
+        ]
+      },
+      {
+        'unit': 4,
+        'name': 'Solution Techniques II',
+        'color': Color(0xFF059669),
+        'lessons': [
+          {'id': 'cos102_u4_1', 'name': 'Lateral Thinking & Means-End', 'icon': '↔️'},
+          {'id': 'cos102_u4_2', 'name': 'Root Cause & Divide-Conquer', 'icon': '🌳'},
+          {'id': 'cos102_u4_3', 'name': 'Reasoning & Proof', 'icon': '✅'},
+        ]
+      },
+      {
+        'unit': 5,
+        'name': 'Algorithm Development',
+        'color': Color(0xFF047857),
+        'lessons': [
+          {'id': 'cos102_u5_1', 'name': 'Flowcharts', 'icon': '📐'},
+          {'id': 'cos102_u5_2', 'name': 'Pseudocode & Decision Trees', 'icon': '🌿'},
+          {'id': 'cos102_u5_3', 'name': 'VBA as a Problem-Solving Tool', 'icon': '💻'},
+        ]
+      },
+    ]
+  },
   'MTS 104': {
     'fullName': 'INTRODUCTORY APPLIED MATHEMATICS',
     'color': Color(0xFFF59E0B),
@@ -391,4 +447,5 @@ final Map<String, Map<String, dynamic>> subjectsData = {
       },
     ]
   },
+
 };

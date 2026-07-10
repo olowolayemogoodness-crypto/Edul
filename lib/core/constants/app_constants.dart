@@ -31,7 +31,7 @@ class AppConstants {
   // student regardless of elective subject picks. See subject_picker_page.dart
   // (_saveAndContinue) and main.dart (_migrateCompulsoryCourses).
   static const List<String> compulsoryCourseCodes = [
-    'MTS101', 'MTS102', 'PHY102', 'GNS106', 'BIO102', 'CSC102',
+    'MTS101', 'MTS102', 'PHY102', 'GNS106', 'BIO102', 'CSC102', 'COS102',
   ];
 
   static const int pageSize    = 20;
