@@ -23,7 +23,7 @@ import '../../features/learning/presentation/pages/learning_map_page.dart';
 import '../../features/learning/presentation/pages/lesson_detail_page.dart';
 import '../../features/library/presentation/pages/library_coming_soon_page.dart';
 import '../../features/leaderboard/presentation/pages/compete_coming_soon_page.dart';
-import '../../features/discover/presentation/pages/discover_coming_soon_page.dart';
+import '../../features/insights/presentation/pages/insights_feed_page.dart';
 import '../../features/streak/presentation/pages/streak_celebration_page.dart';
 
 class AppRouter {
@@ -49,7 +49,7 @@ class AppRouter {
       GoRoute(
   path: '/discover',
   name: 'discover',
-  builder: (context, state) => const DiscoverComingSoonPage(),
+  builder: (context, state) => const InsightsFeedPage(),
 ),
       GoRoute(
   path: AppRoutes.leaderboard,

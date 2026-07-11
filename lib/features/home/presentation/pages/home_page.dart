@@ -9,7 +9,7 @@ import '../widgets/activity_grid.dart';
 
 import '../widgets/continue_button.dart';
 import '../../../profile/presentation/pages/profile_page.dart';
-import '../../../discover/presentation/pages/discover_coming_soon_page.dart';
+import '../../../insights/presentation/pages/insights_feed_page.dart';
 //import '../../../leaderboard/presentation/pages/leaderboard_page.dart';
 import '../../../study_rooms/presentation/pages/study_rooms_page.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -52,7 +52,7 @@ class _HomePageState extends State<HomePage> {
                 _HomeContent(),
                  StudyRoomsPage(),
                 CompeteComingSoonPage(),
-                DiscoverComingSoonPage(),
+                InsightsFeedPage(),
                 ProfilePage(),
               ],
             ),

@@ -43,6 +43,7 @@ dependencies:
 
   # Audio (quiz sound effects)
   audioplayers: ^6.1.0
+  video_player: ^2.9.2
 
   # Ads (rewarded ads for lives refill / quiz continuation)
   google_mobile_ads: ^5.2.0
