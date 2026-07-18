@@ -3,6 +3,7 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  audioplayers_windows
   cloud_firestore
   connectivity_plus
   file_selector_windows
@@ -11,6 +12,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   firebase_database
   firebase_storage
   flutter_secure_storage_windows
+  share_plus
   url_launcher_windows
 )
 

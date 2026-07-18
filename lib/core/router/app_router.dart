@@ -21,7 +21,6 @@ import '../../features/profile/presentation/pages/profile_settings_page.dart';
 import '../../features/auth/presentation/pages/student_type_page.dart';
 import '../../features/learning/presentation/pages/learning_map_page.dart';
 import '../../features/learning/presentation/pages/lesson_detail_page.dart';
-import '../../features/library/presentation/pages/library_coming_soon_page.dart';
 import '../../features/leaderboard/presentation/pages/compete_coming_soon_page.dart';
 import '../../features/insights/presentation/pages/insights_feed_page.dart';
 import '../../features/streak/presentation/pages/streak_celebration_page.dart';
@@ -66,7 +65,7 @@ class AppRouter {
 GoRoute(
   path: '/library-subjects',
   name: 'library-subjects',
-  builder: (context, state) => const LibraryComingSoonPage(),
+  builder: (context, state) => const LibraryPage(),
 ),
 
 
