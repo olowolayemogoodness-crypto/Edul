@@ -5,10 +5,10 @@ import '../constants/api_keys.dart';
 
 class GroqService {
   static const String _apiUrl = 'https://api.groq.com/openai/v1/chat/completions';
-  static const String _model = 'llama-3.1-8b-instant';
-
+  static const String _model = 'openai/gpt-oss-20b';
+  static const String _modelPro = 'openai/gpt-oss-120b';
   /// Ask LLaMA a question through Groq API
-  static Future<String> askTutor(String question) async {
+  static Future<String> askTutor(String question, {bool isPro = false}) async {
     try {
       final response = await http.post(
         Uri.parse(_apiUrl),
@@ -17,7 +17,7 @@ class GroqService {
           'Content-Type': 'application/json',
         },
         body: jsonEncode({
-          'model': _model,
+          'model': isPro ? _modelPro : _model,
           'messages': [
             {
               'role': 'system',
@@ -60,9 +60,10 @@ Keep responses concise but comprehensive (2-3 paragraphs max).'''
 
   /// Ask LLaMA multiple follow-up questions (for chat history context)
   static Future<String> askTutorWithHistory(
-    String question,
-    List<Map<String, String>> history,
-  ) async {
+  String question,
+  List<Map<String, String>> history, {
+  bool isPro = false,
+}) async {
     try {
       final messages = [
         {
@@ -92,7 +93,7 @@ Keep responses concise but comprehensive (2-3 paragraphs max).'''
           'Content-Type': 'application/json',
         },
         body: jsonEncode({
-          'model': _model,
+          'model': isPro ? _modelPro : _model,
           'messages': messages,
           'temperature': 0.7,
           'max_tokens': 1024,

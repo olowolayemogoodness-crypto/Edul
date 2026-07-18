@@ -6,10 +6,13 @@ import '../../../../core/constants/app_text_styles.dart';
 import '../widgets/home_top_bar.dart';
 import '../widgets/daily_goal_card.dart';
 import '../widgets/activity_grid.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../widgets/continue_button.dart';
 import '../../../profile/presentation/pages/profile_page.dart';
 import '../../../insights/presentation/pages/insights_feed_page.dart';
+import '../../../social/presentation/pages/social_feed_page.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 //import '../../../leaderboard/presentation/pages/leaderboard_page.dart';
 import '../../../study_rooms/presentation/pages/study_rooms_page.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -29,38 +32,72 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _activeIndex = 0;
+  int _unreadSocial = 0;
 
   @override
   void initState() {
     super.initState();
+    _listenUnread();
     SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.light,
     ));
   }
 
+  void _listenUnread() {
+    final uid = UserService.uid;
+    if (uid == null) return;
+    FirebaseFirestore.instance
+        .collection('notifications')
+        .where('uid', isEqualTo: uid)
+        .where('read', isEqualTo: false)
+        .snapshots()
+        .listen((snap) {
+      if (mounted) setState(() => _unreadSocial = snap.docs.length);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: Column(
+      body: Stack(
         children: [
-          Expanded(
-            child: IndexedStack(
-              index: _activeIndex,
-              children:  const [
-                _HomeContent(),
-                 StudyRoomsPage(),
-                CompeteComingSoonPage(),
-                InsightsFeedPage(),
-                ProfilePage(),
-              ],
+          Column(
+            children: [
+              Expanded(
+                child: IndexedStack(
+                  index: _activeIndex,
+                  children: [
+                    const _HomeContent(),
+                    const StudyRoomsPage(),
+                    const CompeteComingSoonPage(),
+                    InsightsFeedPage(isVisible: _activeIndex == 3),
+                    const ProfilePage(),
+                  ],
+                ),
+              ),
+              _BottomNav(
+                activeIndex: _activeIndex,
+                onTap: (i) => setState(() => _activeIndex = i),
+              ),
+            ],
+          ),
+          // Floating social button — hidden on Profile tab
+          if (_activeIndex != 4)
+            Positioned(
+              left: 20,
+              bottom: 80,
+              child: _SocialFAB(
+                unread: _unreadSocial,
+                onTap: () {
+                  setState(() => _unreadSocial = 0);
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const SocialFeedPage()),
+                  );
+                },
+              ),
             ),
-          ),
-          _BottomNav(
-            activeIndex: _activeIndex,
-            onTap: (i) => setState(() => _activeIndex = i),
-          ),
         ],
       ),
     );
@@ -201,6 +238,118 @@ class _BottomNav extends StatelessWidget {
             ]),
           );
         }),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Floating social button
+// ─────────────────────────────────────────────────────────────────────────────
+class _SocialFAB extends StatefulWidget {
+  final int unread;
+  final VoidCallback onTap;
+  const _SocialFAB({required this.unread, required this.onTap});
+
+  @override
+  State<_SocialFAB> createState() => _SocialFABState();
+}
+
+class _SocialFABState extends State<_SocialFAB>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _pulse;
+  late Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+    _scale = Tween<double>(begin: 1.0, end: 1.08).animate(
+      CurvedAnimation(parent: _pulse, curve: Curves.easeInOut));
+  }
+
+  @override
+  void didUpdateWidget(_SocialFAB old) {
+    super.didUpdateWidget(old);
+    if (widget.unread > 0 && old.unread == 0) {
+      _pulse.repeat(reverse: true);
+    } else if (widget.unread == 0) {
+      _pulse.stop();
+      _pulse.reset();
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasUnread = widget.unread > 0;
+    return ScaleTransition(
+      scale: _scale,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: hasUnread
+                    ? AppColors.accent
+                    : AppColors.surfaceVariant,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: hasUnread
+                      ? AppColors.accentLight.withOpacity(0.5)
+                      : AppColors.border,
+                  width: 1.5,
+                ),
+              ),
+              child: Icon(
+                Icons.chat_bubble_outline_rounded,
+                size: 22,
+                color: hasUnread
+                    ? Colors.white
+                    : AppColors.textTertiary,
+              ),
+            ),
+            if (hasUnread)
+              Positioned(
+                top: -2,
+                right: -2,
+                child: Container(
+                  width: 18,
+                  height: 18,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE24B4A),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: AppColors.background,
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      widget.unread > 9 ? '9+' : '${widget.unread}',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
