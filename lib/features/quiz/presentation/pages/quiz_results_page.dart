@@ -8,6 +8,7 @@ import '../../../../core/constants/app_routes.dart';
 import '../../../../core/services/streak_service.dart';
 import '../bloc/quiz_bloc.dart';
 import '../../../../core/services/user_service.dart';
+import '../../../../core/services/study_time_service.dart';
 
 class QuizResultsPage extends StatefulWidget {
   const QuizResultsPage({super.key});
@@ -34,7 +35,12 @@ class _QuizResultsPageState extends State<QuizResultsPage> with TickerProviderSt
       xpAnim.addListener(() => setState(() => _displayXp = xpAnim.value.round()));
       Future.delayed(const Duration(milliseconds: 300), () { _ringCtrl.forward(); xpCtrl.forward(); });
       UserService.awardXP(state.result.xpEarned, reason: 'quiz');
+      StudyTimeService.recordQuiz(
+  correct: state.result.correct,
+total: state.result.total,
+);
       UserService.updateLeaderboard();
+      
       // Streak gate: only award if quiz was >= 80% accurate AND
       // streak hasn't already been counted today. If it qualifies,
       // show the animated celebration screen; home top bar will

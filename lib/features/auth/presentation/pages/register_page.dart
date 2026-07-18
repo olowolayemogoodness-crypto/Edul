@@ -10,8 +10,10 @@ import '../bloc/auth_state.dart';
 import '../../../../core/services/user_service.dart';
 import '../../../../models/courses_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
+
   @override
   State<RegisterPage> createState() => _RegisterPageState();
 }
@@ -55,11 +57,10 @@ class _RegisterPageState extends State<RegisterPage> {
     if (pass.length < 6) { _showError('Password must be at least 6 characters.'); return; }
     if (pass != confirm) { _showError('Passwords do not match.'); return; }
     if (_selectedFaculty == null || _selectedCourse == null) { _showError('Please select a faculty and course.'); return; }
-    // Add this in RegisterPage._register() BEFORE context.read<AuthBloc>()
-final prefs = await SharedPreferences.getInstance();
-await prefs.setString('user_course', _selectedCourse!);
-    
-    
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('user_course', _selectedCourse!);
+
     HapticFeedback.lightImpact();
     context.read<AuthBloc>().add(AuthRegister(
       name: '$first $last',
@@ -88,11 +89,11 @@ await prefs.setString('user_course', _selectedCourse!);
     return BlocListener<AuthBloc, AuthState>(
       listener: (ctx, state) {
         if (state is AuthAuthenticated) {
-  if (_selectedCourse != null && _selectedCourse!.isNotEmpty) {
-    UserService.updateProfile(course: _selectedCourse!);
-  }
-  ctx.go('/subject-picker');
-}
+          if (_selectedCourse != null && _selectedCourse!.isNotEmpty) {
+            UserService.updateProfile(course: _selectedCourse!);
+          }
+          ctx.go('/subject-picker');
+        }
         if (state is AuthError) _showError(state.message);
       },
       child: Scaffold(
@@ -104,7 +105,6 @@ await prefs.setString('user_course', _selectedCourse!);
           const SizedBox(height: 4),
           Text('Start your learning journey today', style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textTertiary)),
           const SizedBox(height: 24),
-
           // First + Last name row
           Row(children: [
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -118,51 +118,51 @@ await prefs.setString('user_course', _selectedCourse!);
             ])),
           ]),
           const SizedBox(height: 12),
-         _label('Email'),
+          _label('Email'),
           _field(ctrl: _emailCtrl, hint: 'you@example.com', type: TextInputType.emailAddress),
           const SizedBox(height: 12),
           _label('Faculty'),
-DropdownButtonFormField<String>(
-  initialValue: _selectedFaculty,
-  hint: Text('Select Faculty', style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textDisabled)),
-  items: CoursesData.getFaculties().map((faculty) => 
-    DropdownMenuItem(value: faculty, child: Text(faculty, style: GoogleFonts.dmSans(fontSize: 13)))
-  ).toList(),
-  onChanged: (value) {
-    setState(() {
-      _selectedFaculty = value;
-      _selectedCourse = null;
-    });
-  },
-  decoration: InputDecoration(
-    filled: true, fillColor: AppColors.surface,
-    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
-    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
-    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.accent)),
-    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-  ),
-),
-const SizedBox(height: 12),
-_label('Course'),
-DropdownButtonFormField<String>(
-  initialValue: _selectedCourse,
-  hint: Text('Select Course', style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textDisabled)),
-  items: _selectedFaculty != null
-    ? CoursesData.getCourses(_selectedFaculty!).map((course) => 
-        DropdownMenuItem(value: course, child: Text(course, style: GoogleFonts.dmSans(fontSize: 13)))
-      ).toList()
-    : [],
-  onChanged: _selectedFaculty != null 
-    ? (value) => setState(() => _selectedCourse = value)
-    : null,
-  decoration: InputDecoration(
-    filled: true, fillColor: AppColors.surface,
-    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
-    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
-    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.accent)),
-    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-  ),
-),
+          DropdownButtonFormField<String>(
+            value: _selectedFaculty,
+            hint: Text('Select Faculty', style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textDisabled)),
+            items: CoursesData.getFaculties().map((faculty) =>
+              DropdownMenuItem(value: faculty, child: Text(faculty, style: GoogleFonts.dmSans(fontSize: 13)))
+            ).toList(),
+            onChanged: (value) {
+              setState(() {
+                _selectedFaculty = value;
+                _selectedCourse = null;
+              });
+            },
+            decoration: InputDecoration(
+              filled: true, fillColor: AppColors.surface,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.accent)),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            ),
+          ),
+          const SizedBox(height: 12),
+          _label('Course'),
+          DropdownButtonFormField<String>(
+            value: _selectedCourse,
+            hint: Text('Select Course', style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textDisabled)),
+            items: _selectedFaculty != null
+              ? CoursesData.getCourses(_selectedFaculty!).map((course) =>
+                  DropdownMenuItem(value: course, child: Text(course, style: GoogleFonts.dmSans(fontSize: 13)))
+                ).toList()
+              : [],
+            onChanged: _selectedFaculty != null
+              ? (value) => setState(() => _selectedCourse = value)
+              : null,
+            decoration: InputDecoration(
+              filled: true, fillColor: AppColors.surface,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.accent)),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            ),
+          ),
           const SizedBox(height: 12),
           _label('Password'),
           _passField(_passCtrl, _obscure, () => setState(() => _obscure = !_obscure), onChanged: _onPassChange),
@@ -177,7 +177,6 @@ DropdownButtonFormField<String>(
           _label('Confirm password'),
           _passField(_confirmCtrl, _obscureConfirm, () => setState(() => _obscureConfirm = !_obscureConfirm)),
           const SizedBox(height: 20),
-
           BlocBuilder<AuthBloc, AuthState>(builder: (ctx, state) {
             final loading = state is AuthLoading;
             return GestureDetector(
@@ -194,7 +193,6 @@ DropdownButtonFormField<String>(
           const SizedBox(height: 16),
           _divider(),
           const SizedBox(height: 16),
-
           GestureDetector(
             onTap: _signInGoogle,
             child: Container(
@@ -208,7 +206,6 @@ DropdownButtonFormField<String>(
             ),
           ),
           const SizedBox(height: 20),
-
           Center(child: GestureDetector(
             onTap: () => context.go('/login'),
             child: RichText(text: TextSpan(children: [
@@ -232,26 +229,27 @@ DropdownButtonFormField<String>(
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
       enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
       focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.accent)),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12)),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+    ),
   );
 
   Widget _passField(TextEditingController ctrl, bool obscure, VoidCallback toggle, {ValueChanged<String>? onChanged}) => TextField(
     controller: ctrl, obscureText: obscure, onChanged: onChanged,
     style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textPrimary),
     decoration: InputDecoration(
-      hintText: obscure ? '••••••••' : 'At least 6 characters',
-      hintStyle: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textDisabled),
+      hintText: '••••••••', hintStyle: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textDisabled),
       filled: true, fillColor: AppColors.surface,
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
       enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
       focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.accent)),
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      suffixIcon: GestureDetector(onTap: toggle, child: Icon(obscure ? Icons.visibility_off_rounded : Icons.visibility_rounded, size: 18, color: AppColors.textDisabled))),
+      suffixIcon: GestureDetector(onTap: toggle, child: Icon(obscure ? Icons.visibility_off_rounded : Icons.visibility_rounded, size: 18, color: AppColors.textTertiary)),
+    ),
   );
 
   Widget _divider() => Row(children: [
-    Expanded(child: Container(height: 0.5, color: AppColors.border)),
-    Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: Text('or', style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.textDisabled))),
-    Expanded(child: Container(height: 0.5, color: AppColors.border)),
+    const Expanded(child: Divider(color: AppColors.border)),
+    Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: Text('or', style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.textTertiary))),
+    const Expanded(child: Divider(color: AppColors.border)),
   ]);
 }

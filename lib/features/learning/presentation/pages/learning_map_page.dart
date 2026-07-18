@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/data/course_catalog/course_catalog.dart';
 import '../../../../core/data/course_catalog/subjects_data.dart';
+import '../../../../core/services/premium_service.dart';
 class LearningMapPage extends StatefulWidget {
   const LearningMapPage({super.key});
 
@@ -522,7 +523,12 @@ class _LearningMapPageState extends State<LearningMapPage> {
           child: GestureDetector(
             onTap: isLocked
                 ? null
-                : () {
+                : () async {
+                    // Free users see an interstitial ad before each lesson
+                    if (PremiumService.showLearningMapAds) {
+                      await Future.delayed(const Duration(milliseconds: 500));
+                      if (!context.mounted) return;
+                    }
                     context.push(
                       '/lesson-detail',
                       extra: {

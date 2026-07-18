@@ -1,8 +1,9 @@
-import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
+import 'core/services/premium_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/bloc/auth_bloc.dart';
@@ -11,7 +12,6 @@ import 'injection_container.dart';
 import 'firebase_options.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'core/constants/app_constants.dart';
-import 'package:purchases_flutter/purchases_flutter.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,13 +26,16 @@ void main() async {
     systemNavigationBarIconBrightness: Brightness.light,
   ));
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  // Currently using Google's official TEST ad unit IDs everywhere ads
+  // are shown (see AdService) -- safe to initialize unconditionally.
+  // Swap to real ad unit IDs before release.
+  MobileAds.instance.initialize();
+  await PremiumService.initialize();
   await initDependencies();
   await _migrateCompulsoryCourses();
   await _migrateCOS102();
-  await initializeRevenueCat();
   runApp(const EduLinkApp());
 }
-
 
 /// One-time migration: ensures compulsory GST/core courses are unlocked
 /// for users who registered before this feature existed. Runs once per
@@ -52,6 +55,7 @@ Future<void> _migrateCompulsoryCourses() async {
   await prefs.setStringList('unlocked_courses', merged);
   await prefs.setBool('compulsory_migration_v1_done', true);
 }
+
 Future<void> _migrateCOS102() async {
   final prefs = await SharedPreferences.getInstance();
   if (prefs.getBool('compulsory_migration_v2_done') ?? false) return;
@@ -62,19 +66,6 @@ Future<void> _migrateCOS102() async {
   }
   await prefs.setBool('compulsory_migration_v2_done', true);
 }
-Future<void> initializeRevenueCat() async {
-  String apiKey;
-  if (Platform.isIOS || Platform.isMacOS) {
-    apiKey = 'test_wpFQGsnATmYwLcPqZcSSUpIxgZG';
-  } else if (Platform.isAndroid) {
-    apiKey = 'test_wpFQGsnATmYwLcPqZcSSUpIxgZG';
-  } else {
-    return;
-  }
-  await Purchases.configure(PurchasesConfiguration(apiKey));
-}
-
-
 class EduLinkApp extends StatelessWidget {
   const EduLinkApp({super.key});
 

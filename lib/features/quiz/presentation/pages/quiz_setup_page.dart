@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/data/course_catalog/subjects_data.dart';
+import '../../../../core/utils/paywall_helper.dart';
 import '../../data/topic_question_source.dart';
 import '../bloc/quiz_bloc.dart';
 import '../../domain/models/quiz_question.dart';
@@ -402,7 +403,16 @@ class _QuizSetupPageState extends State<QuizSetupPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return BlocListener<QuizBloc, QuizState>(
+      listener: (context, state) {
+        if (state is QuizCapReached) {
+          showPaywall(context,
+            triggerReason:
+              "You've reached your ${state.cap}-question daily limit. Upgrade to keep going.",
+          );
+        }
+      },
+      child: Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: Column(children: [
@@ -500,7 +510,8 @@ class _QuizSetupPageState extends State<QuizSetupPage> {
           )),
         ]),
       ),
-    );
+    ),
+  );
   }
 
   Widget _label(String t) => Text(t.toUpperCase(),

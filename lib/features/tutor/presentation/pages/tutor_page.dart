@@ -7,6 +7,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/groq_services.dart';
+import '../../../../core/services/premium_service.dart';
+import '../../../../core/utils/paywall_helper.dart';
 import '../../../../core/services/vision_service.dart';
 import '../../domain/models/message_model.dart';
 
@@ -22,6 +24,7 @@ class _TutorPageState extends State<TutorPage> {
   final List<TutorMessage> messages = [];
   bool isLoading = false;
   final String chatTitle = 'AI Tutor';
+  DateTime? _sessionStart;
 
   @override
   void dispose() {
@@ -33,6 +36,18 @@ class _TutorPageState extends State<TutorPage> {
   void sendMessage() async {
     final text = inputCtrl.text.trim();
     if (text.isEmpty || isLoading) return;
+
+    // ── Free tier: 20-minute daily session limit ──────────────────────────
+    if (PremiumService.isFree) {
+      _sessionStart ??= DateTime.now();
+      final elapsed = DateTime.now().difference(_sessionStart!).inMinutes;
+      if (elapsed >= 20) {
+        showPaywall(context,
+          triggerReason: "You've used your 20-minute daily AI Tutor limit. Upgrade to Plus for unlimited access.",
+        );
+        return;
+      }
+    }
 
     HapticFeedback.lightImpact();
 
@@ -192,9 +207,24 @@ class _TutorPageState extends State<TutorPage> {
                             fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
                     const SizedBox(width: 6),
                     const Icon(Icons.verified, color: AppColors.success, size: 16),
+                    if (PremiumService.isFree) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2A1F0A),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: const Color(0xFF854F0B)),
+                        ),
+                        child: Text('Limited · 20 min/day',
+                          style: GoogleFonts.dmSans(
+                            fontSize: 9, fontWeight: FontWeight.w500,
+                            color: const Color(0xFFEF9F27))),
+                      ),
+                    ],
                   ],
                 ),
-                Text('LLaMA via Groq',
+                Text(PremiumService.isPro ? 'GPT-OSS-120B via Groq' : 'GPT-OSS-20B via Groq',
                     style: GoogleFonts.dmSans(fontSize: 11, color: AppColors.textTertiary)),
               ],
             ),

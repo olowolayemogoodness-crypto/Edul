@@ -1,9 +1,11 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../domain/models/quiz_question.dart';
 import '../../data/mock_questions.dart';
 import '../../data/topic_question_source.dart';
 import '../../../../core/services/quiz_sound_service.dart';
 import '../../../../core/services/lives_service.dart';
+import '../../../../core/services/premium_service.dart';
 
 // ── Events ──
 abstract class QuizEvent {}
@@ -22,10 +24,19 @@ class QuizAnswerSelected extends QuizEvent {
 class QuizNextQuestion extends QuizEvent {}
 class QuizTimedOut extends QuizEvent {}
 class QuizReset extends QuizEvent {}
+// Dispatched once a rewarded ad has actually been watched through to
+// completion (see AdService.show()). Unlocks finishing THIS quiz
+// session at 0 lives -- does NOT touch LivesService/persistent lives
+// at all, see LivesService.markQuizContinuedViaAd().
+class QuizAdWatchedToContinue extends QuizEvent {}
 
 // ── States ──
 abstract class QuizState {}
 class QuizInitial extends QuizState {}
+class QuizCapReached extends QuizState {
+  final int cap;
+   QuizCapReached({required this.cap});
+}
 
 class QuizInProgress extends QuizState {
   final List<QuizQuestion> questions;
@@ -40,6 +51,10 @@ class QuizInProgress extends QuizState {
   final QuizMode mode;
   final QuizDifficulty difficulty;
   final String topicLabel;
+  // SESSION-ONLY (never persisted) -- true once a rewarded ad has
+  // been watched to unlock finishing THIS quiz at 0 lives. Does not
+  // affect LivesService/persistent lives; resets on the next quiz.
+  final bool adUnlockedContinue;
 
   QuizInProgress({
     required this.questions,
@@ -52,6 +67,7 @@ class QuizInProgress extends QuizState {
     required this.mode,
     required this.difficulty,
     required this.topicLabel,
+    this.adUnlockedContinue = false,
     this.selectedIndex,
     this.answered = false,
   });
@@ -60,9 +76,14 @@ class QuizInProgress extends QuizState {
   double get progress => (currentIndex + 1) / questions.length;
   bool get isLastQuestion => currentIndex >= questions.length - 1;
 
+  /// True when the student is locked out of continuing this quiz --
+  /// 0 lives and hasn't watched an ad to unlock finishing it yet.
+  bool get isBlockedByNoLives => lives <= 0 && !adUnlockedContinue;
+
   QuizInProgress copyWith({
     int? currentIndex, int? lives, int? streak, int? bestStreak,
     int? correct, int? wrong, int? selectedIndex, bool? answered,
+    bool? adUnlockedContinue,
   }) {
     return QuizInProgress(
       questions: questions, mode: mode, difficulty: difficulty,
@@ -73,6 +94,7 @@ class QuizInProgress extends QuizState {
       bestStreak: bestStreak ?? this.bestStreak,
       correct: correct ?? this.correct,
       wrong: wrong ?? this.wrong,
+      adUnlockedContinue: adUnlockedContinue ?? this.adUnlockedContinue,
       selectedIndex: selectedIndex ?? this.selectedIndex,
       answered: answered ?? this.answered,
     );
@@ -95,6 +117,7 @@ class QuizBloc extends Bloc<QuizEvent, QuizState> {
     on<QuizNextQuestion>(_onNextQuestion);
     on<QuizTimedOut>(_onTimedOut);
     on<QuizReset>(_onReset);
+    on<QuizAdWatchedToContinue>(_onAdWatchedToContinue);
   }
 
   int _questionCountForDifficulty(QuizDifficulty difficulty) {
@@ -130,6 +153,23 @@ class QuizBloc extends Bloc<QuizEvent, QuizState> {
   Future<void> _onStarted(QuizStarted event, Emitter<QuizState> emit) async {
     _answers.clear(); _times.clear();
 
+    // ── Daily quiz cap check ──────────────────────────────────────────────
+    // Free: 20/day, Plus: 200/month, Pro: unlimited
+    if (PremiumService.isFree) {
+      final prefs = await SharedPreferences.getInstance();
+      final today = DateTime.now().toIso8601String().substring(0, 10);
+      final lastDay = prefs.getString('quiz_cap_date') ?? '';
+      final count = lastDay == today
+          ? (prefs.getInt('quiz_cap_count') ?? 0)
+          : 0;
+      if (count >= 20) {
+        emit( QuizCapReached(cap: 20));
+        return;
+      }
+      await prefs.setString('quiz_cap_date', today);
+      await prefs.setInt('quiz_cap_count', count + 1);
+    }
+
     final requestedCount = _questionCountForDifficulty(event.difficulty);
     List<QuizQuestion> questions;
     if (TopicQuestionSource.hasQuestionBank(event.topic)) {
@@ -160,6 +200,8 @@ class QuizBloc extends Bloc<QuizEvent, QuizState> {
     // the student's real current life count is, including regen that
     // happened since they last played.
     final currentLives = await LivesService.getCurrentLives();
+    // Preload a rewarded ad defensively so one is likely ready if
+    // this student runs out of lives mid-quiz.
 
     emit(QuizInProgress(
       questions: questions, currentIndex: 0, lives: currentLives,
@@ -188,6 +230,7 @@ class QuizBloc extends Bloc<QuizEvent, QuizState> {
     if (!isCorrect) {
       await LivesService.recordWrongAnswer();
       newLives = await LivesService.getCurrentLives();
+      if (newLives <= 0);
     }
 
     _answers.add(QuizAnswerRecord(
@@ -222,6 +265,7 @@ class QuizBloc extends Bloc<QuizEvent, QuizState> {
     QuizSoundService.playWrong();
     await LivesService.recordWrongAnswer();
     final newLives = await LivesService.getCurrentLives();
+    if (newLives <= 0) ;
     _answers.add(QuizAnswerRecord(question: s.currentQuestion.question, correct: false, secondsTaken: 30));
     _times.add(30);
     emit(s.copyWith(
@@ -233,6 +277,13 @@ class QuizBloc extends Bloc<QuizEvent, QuizState> {
   void _onReset(QuizReset event, Emitter<QuizState> emit) {
     _answers.clear(); _times.clear();
     emit(QuizInitial());
+  }
+
+  void _onAdWatchedToContinue(QuizAdWatchedToContinue event, Emitter<QuizState> emit) {
+    final s = state as QuizInProgress;
+    // Deliberately does NOT touch LivesService/persistent lives --
+    // only unlocks finishing THIS quiz session.
+    emit(s.copyWith(adUnlockedContinue: true));
   }
 
   void _finish(QuizInProgress s, Emitter<QuizState> emit) {
