@@ -38,7 +38,7 @@ class _TutorPageState extends State<TutorPage> {
     if (text.isEmpty || isLoading) return;
 
     // ── Free tier: 20-minute daily session limit ──────────────────────────
-    if (PremiumService.isFree) {
+    if (PremiumService.isRealFree) {
       _sessionStart ??= DateTime.now();
       final elapsed = DateTime.now().difference(_sessionStart!).inMinutes;
       if (elapsed >= 20) {
@@ -207,7 +207,7 @@ class _TutorPageState extends State<TutorPage> {
                             fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
                     const SizedBox(width: 6),
                     const Icon(Icons.verified, color: AppColors.success, size: 16),
-                    if (PremiumService.isFree) ...[
+                    if (PremiumService.isRealFree) ...[
                       const SizedBox(width: 6),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),

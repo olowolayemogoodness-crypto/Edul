@@ -24,6 +24,14 @@ enum PremiumTier { free, plus, pro }
 class PremiumService {
   PremiumService._();
 
+  // ── Launch kill-switch ────────────────────────────────────────────────────
+  // Set this back to `false` once you're ready to start monetizing/gating.
+  // While `true`, every user is treated as Pro tier everywhere in the app —
+  // no paywalls, no caps — regardless of what RevenueCat actually reports.
+  // RevenueCat purchase flow itself is untouched, so testing real purchases
+  // still works; this only affects what tier the REST of the app *sees*.
+  static const bool premiumDisabledForLaunch = true;
+
   // ── RevenueCat product / entitlement IDs ─────────────────────────────────
   static const String _plusEntitlement = 'plus';
   static const String _proEntitlement  = 'pro';
@@ -32,12 +40,23 @@ class PremiumService {
 
   // ── Cached tier (updated on each checkTier call) ──────────────────────────
   static PremiumTier _cachedTier = PremiumTier.free;
-  static PremiumTier get currentTier => _cachedTier;
+  static PremiumTier get currentTier =>
+      premiumDisabledForLaunch ? PremiumTier.pro : _cachedTier;
 
   // ── Convenience getters ───────────────────────────────────────────────────
-  static bool get isFree => _cachedTier == PremiumTier.free;
-  static bool get isPlus => _cachedTier == PremiumTier.plus || _cachedTier == PremiumTier.pro;
-  static bool get isPro  => _cachedTier == PremiumTier.pro;
+  static bool get isFree =>
+      !premiumDisabledForLaunch && _cachedTier == PremiumTier.free;
+  static bool get isPlus =>
+      premiumDisabledForLaunch ||
+      _cachedTier == PremiumTier.plus ||
+      _cachedTier == PremiumTier.pro;
+  static bool get isPro =>
+      premiumDisabledForLaunch || _cachedTier == PremiumTier.pro;
+  // ── Real tier (ignores the launch kill-switch) ────────────────────────────
+  // Use this — not isFree/isPlus/isPro — for anything gating actual paid
+  // API usage (e.g. AI Tutor). Keeps a real cost lid on even while
+  // premiumDisabledForLaunch unlocks everything else for launch.
+  static bool get isRealFree => _cachedTier == PremiumTier.free;
 
   // ── Limits ────────────────────────────────────────────────────────────────
 

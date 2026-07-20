@@ -42,6 +42,20 @@ class UserService {
         'studentType': (await SharedPreferences.getInstance()).getString('student_type') ?? 'university',
         'createdAt': FieldValue.serverTimestamp(),
       });
+
+      // Welcome notification — gives new users something real to see on
+      // the Notifications page rather than it being permanently empty.
+      // Self-only creation, safe under the current Firestore rules (see
+      // notification_service.dart for why cross-user notifications need
+      // a backend and aren't done here yet).
+      await _db.collection('notifications').add({
+        'uid': uid,
+        'type': 'welcome',
+        'title': 'Welcome to Edulink 🎉',
+        'body': 'Glad to have you here — explore Discover, join a study room, or ask the AI Tutor anything.',
+        'read': false,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
     }
   }
 

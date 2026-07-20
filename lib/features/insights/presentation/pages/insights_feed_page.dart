@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:video_player/video_player.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/services/notifications_service.dart';
+import '../../../notifications/presentation/pages/notifications_page.dart';
 
 class InsightsFeedPage extends StatefulWidget {
   final bool isVisible;
@@ -158,6 +160,48 @@ class _InsightsFeedPageState extends State<InsightsFeedPage> {
           channels: _channels,
           selected: _selectedChannel,
           onSelect: _filterByChannel,
+        ),
+      ),
+
+      // ── Notifications bell ───────────────────────────────────────────────
+      Positioned(
+        top: MediaQuery.of(context).padding.top + 4,
+        right: 12,
+        child: StreamBuilder<List<Map<String, dynamic>>>(
+          stream: NotificationService.stream(),
+          builder: (context, snapshot) {
+            final hasUnread =
+                (snapshot.data ?? []).any((n) => n['read'] != true);
+            return GestureDetector(
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const NotificationsPage()),
+              ),
+              child: Stack(clipBehavior: Clip.none, children: [
+                Container(
+                  width: 34, height: 34,
+                  decoration: BoxDecoration(
+                    color: Colors.black38,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white24),
+                  ),
+                  child: const Icon(Icons.notifications_none_rounded,
+                      color: Colors.white, size: 18),
+                ),
+                if (hasUnread)
+                  Positioned(
+                    top: -1, right: -1,
+                    child: Container(
+                      width: 9, height: 9,
+                      decoration: BoxDecoration(
+                        color: AppColors.error,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.black, width: 1.5),
+                      ),
+                    ),
+                  ),
+              ]),
+            );
+          },
         ),
       ),
     ]);
