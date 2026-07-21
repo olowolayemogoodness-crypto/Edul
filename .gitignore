@@ -53,3 +53,4 @@ lib/core/constants/api_keys.dart
 *.save
 *.backup
 android/build/
+android/key.properties

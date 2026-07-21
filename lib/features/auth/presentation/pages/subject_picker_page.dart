@@ -345,8 +345,27 @@ class _SubjectPickerPageState extends State<SubjectPickerPage> {
 
   Future<void> _loadStudentTypeAndCourse() async {
     final prefs = await SharedPreferences.getInstance();
-    final userCourse = prefs.getString('user_course'); // Saved during registration
-    
+    var userCourse = prefs.getString('user_course'); // Saved during registration
+
+    // Local storage is empty on a fresh install or a different device —
+    // but the account may already have a course saved in Firestore from
+    // registering elsewhere. Fall back to that instead of forcing the
+    // user through registration again on every new device/reinstall.
+    if (userCourse == null || userCourse.isEmpty) {
+      try {
+        final profile = await UserService.getProfile();
+        final firestoreCourse = profile?['course'] as String?;
+        if (firestoreCourse != null && firestoreCourse.isNotEmpty) {
+          userCourse = firestoreCourse;
+          // Backfill local storage so next load is fast and offline-safe.
+          await prefs.setString('user_course', firestoreCourse);
+        }
+      } catch (_) {
+        // Offline or read failed — fall through with whatever we have
+        // (likely null), which shows the "complete registration" state.
+      }
+    }
+
     setState(() {
       _userCourse = userCourse;
     });
