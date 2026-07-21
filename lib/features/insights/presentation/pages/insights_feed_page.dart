@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:video_player/video_player.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/services/insights_interaction_service.dart';
 import '../../../../core/services/notifications_service.dart';
 import '../../../notifications/presentation/pages/notifications_page.dart';
 
@@ -146,6 +147,7 @@ class _InsightsFeedPageState extends State<InsightsFeedPage> {
             );
           }
           return _VideoCard(
+            key: ValueKey(_videos[i]['id']),
             video: _videos[i],
             isActive: i == _currentIndex && widget.isVisible,
           );
@@ -267,7 +269,7 @@ class _VideoCard extends StatefulWidget {
   final Map<String, dynamic> video;
   final bool isActive;
 
-  const _VideoCard({required this.video, required this.isActive});
+  const _VideoCard({super.key, required this.video, required this.isActive});
 
   @override
   State<_VideoCard> createState() => _VideoCardState();
@@ -276,7 +278,6 @@ class _VideoCard extends StatefulWidget {
 class _VideoCardState extends State<_VideoCard> {
   VideoPlayerController? _controller;
   bool _initialized = false;
-  bool _liked = false;
   bool _showControls = false;
   bool _quizShown = false;
 
@@ -410,12 +411,24 @@ class _VideoCardState extends State<_VideoCard> {
         Positioned(
           right: 12, bottom: 120,
           child: Column(children: [
-            _ActionButton(
-              icon: _liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-              label: '${(widget.video['likes'] as int? ?? 0) + (_liked ? 1 : 0)}',
-              color: _liked ? Colors.red : Colors.white,
-              onTap: () => setState(() => _liked = !_liked),
-            ),
+            Builder(builder: (context) {
+              final videoId = widget.video['id'] as String? ?? '';
+              return StreamBuilder<bool>(
+                stream: InsightsInteractionService.isLikedByMe(videoId),
+                builder: (context, likedSnap) {
+                  final liked = likedSnap.data ?? false;
+                  return StreamBuilder<int>(
+                    stream: InsightsInteractionService.likeCount(videoId),
+                    builder: (context, countSnap) => _ActionButton(
+                      icon: liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                      label: '${countSnap.data ?? 0}',
+                      color: liked ? Colors.red : Colors.white,
+                      onTap: () => InsightsInteractionService.toggleLike(videoId),
+                    ),
+                  );
+                },
+              );
+            }),
             const SizedBox(height: 20),
             _ActionButton(
               icon: Icons.share_rounded, label: 'Share',

@@ -79,6 +79,7 @@ dependencies:
   package_info_plus: ^10.1.0
   purchases_flutter: ^10.4.1
   purchases_ui_flutter: ^10.4.1
+  record: ^7.1.1
 
 dev_dependencies:
   flutter_test:

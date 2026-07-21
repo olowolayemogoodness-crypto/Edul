@@ -11,6 +11,8 @@ import '../../../../core/services/premium_service.dart';
 import '../../../../core/utils/paywall_helper.dart';
 import '../../../../core/services/vision_service.dart';
 import '../../domain/models/message_model.dart';
+import 'dart:async';
+import '../../../../core/services/tutor_usage_service.dart';
 
 class TutorPage extends StatefulWidget {
   const TutorPage({super.key});
@@ -26,8 +28,39 @@ class _TutorPageState extends State<TutorPage> {
   final String chatTitle = 'AI Tutor';
   DateTime? _sessionStart;
 
+  int _persistedMinutesToday = 0;
+  int _lastFlushedLocalMinutes = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPersistedUsage();
+  }
+
+  Future<void> _loadPersistedUsage() async {
+    final minutes = await TutorUsageService.getMinutesUsedToday();
+    if (mounted) setState(() => _persistedMinutesToday = minutes);
+  }
+
+  int get _totalMinutesUsedToday {
+    final localElapsed = _sessionStart == null
+        ? 0
+        : DateTime.now().difference(_sessionStart!).inMinutes;
+    return _persistedMinutesToday + localElapsed;
+  }
+
+  Future<void> _flushLocalUsage() async {
+    if (_sessionStart == null) return;
+    final localElapsed = DateTime.now().difference(_sessionStart!).inMinutes;
+    final delta = localElapsed - _lastFlushedLocalMinutes;
+    if (delta <= 0) return;
+    _lastFlushedLocalMinutes = localElapsed;
+    await TutorUsageService.addMinutes(delta);
+  }
+
   @override
   void dispose() {
+    _flushLocalUsage();
     inputCtrl.dispose();
     scrollCtrl.dispose();
     super.dispose();
@@ -40,8 +73,7 @@ class _TutorPageState extends State<TutorPage> {
     // ── Free tier: 20-minute daily session limit ──────────────────────────
     if (PremiumService.isRealFree) {
       _sessionStart ??= DateTime.now();
-      final elapsed = DateTime.now().difference(_sessionStart!).inMinutes;
-      if (elapsed >= 20) {
+      if (_totalMinutesUsedToday >= 20) {
         showPaywall(context,
           triggerReason: "You've used your 20-minute daily AI Tutor limit. Upgrade to Plus for unlimited access.",
         );
@@ -96,6 +128,8 @@ class _TutorPageState extends State<TutorPage> {
       });
 
       scrollDown();
+    } finally {
+      unawaited(_flushLocalUsage());
     }
   }
 

@@ -1,31 +1,62 @@
-// lib/core/services/notification_service.dart
+// lib/core/services/notifications_service.dart
 //
 // Reads and writes the `notifications` collection.
 //
-// IMPORTANT — current scope:
-// Creation is currently self-only (a user can only create a notification
-// addressed to themselves, e.g. a welcome message). This is intentional:
-// letting any client create a notification doc addressed to ANY uid would
-// let user A spam/spoof notifications to user B. Real cross-user
-// notifications (e.g. "so-and-so liked your post") need to be created by a
-// trusted backend (a Cloud Function using the Admin SDK, which bypasses
-// security rules) — that requires Firebase's Blaze plan, which isn't set
-// up yet. Until then, only self-notifications are safe to create from the
-// client, which is what `createSelfNotification` below does.
+// SCOPE — two kinds of creation, two safety models:
 //
-// Firestore rule required (Firebase Console → Firestore Database → Rules),
-// replacing whatever you currently have for notifications:
+// 1. Self-notifications (createSelfNotification) — a user can only create
+//    a notification addressed to THEMSELVES (e.g. a welcome message).
+//
+// 2. Cross-user, TEMPLATED notifications (createFollowNotification,
+//    createCommentNotification) — now allowed, but tightly constrained by
+//    the Firestore rule below: `type` must be one of a fixed small set,
+//    and for `follow` the exact `title`/`body` text is enforced by the
+//    rule itself (built from `fromDisplayName`, which the rule confirms
+//    matches the real caller's own name field), so a malicious client
+//    cannot inject arbitrary title/body text — no phishing-link vector.
+//    What this does NOT prevent: repeated real notifications (no
+//    rate-limiting), since that needs server-side logic (Cloud Functions,
+//    which needs Blaze — not set up yet). Known, accepted tradeoff for
+//    now.
+//
+//    "New post from someone you follow" is deliberately NOT built this
+//    way — fanning out to every follower from the poster's own client
+//    would mean one post triggering hundreds/thousands of writes on their
+//    device, which is slow and abusable. That one genuinely needs a
+//    Cloud Function trigger later.
+//
+// Firestore rule required (Firebase Console → Firestore Database → Rules)
+// — replace your current `notifications` rule with:
 //
 //   match /notifications/{docId} {
 //     allow read, update, delete: if request.auth != null
 //                                  && request.auth.uid == resource.data.uid;
+//
+//     // Self notifications (e.g. welcome message).
 //     allow create: if request.auth != null
 //                   && request.auth.uid == request.resource.data.uid;
-//   }
 //
-// (Your existing rule checked `resource.data.uid` for write too, which
-// can never be true on create — there's no existing document yet at that
-// point, so all creates were being silently rejected.)
+//     // Follow notification — title/body are exactly derived from
+//     // fromDisplayName by the rule itself, so no arbitrary text.
+//     allow create: if request.auth != null
+//                   && request.auth.uid == request.resource.data.fromUid
+//                   && request.resource.data.uid != request.auth.uid
+//                   && request.resource.data.type == 'follow'
+//                   && request.resource.data.title
+//                        == request.resource.data.fromDisplayName + ' started following you'
+//                   && request.resource.data.body == 'Tap to view their profile';
+//
+//     // Comment notification — title is locked; body (comment preview)
+//     // is free text but capped in length.
+//     allow create: if request.auth != null
+//                   && request.auth.uid == request.resource.data.fromUid
+//                   && request.resource.data.uid != request.auth.uid
+//                   && request.resource.data.type == 'comment'
+//                   && request.resource.data.title
+//                        == request.resource.data.fromDisplayName + ' commented on your post'
+//                   && request.resource.data.body is string
+//                   && request.resource.data.body.size() <= 200;
+//   }
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'user_service.dart';
@@ -51,8 +82,7 @@ class NotificationService {
             }).toList());
   }
 
-  /// Creates a notification addressed to the CURRENT user only. See the
-  /// class doc comment for why cross-user notifications aren't done here.
+  /// Creates a notification addressed to the CURRENT user only.
   static Future<void> createSelfNotification({
     required String type,
     required String title,
@@ -69,6 +99,59 @@ class NotificationService {
         'body': body,
         'read': false,
         'postId': postId,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    } catch (_) {}
+  }
+
+  /// Notifies [targetUid] that the current user just followed them.
+  /// Title/body must exactly match what the Firestore rule expects.
+  static Future<void> createFollowNotification(String targetUid) async {
+    final fromUid = UserService.uid;
+    if (fromUid == null || fromUid == targetUid) return;
+    try {
+      final profile = await UserService.getProfile();
+      final fromDisplayName = profile?['displayName'] as String? ?? 'Someone';
+      await _col.add({
+        'uid': targetUid,
+        'fromUid': fromUid,
+        'fromDisplayName': fromDisplayName,
+        'type': 'follow',
+        'title': '$fromDisplayName started following you',
+        'body': 'Tap to view their profile',
+        'read': false,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    } catch (_) {
+      // Best-effort — a failed notification shouldn't block the follow
+      // action itself.
+    }
+  }
+
+  /// Notifies [targetUid] (the post owner) that the current user just
+  /// commented on their post. No-op if commenting on your own post.
+  static Future<void> createCommentNotification({
+    required String targetUid,
+    required String postId,
+    required String commentPreview,
+  }) async {
+    final fromUid = UserService.uid;
+    if (fromUid == null || fromUid == targetUid) return;
+    try {
+      final profile = await UserService.getProfile();
+      final fromDisplayName = profile?['displayName'] as String? ?? 'Someone';
+      final preview = commentPreview.length > 120
+          ? '${commentPreview.substring(0, 120)}…'
+          : commentPreview;
+      await _col.add({
+        'uid': targetUid,
+        'fromUid': fromUid,
+        'fromDisplayName': fromDisplayName,
+        'type': 'comment',
+        'title': '$fromDisplayName commented on your post',
+        'body': preview.isEmpty ? '🎤 Sent a voice note' : preview,
+        'postId': postId,
+        'read': false,
         'createdAt': FieldValue.serverTimestamp(),
       });
     } catch (_) {}

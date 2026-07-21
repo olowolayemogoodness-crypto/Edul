@@ -36,6 +36,8 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>We need camera access to snap and analyze questions</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>We need microphone access to record voice note replies</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>We need photo library access to analyze images</string>
 	<key>UIApplicationSceneManifest</key>

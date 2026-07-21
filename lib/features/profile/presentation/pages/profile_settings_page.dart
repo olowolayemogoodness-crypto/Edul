@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/constants/app_colors.dart';
@@ -8,6 +9,7 @@ import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../auth/presentation/bloc/auth_event.dart';
 import '../../../auth/presentation/bloc/auth_state.dart';
 import '../../../../core/services/user_service.dart';
+import '../../../../core/services/account_deletion_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 enum _SettingsTab { main, editProfile, notifications, privacy }
@@ -67,19 +69,6 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
           if (context.mounted) context.read<AuthBloc>().add(const AuthSignOut());
           if (context.mounted) context.go('/onboarding');
         }, child: Text('Sign out', style: GoogleFonts.dmSans(color: const Color(0xFFE8960F), fontWeight: FontWeight.w500))),
-      ],
-    ));
-  }
-
-  void _deleteAccount() {
-    showDialog(context: context, builder: (ctx) => AlertDialog(
-      backgroundColor: AppColors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: Text('Delete account?', style: GoogleFonts.dmSans(fontSize: 16, fontWeight: FontWeight.w500, color: AppColors.error)),
-      content: Text('This will permanently delete all your data including streaks, XP and progress. This cannot be undone.', style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textTertiary)),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Cancel', style: GoogleFonts.dmSans(color: AppColors.textTertiary))),
-        TextButton(onPressed: () { Navigator.pop(ctx); }, child: Text('Delete', style: GoogleFonts.dmSans(color: AppColors.error, fontWeight: FontWeight.w500))),
       ],
     ));
   }
@@ -176,7 +165,7 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
       _card([
         _srow(Icons.logout_rounded, const Color(0xFF2D1E00), const Color(0xFFE8960F), 'Sign out', _email, onTap: _signOut, titleColor: const Color(0xFFE8960F)),
         _divider(),
-        _srow(Icons.delete_outline_rounded, AppColors.errorSurface, AppColors.error, 'Delete account', 'Permanently remove all data', onTap: _deleteAccount, titleColor: AppColors.error),
+        _srow(Icons.delete_outline_rounded, AppColors.errorSurface, AppColors.error, 'Delete account', 'Permanently remove all data', onTap: () => _showDeleteAccountDialog(context), titleColor: AppColors.error),
       ]),
       const SizedBox(height: 20),
     ]))),
@@ -313,6 +302,96 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
       const SizedBox(height: 20),
     ]))),
   ]);
+
+  void _showDeleteAccountDialog(BuildContext context) {
+    final passwordCtrl = TextEditingController();
+    bool obscure = true;
+    bool deleting = false;
+    String? error;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          backgroundColor: AppColors.surface,
+          title: Text('Delete your account?', style: GoogleFonts.dmSans(
+            fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('This permanently deletes your posts, comments, likes, follows, '
+                 "and your account itself. This can't be undone.",
+              style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textSecondary, height: 1.5)),
+            const SizedBox(height: 16),
+            Text('Confirm your password to continue', style: GoogleFonts.dmSans(
+              fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textTertiary)),
+            const SizedBox(height: 8),
+            TextField(
+              controller: passwordCtrl,
+              obscureText: obscure,
+              style: GoogleFonts.dmSans(fontSize: 14, color: AppColors.textPrimary),
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: AppColors.background,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: AppColors.border)),
+                suffixIcon: IconButton(
+                  icon: Icon(obscure ? Icons.visibility_off_rounded : Icons.visibility_rounded,
+                    size: 18, color: AppColors.textTertiary),
+                  onPressed: () => setDialogState(() => obscure = !obscure),
+                ),
+              ),
+            ),
+            if (error != null) ...[
+              const SizedBox(height: 8),
+              Text(error!, style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.error)),
+            ],
+          ]),
+          actions: [
+            TextButton(
+              onPressed: deleting ? null : () => Navigator.pop(dialogContext),
+              child: Text('Cancel', style: GoogleFonts.dmSans(color: AppColors.textSecondary)),
+            ),
+            TextButton(
+              onPressed: deleting ? null : () async {
+                if (passwordCtrl.text.isEmpty) {
+                  setDialogState(() => error = 'Enter your password to confirm');
+                  return;
+                }
+                setDialogState(() { deleting = true; error = null; });
+                try {
+                  await AccountDeletionService.reauthenticateWithPassword(passwordCtrl.text);
+                  await AccountDeletionService.deleteAccount();
+                  if (dialogContext.mounted) Navigator.pop(dialogContext);
+                  if (context.mounted) context.go('/login');
+                } on FirebaseAuthException catch (e) {
+                  debugPrint('[DeleteAccountDialog] FirebaseAuthException: ${e.code} — ${e.message}');
+                  setDialogState(() {
+                    deleting = false;
+                    error = e.code == 'wrong-password' || e.code == 'invalid-credential'
+                        ? 'Incorrect password'
+                        : 'Could not verify: ${e.message}';
+                  });
+                } catch (e) {
+                  debugPrint('[DeleteAccountDialog] Unexpected error: $e');
+                  setDialogState(() {
+                    deleting = false;
+                    error = 'Something went wrong: $e';
+                  });
+                }
+              },
+              child: deleting
+                  ? const SizedBox(width: 16, height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.error))
+                  : Text('Delete forever', style: GoogleFonts.dmSans(
+                      color: AppColors.error, fontWeight: FontWeight.w600)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   // ══════════════════════════════════════════
   // SHARED WIDGETS

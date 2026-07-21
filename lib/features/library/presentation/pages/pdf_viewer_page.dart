@@ -7,8 +7,8 @@ import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/services/study_time_service.dart';
+import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/services/study_time_service.dart';
 
 class PdfViewerPage extends StatefulWidget {
   final String title;

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/data/nigerian_universities.dart';
 
 class StudentTypePage extends StatefulWidget {
   const StudentTypePage({super.key});
@@ -13,8 +14,8 @@ class StudentTypePage extends StatefulWidget {
 
 class _StudentTypePageState extends State<StudentTypePage> {
   final _pageCtrl = PageController();
-  final _uniCtrl = TextEditingController();
   int _step = 0; // 0 = university, 1 = level
+  NigerianUniversity? _selectedUni;
   String? _selectedLevel;
 
   static const List<Map<String, String>> _levels = [
@@ -29,13 +30,12 @@ class _StudentTypePageState extends State<StudentTypePage> {
   @override
   void dispose() {
     _pageCtrl.dispose();
-    _uniCtrl.dispose();
     super.dispose();
   }
 
   void _nextStep() {
     if (_step == 0) {
-      if (_uniCtrl.text.trim().isEmpty) return;
+      if (_selectedUni == null) return;
       HapticFeedback.selectionClick();
       setState(() => _step = 1);
       _pageCtrl.nextPage(
@@ -56,17 +56,21 @@ class _StudentTypePageState extends State<StudentTypePage> {
   }
 
   Future<void> _finish() async {
-    if (_selectedLevel == null) return;
+    if (_selectedLevel == null || _selectedUni == null) return;
     HapticFeedback.lightImpact();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('student_type', 'university');
-    await prefs.setString('user_university', _uniCtrl.text.trim());
+    // Acronym is the canonical value used everywhere downstream (Social
+    // feed "My Uni" tab, denormalized onto each post, Firestore profile)
+    // — this is what keeps the feed from fragmenting on typos/casing.
+    await prefs.setString('user_university', _selectedUni!.acronym);
+    await prefs.setString('user_university_full', _selectedUni!.name);
     await prefs.setString('user_level', _selectedLevel!);
     if (mounted) context.go('/register');
   }
 
   bool get _canContinue =>
-      _step == 0 ? _uniCtrl.text.trim().isNotEmpty : _selectedLevel != null;
+      _step == 0 ? _selectedUni != null : _selectedLevel != null;
 
   @override
   Widget build(BuildContext context) {
@@ -114,7 +118,10 @@ class _StudentTypePageState extends State<StudentTypePage> {
               controller: _pageCtrl,
               physics: const NeverScrollableScrollPhysics(),
               children: [
-                _UniversityStep(ctrl: _uniCtrl, onChange: () => setState(() {})),
+                _UniversityStep(
+                  selected: _selectedUni,
+                  onSelect: (uni) => setState(() => _selectedUni = uni),
+                ),
                 _LevelStep(
                   levels: _levels,
                   selected: _selectedLevel,
@@ -164,11 +171,36 @@ class _StudentTypePageState extends State<StudentTypePage> {
   }
 }
 
-// ── Step 1: University ────────────────────────────────────────────────────────
-class _UniversityStep extends StatelessWidget {
-  final TextEditingController ctrl;
-  final VoidCallback onChange;
-  const _UniversityStep({required this.ctrl, required this.onChange});
+// ── Step 1: University (searchable picker, not free text) ──────────────────
+class _UniversityStep extends StatefulWidget {
+  final NigerianUniversity? selected;
+  final ValueChanged<NigerianUniversity> onSelect;
+  const _UniversityStep({required this.selected, required this.onSelect});
+
+  @override
+  State<_UniversityStep> createState() => _UniversityStepState();
+}
+
+class _UniversityStepState extends State<_UniversityStep> {
+  final _searchCtrl = TextEditingController();
+  List<NigerianUniversity> _filtered = nigerianUniversities;
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String query) {
+    final q = query.trim().toLowerCase();
+    setState(() {
+      _filtered = q.isEmpty
+          ? nigerianUniversities
+          : nigerianUniversities.where((u) =>
+              u.name.toLowerCase().contains(q) ||
+              u.acronym.toLowerCase().contains(q)).toList();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -180,20 +212,50 @@ class _UniversityStep extends StatelessWidget {
             fontSize: 26, fontWeight: FontWeight.w500,
             color: AppColors.textPrimary, height: 1.3)),
         const SizedBox(height: 8),
-        Text('Start typing — any university worldwide',
+        Text('Search and select your school',
           style: GoogleFonts.dmSans(
             fontSize: 13, color: AppColors.textTertiary, height: 1.6)),
-        const SizedBox(height: 32),
+        const SizedBox(height: 20),
+
+        // Selected chip, if any
+        if (widget.selected != null) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.accentSurface,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.accent, width: 1.5),
+            ),
+            child: Row(children: [
+              const Icon(Icons.school_rounded, color: AppColors.accentLight, size: 18),
+              const SizedBox(width: 10),
+              Expanded(child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(widget.selected!.acronym, style: GoogleFonts.dmSans(
+                    fontSize: 14, fontWeight: FontWeight.w600,
+                    color: AppColors.accentLight)),
+                  Text(widget.selected!.name, style: GoogleFonts.dmSans(
+                    fontSize: 11, color: AppColors.textTertiary),
+                    overflow: TextOverflow.ellipsis),
+                ],
+              )),
+              const Icon(Icons.check_circle_rounded, color: AppColors.accent, size: 20),
+            ]),
+          ),
+          const SizedBox(height: 14),
+        ],
+
         TextField(
-          controller: ctrl,
-          onChanged: (_) => onChange(),
-          autofocus: true,
+          controller: _searchCtrl,
+          onChanged: _onSearchChanged,
+          autofocus: widget.selected == null,
           style: GoogleFonts.dmSans(fontSize: 15, color: AppColors.textPrimary),
           decoration: InputDecoration(
-            hintText: 'e.g. University of Ibadan, Harvard, UCL',
+            hintText: 'Search e.g. UNILAG, Covenant, Babcock',
             hintStyle: GoogleFonts.dmSans(
               fontSize: 13, color: AppColors.textDisabled),
-            prefixIcon: const Icon(Icons.school_rounded,
+            prefixIcon: const Icon(Icons.search_rounded,
               color: AppColors.textTertiary, size: 20),
             filled: true,
             fillColor: AppColors.surface,
@@ -209,6 +271,62 @@ class _UniversityStep extends StatelessWidget {
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16, vertical: 14),
           ),
+        ),
+        const SizedBox(height: 12),
+
+        Expanded(
+          child: _filtered.isEmpty
+              ? Center(
+                  child: Text("No university matches — check spelling",
+                    style: GoogleFonts.dmSans(
+                      fontSize: 13, color: AppColors.textTertiary)),
+                )
+              : ListView.separated(
+                  itemCount: _filtered.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 6),
+                  itemBuilder: (_, i) {
+                    final uni = _filtered[i];
+                    final isSelected = widget.selected?.acronym == uni.acronym;
+                    return GestureDetector(
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        FocusScope.of(context).unfocus();
+                        widget.onSelect(uni);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? AppColors.accentSurface : AppColors.surface,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isSelected
+                                ? AppColors.accent : AppColors.border,
+                          ),
+                        ),
+                        child: Row(children: [
+                          Expanded(child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(uni.acronym, style: GoogleFonts.dmSans(
+                                fontSize: 13, fontWeight: FontWeight.w600,
+                                color: isSelected
+                                    ? AppColors.accentLight
+                                    : AppColors.textPrimary)),
+                              Text(uni.name, style: GoogleFonts.dmSans(
+                                fontSize: 11, color: AppColors.textTertiary),
+                                overflow: TextOverflow.ellipsis),
+                            ],
+                          )),
+                          if (isSelected)
+                            const Icon(Icons.check_circle_rounded,
+                              color: AppColors.accent, size: 18),
+                        ]),
+                      ),
+                    );
+                  },
+                ),
         ),
       ]),
     );

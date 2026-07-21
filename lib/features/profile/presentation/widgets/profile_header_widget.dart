@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -31,7 +32,7 @@ class _State extends State<ProfileHeaderWidget> with SingleTickerProviderStateMi
       SizedBox(width: 74, height: 74, child: Stack(alignment: Alignment.center, children: [
         AnimatedBuilder(animation: _anim,
             builder: (_, animation) => CustomPaint(size: const Size(74, 74),
-                painter: _ArcPainter(progress: _anim.value * 0.65))),
+                painter: _ArcPainter(progress: 0))),
         Container(width: 58, height: 58,
             decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFF1E1D3A)),
             child: Center(child: Builder(builder: (ctx) {
@@ -41,11 +42,23 @@ class _State extends State<ProfileHeaderWidget> with SingleTickerProviderStateMi
               return Text(initials, style: GoogleFonts.dmSans(
                 fontSize: 18, fontWeight: FontWeight.w500, color: const Color(0xFFAFA9EC), letterSpacing: 1));
             }))),
-        Positioned(bottom: 0, right: 0, child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-          decoration: BoxDecoration(color: const Color(0xFF2A1F00), borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFFBA7517), width: 1.5)),
-          child: Text('Lvl 12', style: GoogleFonts.dmSans(fontSize: 8, fontWeight: FontWeight.w500, color: const Color(0xFFEF9F27))),
+        Positioned(bottom: 0, right: 0, child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Stack(children: [
+            IgnorePointer(
+              child: ImageFiltered(
+                imageFilter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(color: const Color(0xFF2A1F00), borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFFBA7517), width: 1.5)),
+                  child: Text('Lvl 12', style: GoogleFonts.dmSans(fontSize: 8, fontWeight: FontWeight.w500, color: const Color(0xFFEF9F27))),
+                ),
+              ),
+            ),
+            Positioned.fill(child: Container(color: Colors.black.withOpacity(0.35))),
+            Positioned.fill(child: Center(child: Text('🔥', style: GoogleFonts.dmSans(fontSize: 10)))),
+          ]),
         )),
       ])),
       const SizedBox(width: 14),

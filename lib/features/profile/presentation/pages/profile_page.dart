@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -118,20 +119,23 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
     ]));
   },
 ),
-                if (!isLoading && !hasError) SliverToBoxAdapter(child: _Section(title: 'This week', child: ThisWeekGrid(
+                if (!isLoading && !hasError) SliverToBoxAdapter(child: _Section(title: 'This week', child: _ComingSoonOverlay(child: ThisWeekGrid(
                   xp: (profile?['xp'] as int?) ?? 0,
                   rank: (profile?['rank'] as int?) ?? 0,
-                ))),
-                if (!isLoading && !hasError) const SliverToBoxAdapter(child: _Section(title: 'Streak', child: StreakCardWidget())),
-                if (!isLoading && !hasError) SliverToBoxAdapter(child: _Section(title: 'Course progress', linkLabel: 'All courses', onLink: () {}, child: const CourseProgressWidget())),
-                if (!isLoading && !hasError) const SliverToBoxAdapter(child: _Section(title: 'Strengths & focus areas', child: StrengthsWidget())),
-                if (!isLoading && !hasError) const SliverToBoxAdapter(child: _Section(title: 'Your learning style', child: LearningStyleCard())),
+                )))),
+                if (!isLoading && !hasError) SliverToBoxAdapter(child: _Section(title: 'Streak', child: StreakCardWidget(
+  currentStreak: (profile?['streak'] as int?) ?? 0,
+  longestStreak: (profile?['longestStreak'] as int?) ?? 0,
+))),
+                if (!isLoading && !hasError) SliverToBoxAdapter(child: _Section(title: 'Course progress', linkLabel: 'All courses', onLink: () {}, child: const _ComingSoonOverlay(child: CourseProgressWidget()))),
+                if (!isLoading && !hasError) const SliverToBoxAdapter(child: _Section(title: 'Strengths & focus areas', child: _ComingSoonOverlay(child: StrengthsWidget()))),
+                if (!isLoading && !hasError) const SliverToBoxAdapter(child: _Section(title: 'Your learning style', child: _ComingSoonOverlay(child: LearningStyleCard()))),
                 if (!isLoading && !hasError) SliverToBoxAdapter(child: _Section(
                   title: 'Success prediction',
                   trailing: Text('AI-powered', style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textTertiary)),
-                  child: const SuccessPredictionCard(),
+                  child: const _ComingSoonOverlay(child: SuccessPredictionCard()),
                 )),
-                if (!isLoading && !hasError) SliverToBoxAdapter(child: _Section(title: 'Badges', linkLabel: 'See all', onLink: () {}, child: const BadgesScrollWidget())),
+                if (!isLoading && !hasError) SliverToBoxAdapter(child: _Section(title: 'Badges', linkLabel: 'See all', onLink: () {}, child: const _ComingSoonOverlay(child: BadgesScrollWidget()))),
                 const SliverToBoxAdapter(child: SizedBox(height: 24)),
               ],
             ),
@@ -166,6 +170,47 @@ class _Section extends StatelessWidget {
         ]),
         const SizedBox(height: 10),
         child,
+      ]),
+    );
+  }
+}
+
+class _ComingSoonOverlay extends StatelessWidget {
+  final Widget child;
+  const _ComingSoonOverlay({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: Stack(children: [
+        IgnorePointer(
+          child: ImageFiltered(
+            imageFilter: ImageFilter.blur(sigmaX: 7, sigmaY: 7),
+            child: child,
+          ),
+        ),
+        Positioned.fill(
+          child: Container(color: Colors.black.withOpacity(0.25)),
+        ),
+        Positioned.fill(
+          child: Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.6),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.accentLight.withOpacity(0.4)),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Text('🔥', style: TextStyle(fontSize: 14)),
+                const SizedBox(width: 6),
+                Text('Coming soon', style: GoogleFonts.dmSans(
+                  fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white)),
+              ]),
+            ),
+          ),
+        ),
       ]),
     );
   }

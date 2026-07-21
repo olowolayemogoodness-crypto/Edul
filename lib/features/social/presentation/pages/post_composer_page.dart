@@ -1,5 +1,6 @@
 // lib/features/social/presentation/pages/post_composer_page.dart
 
+import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -9,8 +10,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/services/post_image_upload_service.dart';
 import '../../../../core/services/premium_service.dart';
 import '../../../../core/services/user_service.dart';
+import '../../../../core/services/voice_note_service.dart';
 import '../../../../core/utils/paywall_helper.dart';
 
 class PostComposerPage extends StatefulWidget {
@@ -26,11 +29,18 @@ class _PostComposerPageState extends State<PostComposerPage> {
   final List<File> _images = [];
   String _feedTarget = 'global';
   bool _posting = false;
+  double _uploadProgress = 0.0;
   String _university = 'My Uni';
+
+  RecordingResult? _voiceNote;
+  bool _isRecording = false;
+  int _recordingSeconds = 0;
+  Timer? _recordTimer;
 
   static const int _maxChars = 500;
   int get _maxImages => PremiumService.isPro ? 5 : 3;
-  bool get _canPost => _textCtrl.text.trim().isNotEmpty && !_posting;
+  bool get _canPost =>
+      (_textCtrl.text.trim().isNotEmpty || _voiceNote != null) && !_posting;
 
   @override
   void initState() {
@@ -42,6 +52,7 @@ class _PostComposerPageState extends State<PostComposerPage> {
   @override
   void dispose() {
     _textCtrl.dispose();
+    _recordTimer?.cancel();
     super.dispose();
   }
 
@@ -73,22 +84,97 @@ class _PostComposerPageState extends State<PostComposerPage> {
     }
   }
 
+  Future<void> _startRecording() async {
+    if (PremiumService.isFree) {
+      showPaywall(context,
+        triggerReason: 'Voice note posts are available on Plus and Pro.',
+        initialTier: 1);
+      return;
+    }
+    try {
+      await VoiceNoteService.startRecording();
+      if (!mounted) return;
+      setState(() {
+        _isRecording = true;
+        _recordingSeconds = 0;
+      });
+      _recordTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() => _recordingSeconds++);
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Could not start recording: $e',
+          style: GoogleFonts.dmSans(fontSize: 13)),
+        backgroundColor: AppColors.error,
+        behavior: SnackBarBehavior.floating));
+    }
+  }
+
+  Future<void> _cancelRecording() async {
+    _recordTimer?.cancel();
+    await VoiceNoteService.cancelRecording();
+    if (mounted) {
+      setState(() {
+        _isRecording = false;
+        _recordingSeconds = 0;
+      });
+    }
+  }
+
+  Future<void> _attachRecording() async {
+    _recordTimer?.cancel();
+    setState(() => _isRecording = false);
+    final result = await VoiceNoteService.stopRecording();
+    if (result != null && mounted) {
+      setState(() => _voiceNote = result);
+    }
+  }
+
+  void _removeVoiceNote() => setState(() => _voiceNote = null);
+
   Future<void> _post() async {
     if (!_canPost) return;
-    setState(() => _posting = true);
+    setState(() {
+      _posting = true;
+      _uploadProgress = 0.0;
+    });
     HapticFeedback.lightImpact();
     try {
       final uid = UserService.uid;
       if (uid == null) throw Exception('Not logged in');
+
+      List<String> imageUrls = [];
+      if (_images.isNotEmpty) {
+        imageUrls = await PostImageUploadService.uploadAll(
+          _images,
+          onProgress: (p) {
+            if (mounted) setState(() => _uploadProgress = p);
+          },
+        );
+      }
+
+      String? audioUrl;
+      if (_voiceNote != null) {
+        audioUrl = await VoiceNoteService.uploadVoiceNote(_voiceNote!.file);
+      }
+
       final profile = await UserService.getProfile();
       final displayName = profile?['displayName'] as String? ?? 'User';
       final uni = profile?['university'] as String? ?? _university;
+      final course = profile?['course'] as String? ?? '';
+      final studentType = profile?['studentType'] as String? ?? 'university';
       await FirebaseFirestore.instance.collection('posts').add({
         'uid': uid,
         'displayName': displayName,
         'university': uni,
+        'course': course,
+        'studentType': studentType,
         'content': _textCtrl.text.trim(),
-        'imageUrls': <String>[],
+        'imageUrls': imageUrls,
+        if (audioUrl != null) 'audioUrl': audioUrl,
+        if (audioUrl != null) 'durationMs': _voiceNote!.durationMs,
+        if (audioUrl != null) 'waveform': _voiceNote!.waveform,
         'feedTarget': _feedTarget,
         'likes': 0, 'comments': 0, 'reposts': 0, 'views': 0,
         'verified': false,
@@ -98,13 +184,19 @@ class _PostComposerPageState extends State<PostComposerPage> {
       Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
+      final message = _images.isNotEmpty || _voiceNote != null
+          ? 'Failed to upload media: $e'
+          : 'Failed to post: $e';
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Failed to post: $e',
+        content: Text(message,
           style: GoogleFonts.dmSans(fontSize: 13)),
         backgroundColor: AppColors.error,
         behavior: SnackBarBehavior.floating));
     } finally {
-      if (mounted) setState(() => _posting = false);
+      if (mounted) setState(() {
+        _posting = false;
+        _uploadProgress = 0.0;
+      });
     }
   }
 
@@ -169,9 +261,17 @@ class _PostComposerPageState extends State<PostComposerPage> {
                             ? AppColors.accent : Colors.white24),
                     ),
                     child: _posting
-                        ? const SizedBox(width: 14, height: 14,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white))
+                        ? Row(mainAxisSize: MainAxisSize.min, children: [
+                            const SizedBox(width: 14, height: 14,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white)),
+                            if (_images.isNotEmpty && _uploadProgress < 1.0) ...[
+                              const SizedBox(width: 6),
+                              Text('${(_uploadProgress * 100).toInt()}%',
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 11, color: Colors.white70)),
+                            ],
+                          ])
                         : Text('Post', style: GoogleFonts.dmSans(
                             fontSize: 13, fontWeight: FontWeight.w600,
                             color: _canPost
@@ -215,11 +315,60 @@ class _PostComposerPageState extends State<PostComposerPage> {
                 ),
               ),
 
+            // Voice note preview (pre-post, not yet uploaded)
+            if (_voiceNote != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: AppColors.accentSurface.withOpacity(0.4),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.accentLight.withOpacity(0.3)),
+                  ),
+                  child: Row(children: [
+                    const Icon(Icons.graphic_eq_rounded,
+                      color: AppColors.accentLight, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: SizedBox(
+                        height: 24,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: _voiceNote!.waveform.map((amp) {
+                            return Expanded(
+                              child: Container(
+                                margin: const EdgeInsets.symmetric(horizontal: 1),
+                                height: 4 + amp.clamp(0.08, 1.0) * 16,
+                                decoration: BoxDecoration(
+                                  color: AppColors.accentLight,
+                                  borderRadius: BorderRadius.circular(2)),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      '${_voiceNote!.durationMs ~/ 1000}s',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 11, color: AppColors.accentLight)),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: _removeVoiceNote,
+                      child: Icon(Icons.close_rounded,
+                        size: 16, color: AppColors.accentLight.withOpacity(0.8)),
+                    ),
+                  ]),
+                ),
+              ),
+
             // Spacer pushes input to bottom
             const Spacer(),
 
             // Hint text when empty
-            if (_textCtrl.text.isEmpty && _images.isEmpty)
+            if (_textCtrl.text.isEmpty && _images.isEmpty && _voiceNote == null)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Column(children: [
@@ -245,16 +394,48 @@ class _PostComposerPageState extends State<PostComposerPage> {
               child: Container(
                 margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                 decoration: BoxDecoration(
-                  color: Colors.white10,
+                  color: Colors.black.withOpacity(0.82),
                   borderRadius: BorderRadius.circular(28),
-                  border: Border.all(color: Colors.white24),
+                  border: Border.all(color: AppColors.accentLight.withOpacity(0.25)),
                   boxShadow: [
                     BoxShadow(
                       color: AppColors.accent.withOpacity(0.15),
                       blurRadius: 20, spreadRadius: 2),
                   ],
                 ),
-                child: Row(
+                child: _isRecording
+                    ? Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        child: Row(children: [
+                          const Icon(Icons.fiber_manual_record_rounded,
+                            color: AppColors.error, size: 14),
+                          const SizedBox(width: 8),
+                          Text('Recording ${_recordingSeconds ~/ 60}:${(_recordingSeconds % 60).toString().padLeft(2, '0')}',
+                            style: GoogleFonts.dmSans(
+                              fontSize: 14, color: Colors.white)),
+                          const Spacer(),
+                          GestureDetector(
+                            onTap: _cancelRecording,
+                            child: Container(
+                              width: 34, height: 34,
+                              decoration: BoxDecoration(
+                                color: Colors.white12, shape: BoxShape.circle),
+                              child: const Icon(Icons.close_rounded,
+                                color: Colors.white70, size: 16)),
+                          ),
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: _attachRecording,
+                            child: Container(
+                              width: 34, height: 34,
+                              decoration: const BoxDecoration(
+                                color: AppColors.accent, shape: BoxShape.circle),
+                              child: const Icon(Icons.check_rounded,
+                                color: Colors.white, size: 18)),
+                          ),
+                        ]),
+                      )
+                    : Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                   // Camera/image button
@@ -266,7 +447,24 @@ class _PostComposerPageState extends State<PostComposerPage> {
                         Icons.camera_alt_outlined,
                         size: 22,
                         color: PremiumService.isFree
-                            ? Colors.white24 : Colors.white60),
+                            ? AppColors.accentLight.withOpacity(0.3)
+                            : AppColors.accentLight.withOpacity(0.85)),
+                    ),
+                  ),
+
+                  // Mic/voice note button
+                  GestureDetector(
+                    onTap: _voiceNote == null ? _startRecording : null,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(4, 10, 4, 10),
+                      child: Icon(
+                        Icons.mic_none_rounded,
+                        size: 22,
+                        color: _voiceNote != null
+                            ? AppColors.accentLight.withOpacity(0.2)
+                            : PremiumService.isFree
+                                ? AppColors.accentLight.withOpacity(0.3)
+                                : AppColors.accentLight.withOpacity(0.85)),
                     ),
                   ),
 
@@ -282,7 +480,7 @@ class _PostComposerPageState extends State<PostComposerPage> {
                       decoration: InputDecoration(
                         hintText: "What's happening?",
                         hintStyle: GoogleFonts.dmSans(
-                          fontSize: 15, color: Colors.white38),
+                          fontSize: 15, color: AppColors.accentLight.withOpacity(0.55)),
                         border: InputBorder.none,
                         counterText: '',
                         contentPadding: const EdgeInsets.symmetric(
@@ -305,7 +503,7 @@ class _PostComposerPageState extends State<PostComposerPage> {
                         const SizedBox(height: 2),
                         Text('${_images.length}/$_maxImages 📷',
                           style: GoogleFonts.dmSans(
-                            fontSize: 10, color: Colors.white38)),
+                            fontSize: 10, color: AppColors.accentLight.withOpacity(0.6))),
                       ],
                     ]),
                   ),
