@@ -52,3 +52,4 @@ lib/core/constants/api_keys.dart
 # Editor backups
 *.save
 *.backup
+android/build/
