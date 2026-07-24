@@ -93,7 +93,7 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
                 const SizedBox(height: 8),
                 Text('AI-powered learning', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary)),
                 const SizedBox(height: 40),
-                const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accentLight)),
+                SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accentLight)),
               ],
             ),
           ),

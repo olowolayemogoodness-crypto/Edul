@@ -175,7 +175,7 @@ class _LearningMapPageState extends State<LearningMapPage> {
   Widget _buildHeader(Map<String, dynamic> subjectData) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.surface,
         border: Border(bottom: BorderSide(color: AppColors.border)),
       ),
@@ -184,7 +184,7 @@ class _LearningMapPageState extends State<LearningMapPage> {
         children: [
           GestureDetector(
             onTap: () => context.go('/home'),
-            child: const Icon(
+            child: Icon(
               Icons.arrow_back_rounded,
               size: 20,
               color: AppColors.textTertiary,
@@ -211,7 +211,7 @@ class _LearningMapPageState extends State<LearningMapPage> {
           // Search icon
           GestureDetector(
             onTap: () => _showSubjectSearch(context),
-            child: const Icon(
+            child: Icon(
               Icons.search_rounded,
               size: 22,
               color: AppColors.textTertiary,
@@ -301,7 +301,7 @@ class _LearningMapPageState extends State<LearningMapPage> {
                               fontSize: 14,
                               color: AppColors.textTertiary,
                             ),
-                            prefixIcon: const Icon(
+                            prefixIcon: Icon(
                               Icons.search_rounded,
                               color: AppColors.textTertiary,
                               size: 20,

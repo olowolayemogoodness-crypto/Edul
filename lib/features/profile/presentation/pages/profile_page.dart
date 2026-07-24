@@ -77,7 +77,7 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
                               fontSize: 22, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
                           Row(mainAxisSize: MainAxisSize.min, children: [
                             IconButton(onPressed: () => context.push('/settings'),
-                                icon: const Icon(Icons.settings_outlined, color: AppColors.textTertiary, size: 22),
+                                icon: Icon(Icons.settings_outlined, color: AppColors.textTertiary, size: 22),
                                 padding: EdgeInsets.zero, constraints: const BoxConstraints()),
                             const SizedBox(width: 16),
                             _NotifIcon(),
@@ -124,9 +124,9 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
                   rank: (profile?['rank'] as int?) ?? 0,
                 )))),
                 if (!isLoading && !hasError) SliverToBoxAdapter(child: _Section(title: 'Streak', child: StreakCardWidget(
-  currentStreak: (profile?['streak'] as int?) ?? 0,
-  longestStreak: (profile?['longestStreak'] as int?) ?? 0,
-))),
+                  currentStreak: (profile?['streak'] as int?) ?? 0,
+                  longestStreak: (profile?['longestStreak'] as int?) ?? 0,
+                ))),
                 if (!isLoading && !hasError) SliverToBoxAdapter(child: _Section(title: 'Course progress', linkLabel: 'All courses', onLink: () {}, child: const _ComingSoonOverlay(child: CourseProgressWidget()))),
                 if (!isLoading && !hasError) const SliverToBoxAdapter(child: _Section(title: 'Strengths & focus areas', child: _ComingSoonOverlay(child: StrengthsWidget()))),
                 if (!isLoading && !hasError) const SliverToBoxAdapter(child: _Section(title: 'Your learning style', child: _ComingSoonOverlay(child: LearningStyleCard()))),
@@ -220,7 +220,7 @@ class _NotifIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Stack(clipBehavior: Clip.none, children: [
-      const Icon(Icons.notifications_outlined, color: AppColors.textTertiary, size: 22),
+      Icon(Icons.notifications_outlined, color: AppColors.textTertiary, size: 22),
       Positioned(top: -1, right: -1,
           child: Container(width: 7, height: 7,
               decoration: BoxDecoration(color: const Color(0xFFE24B4A), shape: BoxShape.circle,

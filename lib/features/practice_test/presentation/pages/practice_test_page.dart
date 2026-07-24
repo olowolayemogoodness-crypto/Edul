@@ -30,7 +30,7 @@ class _Question {
 }
 
 // ── Mock data ──
-const _tests = [
+final _tests = [
   _PracticeTest(emoji: '📐', title: 'WAEC Mathematics 2023', subtitle: '2023 past paper · Paper 1', paper: 'Paper 1 — Obj.', tag: 'Recommended', tagColor: Color(0xFFE8960F), tagBg: Color(0xFF2D1E00), iconBg: Color(0xFF2D1E00), iconBorder: Color(0xFFC47D0E), questions: 40, minutes: 90, best: '68%', attempts: 3, recommended: true),
   _PracticeTest(emoji: '🌍', title: 'IELTS Academic Reading', subtitle: 'Full mock test', paper: 'Reading', tag: 'IELTS', tagColor: AppColors.success, tagBg: AppColors.successSurface, iconBg: AppColors.successSurface, iconBorder: AppColors.success, questions: 40, minutes: 60, best: '65%', attempts: 1),
   _PracticeTest(emoji: '🧮', title: 'JAMB Mathematics 2022', subtitle: 'UTME paper', paper: 'UTME', tag: 'JAMB', tagColor: AppColors.accentLight, tagBg: AppColors.accentSurface, iconBg: AppColors.accentSurface, iconBorder: AppColors.accent, questions: 40, minutes: 40, best: null, attempts: 0),
@@ -151,9 +151,9 @@ class _PracticeTestPageState extends State<PracticeTestPage> with TickerProvider
     // Header
     Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
       child: Row(children: [
-        GestureDetector(onTap: () => context.pop(), child: const Icon(Icons.arrow_back_rounded, size: 20, color: AppColors.textTertiary)),
+        GestureDetector(onTap: () => context.pop(), child: Icon(Icons.arrow_back_rounded, size: 20, color: AppColors.textTertiary)),
         const SizedBox(width: 12),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('Practice tests', style: GoogleFonts.dmSans(fontSize: 17, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
@@ -164,11 +164,11 @@ class _PracticeTestPageState extends State<PracticeTestPage> with TickerProvider
 
     // Stats strip
     Container(
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
       child: Row(children: [
         Expanded(child: Container(
           padding: const EdgeInsets.all(12),
-          decoration: const BoxDecoration(border: Border(right: BorderSide(color: AppColors.border))),
+          decoration: BoxDecoration(border: Border(right: BorderSide(color: AppColors.border))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('14', style: GoogleFonts.dmSans(fontSize: 20, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
             Text('Tests taken', style: GoogleFonts.dmSans(fontSize: 9, color: AppColors.textTertiary)),
@@ -176,7 +176,7 @@ class _PracticeTestPageState extends State<PracticeTestPage> with TickerProvider
         )),
         Expanded(child: Container(
           padding: const EdgeInsets.all(12),
-          decoration: const BoxDecoration(border: Border(right: BorderSide(color: AppColors.border))),
+          decoration: BoxDecoration(border: Border(right: BorderSide(color: AppColors.border))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('72%', style: GoogleFonts.dmSans(fontSize: 20, fontWeight: FontWeight.w600, color: AppColors.success)),
             Text('Average score', style: GoogleFonts.dmSans(fontSize: 9, color: AppColors.textTertiary)),
@@ -212,7 +212,7 @@ class _PracticeTestPageState extends State<PracticeTestPage> with TickerProvider
     onTap: () { HapticFeedback.selectionClick(); setState(() => _selected = t); _go(_PracticeTab.setup); },
     child: Container(
       padding: const EdgeInsets.all(13),
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Container(width: 40, height: 40,
           decoration: BoxDecoration(color: t.iconBg, border: Border.all(color: t.iconBorder), borderRadius: BorderRadius.circular(10)),
@@ -238,7 +238,7 @@ class _PracticeTestPageState extends State<PracticeTestPage> with TickerProvider
           ]),
         ])),
         const SizedBox(width: 8),
-        const Icon(Icons.chevron_right_rounded, size: 16, color: AppColors.textDisabled),
+        Icon(Icons.chevron_right_rounded, size: 16, color: AppColors.textDisabled),
       ]),
     ),
   );
@@ -255,9 +255,9 @@ class _PracticeTestPageState extends State<PracticeTestPage> with TickerProvider
   Widget _setup() => Column(children: [
     Container(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
       child: Row(children: [
-        GestureDetector(onTap: () => _go(_PracticeTab.browse), child: const Icon(Icons.arrow_back_rounded, size: 20, color: AppColors.textTertiary)),
+        GestureDetector(onTap: () => _go(_PracticeTab.browse), child: Icon(Icons.arrow_back_rounded, size: 20, color: AppColors.textTertiary)),
         const SizedBox(width: 12),
         Expanded(child: Text(_selected.title, style: GoogleFonts.dmSans(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary))),
       ]),
@@ -270,11 +270,11 @@ class _PracticeTestPageState extends State<PracticeTestPage> with TickerProvider
           decoration: BoxDecoration(color: AppColors.surface, border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(12)),
           child: Column(children: [
             Row(children: [
-              Expanded(child: _metaCell('PAPER', _selected.paper, border: const Border(right: BorderSide(color: AppColors.border), bottom: BorderSide(color: AppColors.border)))),
-              Expanded(child: _metaCell('QUESTIONS', '${_selected.questions} MCQ', border: const Border(bottom: BorderSide(color: AppColors.border)))),
+              Expanded(child: _metaCell('PAPER', _selected.paper, border: Border(right: BorderSide(color: AppColors.border), bottom: BorderSide(color: AppColors.border)))),
+              Expanded(child: _metaCell('QUESTIONS', '${_selected.questions} MCQ', border: Border(bottom: BorderSide(color: AppColors.border)))),
             ]),
             Row(children: [
-              Expanded(child: _metaCell('TIME LIMIT', '${_selected.minutes} minutes', border: const Border(right: BorderSide(color: AppColors.border)))),
+              Expanded(child: _metaCell('TIME LIMIT', '${_selected.minutes} minutes', border: Border(right: BorderSide(color: AppColors.border)))),
               Expanded(child: _metaCell('YOUR BEST', _selected.best ?? 'Not yet', valueColor: _selected.best != null ? AppColors.success : AppColors.textDisabled)),
             ]),
           ]),
@@ -307,7 +307,7 @@ class _PracticeTestPageState extends State<PracticeTestPage> with TickerProvider
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(color: AppColors.warningSurface, border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)), borderRadius: BorderRadius.circular(10)),
           child: Row(children: [
-            const Icon(Icons.info_outline_rounded, size: 14, color: AppColors.warning),
+            Icon(Icons.info_outline_rounded, size: 14, color: AppColors.warning),
             const SizedBox(width: 8),
             Expanded(child: Text('This is a timed test under exam conditions. Hints and explanations are hidden until you finish.', style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.warning, height: 1.5))),
           ]),
@@ -380,9 +380,9 @@ class _PracticeTestPageState extends State<PracticeTestPage> with TickerProvider
       // Header
       Container(
         padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
-        decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
+        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
         child: Row(children: [
-          GestureDetector(onTap: () => _go(_PracticeTab.browse), child: const Icon(Icons.close_rounded, size: 20, color: AppColors.textTertiary)),
+          GestureDetector(onTap: () => _go(_PracticeTab.browse), child: Icon(Icons.close_rounded, size: 20, color: AppColors.textTertiary)),
           const SizedBox(width: 10),
           Expanded(child: Text('Question ${_qi + 1} of ${_questions.length}', style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textSecondary))),
           Text('+50 XP', style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.accentLight)),
@@ -394,7 +394,7 @@ class _PracticeTestPageState extends State<PracticeTestPage> with TickerProvider
       // Question nav boxes
       Container(
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-        decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
+        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(children: List.generate(_questions.length, (i) {
@@ -427,7 +427,7 @@ class _PracticeTestPageState extends State<PracticeTestPage> with TickerProvider
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              Container(width: 5, height: 5, decoration: const BoxDecoration(color: AppColors.accent, shape: BoxShape.circle)),
+              Container(width: 5, height: 5, decoration: BoxDecoration(color: AppColors.accent, shape: BoxShape.circle)),
               const SizedBox(width: 6),
               Text('${q.topic} · ${q.diff}', style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textDisabled)),
               const Spacer(),
@@ -451,7 +451,7 @@ class _PracticeTestPageState extends State<PracticeTestPage> with TickerProvider
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
               decoration: BoxDecoration(
                 color: selected ? AppColors.accentSurface : Colors.transparent,
-                border: const Border(bottom: BorderSide(color: AppColors.border)),
+                border: Border(bottom: BorderSide(color: AppColors.border)),
               ),
               child: Row(children: [
                 Container(width: 28, height: 28,
@@ -526,7 +526,7 @@ class _PracticeTestPageState extends State<PracticeTestPage> with TickerProvider
     return Column(children: [
       Container(
         padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-        decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
+        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
         child: Row(children: [
           Expanded(child: Text('Results', style: GoogleFonts.dmSans(fontSize: 17, fontWeight: FontWeight.w600, color: AppColors.textPrimary))),
           Container(
@@ -554,9 +554,9 @@ class _PracticeTestPageState extends State<PracticeTestPage> with TickerProvider
         Container(
           decoration: BoxDecoration(color: AppColors.surface, border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(12)),
           child: Row(children: [
-            Expanded(child: _statCell('$_correct', 'Correct', AppColors.success, border: const Border(right: BorderSide(color: AppColors.border)))),
-            Expanded(child: _statCell('$_wrong', 'Wrong', AppColors.error, border: const Border(right: BorderSide(color: AppColors.border)))),
-            Expanded(child: _statCell('$_skipped', 'Skipped', AppColors.warning, border: const Border(right: BorderSide(color: AppColors.border)))),
+            Expanded(child: _statCell('$_correct', 'Correct', AppColors.success, border: Border(right: BorderSide(color: AppColors.border)))),
+            Expanded(child: _statCell('$_wrong', 'Wrong', AppColors.error, border: Border(right: BorderSide(color: AppColors.border)))),
+            Expanded(child: _statCell('$_skipped', 'Skipped', AppColors.warning, border: Border(right: BorderSide(color: AppColors.border)))),
             Expanded(child: _statCell('${mm.toString().padLeft(2, '0')}m ${ss.toString().padLeft(2, '0')}s', 'Time', AppColors.textSecondary)),
           ]),
         ),
@@ -582,7 +582,7 @@ class _PracticeTestPageState extends State<PracticeTestPage> with TickerProvider
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(color: AppColors.surface, border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(12)),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Container(width: 6, height: 6, margin: const EdgeInsets.only(top: 5), decoration: const BoxDecoration(color: AppColors.accent, shape: BoxShape.circle)),
+            Container(width: 6, height: 6, margin: const EdgeInsets.only(top: 5), decoration: BoxDecoration(color: AppColors.accent, shape: BoxShape.circle)),
             const SizedBox(width: 8),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Gemini insight', style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.accentLight)),
@@ -651,9 +651,9 @@ class _PracticeTestPageState extends State<PracticeTestPage> with TickerProvider
   Widget _review() => Column(children: [
     Container(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
       child: Row(children: [
-        GestureDetector(onTap: () => _go(_PracticeTab.results), child: const Icon(Icons.arrow_back_rounded, size: 20, color: AppColors.textTertiary)),
+        GestureDetector(onTap: () => _go(_PracticeTab.results), child: Icon(Icons.arrow_back_rounded, size: 20, color: AppColors.textTertiary)),
         const SizedBox(width: 10),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('Answer review', style: GoogleFonts.dmSans(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
@@ -675,7 +675,7 @@ class _PracticeTestPageState extends State<PracticeTestPage> with TickerProvider
           padding: const EdgeInsets.all(13),
           decoration: BoxDecoration(
             color: skipped ? const Color(0xFF1C1800) : ok ? const Color(0xFF042018) : const Color(0xFF1A0707),
-            border: const Border(bottom: BorderSide(color: AppColors.border)),
+            border: Border(bottom: BorderSide(color: AppColors.border)),
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [

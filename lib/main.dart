@@ -1,5 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'core/services/premium_service.dart';
+import 'core/services/theme_override_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -15,6 +16,24 @@ import 'core/constants/app_constants.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // TEMPORARY DIAGNOSTIC — shows the real error in red text instead of
+  // Flutter's default silent gray box (which release builds normally show
+  // to hide internals from real users). Remove this override once the
+  // social-feed crash is found and fixed.
+  ErrorWidget.builder = (FlutterErrorDetails details) {
+    return Container(
+      color: Colors.red,
+      padding: const EdgeInsets.all(8),
+      alignment: Alignment.center,
+      child: Text(
+        details.exceptionAsString(),
+        style: const TextStyle(color: Colors.white, fontSize: 11),
+        textAlign: TextAlign.left,
+      ),
+    );
+  };
+
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
@@ -31,6 +50,7 @@ void main() async {
   // Swap to real ad unit IDs before release.
   MobileAds.instance.initialize();
   await PremiumService.initialize();
+  await ThemeOverrideService.init();
   await initDependencies();
   await _migrateCompulsoryCourses();
   await _migrateCOS102();
@@ -66,24 +86,39 @@ Future<void> _migrateCOS102() async {
   }
   await prefs.setBool('compulsory_migration_v2_done', true);
 }
-class EduLinkApp extends StatelessWidget {
+class EduLinkApp extends StatefulWidget {
   const EduLinkApp({super.key});
 
   @override
+  State<EduLinkApp> createState() => _EduLinkAppState();
+}
+
+class _EduLinkAppState extends State<EduLinkApp> {
+  @override
   Widget build(BuildContext context) {
-    return MultiBlocProvider(
-      providers: [
-        BlocProvider<AuthBloc>(
-          create: (_) => sl<AuthBloc>()..add(const AuthStarted()),
-        ),
-      ],
-      child: MaterialApp.router(
-        title: 'EduLink',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.dark,
-        themeMode: ThemeMode.dark,
-        routerConfig: AppRouter.router,
-      ),
+    return ValueListenableBuilder<int>(
+      valueListenable: ThemeOverrideService.changeSignal,
+      builder: (context, epoch, _) {
+        // The key changing forces Flutter to fully discard and rebuild
+        // this entire subtree — needed because none of the individual
+        // screens are otherwise reactive to a color change mid-session
+        // (colors are read as plain static getters, not via Theme.of).
+        return MultiBlocProvider(
+          key: ValueKey('theme-epoch-$epoch'),
+          providers: [
+            BlocProvider<AuthBloc>(
+              create: (_) => sl<AuthBloc>()..add(const AuthStarted()),
+            ),
+          ],
+          child: MaterialApp.router(
+            title: 'EduLink',
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.dark,
+            themeMode: ThemeMode.dark,
+            routerConfig: AppRouter.router,
+          ),
+        );
+      },
     );
   }
 }

@@ -32,7 +32,7 @@ class _LeaderboardStripState extends State<LeaderboardStrip>
     super.dispose();
   }
 
-  static const _rows = [
+  static final _rows = [
     _LbRow(rank: '1', initials: 'OK', name: 'Olumide K.', pts: 4820,
         barW: 1.0, rankColor: Color(0xFFEF9F27), isGold: true),
     _LbRow(rank: '#2', initials: 'ZN', name: 'Zara N.', pts: 3960,

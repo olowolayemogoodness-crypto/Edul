@@ -21,6 +21,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'notifications_service.dart';
 import 'user_service.dart';
+import 'user_tier_service.dart';
 
 class UserFollowService {
   UserFollowService._();
@@ -53,20 +54,43 @@ class UserFollowService {
   }
 
   /// Toggles follow state for [targetUid]. Sends a notification on a new
-  /// follow (not on unfollow).
+  /// follow (not on unfollow). Also mirrors the relationship into
+  /// users/{myUid}/following/{targetUid} — I own that subcollection, so
+  /// I can always query "who do I follow" directly and reliably, instead
+  /// of a collection-group query (which needs its own careful rule
+  /// matching and has been flaky before in this app).
   static Future<void> toggleFollow(String targetUid) async {
     final myUid = UserService.uid;
     if (myUid == null || myUid == targetUid) return;
     final ref = _followersOf(targetUid).doc(myUid);
+    final mirrorRef = _db.collection('users').doc(myUid)
+        .collection('following').doc(targetUid);
     final doc = await ref.get();
     if (doc.exists) {
       await ref.delete();
+      await mirrorRef.delete();
+      await UserTierService.adjustScore(targetUid, -5);
     } else {
       await ref.set({
         'followerUid': myUid,
         'createdAt': FieldValue.serverTimestamp(),
       });
+      await mirrorRef.set({
+        'targetUid': targetUid,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      await UserTierService.adjustScore(targetUid, 5);
       await NotificationService.createFollowNotification(targetUid);
     }
+  }
+
+  /// Every uid the current user follows — used to scope repost visibility
+  /// to followers only. A direct query on my own subcollection, not a
+  /// collection-group query, so it's fast and doesn't need special rules.
+  static Future<Set<String>> myFollowingUids() async {
+    final myUid = UserService.uid;
+    if (myUid == null) return {};
+    final snap = await _db.collection('users').doc(myUid).collection('following').get();
+    return snap.docs.map((d) => d.id).toSet();
   }
 }

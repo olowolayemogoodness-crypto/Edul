@@ -187,7 +187,7 @@ class _LibraryPageState extends State<LibraryPage> {
                   hintText: 'Search PDFs...',
                   hintStyle: GoogleFonts.dmSans(
                     fontSize: 13, color: AppColors.textDisabled),
-                  prefixIcon: const Icon(Icons.search_rounded,
+                  prefixIcon: Icon(Icons.search_rounded,
                     color: AppColors.textTertiary, size: 20),
                   suffixIcon: _searchQuery.isNotEmpty
                       ? GestureDetector(
@@ -196,7 +196,7 @@ class _LibraryPageState extends State<LibraryPage> {
                             _searchQuery = '';
                             _applyFilters();
                           }),
-                          child: const Icon(Icons.close_rounded,
+                          child: Icon(Icons.close_rounded,
                             color: AppColors.textTertiary, size: 18),
                         )
                       : null,
@@ -204,15 +204,15 @@ class _LibraryPageState extends State<LibraryPage> {
                   fillColor: AppColors.surface,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: AppColors.border),
+                    borderSide: BorderSide(color: AppColors.border),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: AppColors.border),
+                    borderSide: BorderSide(color: AppColors.border),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: AppColors.accent),
+                    borderSide: BorderSide(color: AppColors.accent),
                   ),
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 14, vertical: 12),
@@ -269,14 +269,14 @@ class _LibraryPageState extends State<LibraryPage> {
 
   Widget _buildContent() {
     if (_loading) {
-      return const Center(
+      return Center(
         child: CircularProgressIndicator(color: AppColors.accent));
     }
 
     if (_error != null) {
       return Center(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Icon(Icons.wifi_off_rounded,
+          Icon(Icons.wifi_off_rounded,
             color: AppColors.textTertiary, size: 40),
           const SizedBox(height: 12),
           Text(_error!, style: GoogleFonts.dmSans(

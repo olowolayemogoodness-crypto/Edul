@@ -27,7 +27,7 @@ class _LbRow {
   const _LbRow({required this.rank, required this.initials, required this.name, required this.sub, required this.xp, required this.change, required this.bg, required this.tc, required this.changeColor, this.isYou = false});
 }
 
-const _squads = [
+final _squads = [
   _Squad(key: 'global', name: 'Global leaderboard', meta: '4,820 students · updated live', emoji: '🌍', iconBg: AppColors.accentSurface, iconColor: AppColors.accentLight, borderColor: AppColors.accent,
     podium: [
       _PodiumEntry(initials: 'ZN', name: 'Zara N.', xp: '3,960', bg: Color(0xFF0C1A3D), tc: Color(0xFF60A5FA), borderColor: Color(0xFF60A5FA), pos: 2),
@@ -54,7 +54,7 @@ const _squads = [
     ], yourRank: '#3', yourXP: '2,840', gap: '360 XP from #2 ↑'),
 ];
 
-const _globalRows = [
+final _globalRows = [
   _LbRow(rank: '1', initials: 'OK', name: 'Olumide K.', sub: '🇳🇬 · 22-day streak', xp: '4,820', change: '↑ +320', bg: Color(0xFF2D1E00), tc: Color(0xFFE8960F), changeColor: AppColors.success),
   _LbRow(rank: '2', initials: 'ZN', name: 'Zara N.', sub: '🇬🇭 · 18-day streak', xp: '3,960', change: '↑ +180', bg: Color(0xFF0C1A3D), tc: Color(0xFF60A5FA), changeColor: AppColors.success),
   _LbRow(rank: '3', initials: 'EA', name: 'Emeka A.', sub: '🇳🇬 · 11-day streak', xp: '3,640', change: '↓ −40', bg: Color(0xFF2D1200), tc: Color(0xFFEA580C), changeColor: AppColors.error),
@@ -63,7 +63,7 @@ const _globalRows = [
   _LbRow(rank: '39', initials: 'TF', name: 'Tunde F.', sub: 'Gaining fast 🔥', xp: '2,790', change: '↑ +200', bg: AppColors.successSurface, tc: AppColors.success, changeColor: AppColors.success),
 ];
 
-const _squadDetailRows = [
+final _squadDetailRows = [
   _LbRow(rank: '1', initials: 'TF', name: 'Tunde F.', sub: '14-day streak · 3 duels', xp: '4,200', change: '↑ +620', bg: Color(0xFF2D1E00), tc: Color(0xFFE8960F), changeColor: AppColors.success),
   _LbRow(rank: '2', initials: 'KO', name: 'Kemi O.', sub: '9-day streak · 2 duels', xp: '3,850', change: '↑ +280', bg: AppColors.successSurface, tc: AppColors.success, changeColor: AppColors.success),
   _LbRow(rank: '3', initials: 'DA', name: 'Dami A.', sub: '7-day streak', xp: '3,100', change: '↑ +190', bg: Color(0xFF0C1A3D), tc: Color(0xFF60A5FA), changeColor: AppColors.success),
@@ -127,7 +127,7 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
     // Squad tabs
     Container(
       height: 86,
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
       child: ListView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -151,7 +151,7 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
             onTap: () => _go(_CompeteTab.joinCreate),
             child: Column(children: [
               Container(width: 46, height: 46, decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border, style: BorderStyle.solid)),
-                child: const Icon(Icons.add_rounded, size: 20, color: AppColors.textTertiary)),
+                child: Icon(Icons.add_rounded, size: 20, color: AppColors.textTertiary)),
               const SizedBox(height: 3),
               Text('Join squad', style: GoogleFonts.dmSans(fontSize: 9, color: AppColors.textDisabled)),
             ]),
@@ -231,7 +231,7 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(color: AppColors.accentSurface, border: Border.all(color: const Color(0xFF2D1B6B)), borderRadius: BorderRadius.circular(16)),
           child: Row(children: [
-            Container(width: 36, height: 36, decoration: BoxDecoration(color: const Color(0xFF2D1B6B), borderRadius: BorderRadius.circular(11)), child: const Icon(Icons.bolt_rounded, size: 18, color: AppColors.accentLight)),
+            Container(width: 36, height: 36, decoration: BoxDecoration(color: const Color(0xFF2D1B6B), borderRadius: BorderRadius.circular(11)), child: Icon(Icons.bolt_rounded, size: 18, color: AppColors.accentLight)),
             const SizedBox(width: 10),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Do a quick quiz now', style: GoogleFonts.dmSans(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.accentLight)),
@@ -288,9 +288,9 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
   Widget _squadDetail() => Column(children: [
     Container(
       padding: const EdgeInsets.fromLTRB(14, 9, 14, 9),
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
       child: Row(children: [
-        GestureDetector(onTap: () => _go(_CompeteTab.compete), child: const Icon(Icons.arrow_back_rounded, size: 20, color: AppColors.textTertiary)),
+        GestureDetector(onTap: () => _go(_CompeteTab.compete), child: Icon(Icons.arrow_back_rounded, size: 20, color: AppColors.textTertiary)),
         const SizedBox(width: 9),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(_squad.name, style: GoogleFonts.dmSans(fontSize: 15, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
@@ -335,13 +335,13 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
         margin: const EdgeInsets.only(bottom: 8),
         decoration: BoxDecoration(color: AppColors.errorSurface, border: Border.all(color: AppColors.error), borderRadius: BorderRadius.circular(14)),
         child: Row(children: [
-          const Icon(Icons.sports_kabaddi_rounded, size: 18, color: AppColors.error),
+          Icon(Icons.sports_kabaddi_rounded, size: 18, color: AppColors.error),
           const SizedBox(width: 10),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('Challenge another squad', style: GoogleFonts.dmSans(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.error)),
             Text('Pick a rival squad and compete for the week', style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textTertiary)),
           ])),
-          const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.error),
+          Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.error),
         ]),
       ),
 
@@ -367,9 +367,9 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
   Widget _joinCreate() => Column(children: [
     Container(
       padding: const EdgeInsets.fromLTRB(14, 9, 14, 9),
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
       child: Row(children: [
-        GestureDetector(onTap: () => _go(_CompeteTab.compete), child: const Icon(Icons.arrow_back_rounded, size: 20, color: AppColors.textTertiary)),
+        GestureDetector(onTap: () => _go(_CompeteTab.compete), child: Icon(Icons.arrow_back_rounded, size: 20, color: AppColors.textTertiary)),
         const SizedBox(width: 9),
         Text('Join or create a squad', style: GoogleFonts.dmSans(fontSize: 15, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
       ]),
@@ -382,7 +382,7 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
         padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
         decoration: BoxDecoration(color: AppColors.surface, border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(12)),
         child: Row(children: [
-          const Icon(Icons.search_rounded, size: 16, color: AppColors.textTertiary),
+          Icon(Icons.search_rounded, size: 16, color: AppColors.textTertiary),
           const SizedBox(width: 8),
           Expanded(child: TextField(
             style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.textPrimary),
@@ -439,9 +439,9 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
               hintText: 'Squad name e.g. FUTA Maths Gang',
               hintStyle: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textTertiary),
               filled: true, fillColor: AppColors.surfaceVariant,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.accentDark)),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.border)),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.border)),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.accentDark)),
               contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             ),
           ),

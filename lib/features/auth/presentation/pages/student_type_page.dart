@@ -85,7 +85,7 @@ class _StudentTypePageState extends State<StudentTypePage> {
               if (_step > 0)
                 GestureDetector(
                   onTap: _backStep,
-                  child: const Icon(Icons.arrow_back_rounded, size: 22,
+                  child: Icon(Icons.arrow_back_rounded, size: 22,
                     color: AppColors.textTertiary),
                 )
               else
@@ -95,8 +95,8 @@ class _StudentTypePageState extends State<StudentTypePage> {
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: AppColors.accent, width: 1.5),
                   ),
-                  child: const Icon(Icons.bolt_rounded,
-                    color: AppColors.accentLight, size: 24)),
+                  child: Padding(padding: const EdgeInsets.all(8),
+                    child: Image.asset('assets/images/edulink_logo.png'))),
               const Spacer(),
               // Step indicator
               Row(children: List.generate(2, (i) => AnimatedContainer(
@@ -227,7 +227,7 @@ class _UniversityStepState extends State<_UniversityStep> {
               border: Border.all(color: AppColors.accent, width: 1.5),
             ),
             child: Row(children: [
-              const Icon(Icons.school_rounded, color: AppColors.accentLight, size: 18),
+              Icon(Icons.school_rounded, color: AppColors.accentLight, size: 18),
               const SizedBox(width: 10),
               Expanded(child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -240,7 +240,7 @@ class _UniversityStepState extends State<_UniversityStep> {
                     overflow: TextOverflow.ellipsis),
                 ],
               )),
-              const Icon(Icons.check_circle_rounded, color: AppColors.accent, size: 20),
+              Icon(Icons.check_circle_rounded, color: AppColors.accent, size: 20),
             ]),
           ),
           const SizedBox(height: 14),
@@ -255,19 +255,19 @@ class _UniversityStepState extends State<_UniversityStep> {
             hintText: 'Search e.g. UNILAG, Covenant, Babcock',
             hintStyle: GoogleFonts.dmSans(
               fontSize: 13, color: AppColors.textDisabled),
-            prefixIcon: const Icon(Icons.search_rounded,
+            prefixIcon: Icon(Icons.search_rounded,
               color: AppColors.textTertiary, size: 20),
             filled: true,
             fillColor: AppColors.surface,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: AppColors.border)),
+              borderSide: BorderSide(color: AppColors.border)),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: AppColors.border)),
+              borderSide: BorderSide(color: AppColors.border)),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: AppColors.accent, width: 2)),
+              borderSide: BorderSide(color: AppColors.accent, width: 2)),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16, vertical: 14),
           ),
@@ -320,7 +320,7 @@ class _UniversityStepState extends State<_UniversityStep> {
                             ],
                           )),
                           if (isSelected)
-                            const Icon(Icons.check_circle_rounded,
+                            Icon(Icons.check_circle_rounded,
                               color: AppColors.accent, size: 18),
                         ]),
                       ),

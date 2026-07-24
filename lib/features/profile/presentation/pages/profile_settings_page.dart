@@ -10,6 +10,7 @@ import '../../../auth/presentation/bloc/auth_event.dart';
 import '../../../auth/presentation/bloc/auth_state.dart';
 import '../../../../core/services/user_service.dart';
 import '../../../../core/services/account_deletion_service.dart';
+import '../../../../core/services/theme_override_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 enum _SettingsTab { main, editProfile, notifications, privacy }
@@ -110,18 +111,12 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
       _sectionLabel('Accounts'),
       _card([
         _accountRow(_initials, _displayName, _email, true),
-        _divider(),
-        _srow(Icons.add_circle_outline_rounded, AppColors.surfaceVariant, AppColors.textTertiary, 'Add another account', '', onTap: () {}),
       ]),
 
       // Profile & account
       _sectionLabel('Profile & account'),
       _card([
         _srow(Icons.person_outline_rounded, AppColors.accentSurface, AppColors.accentLight, 'Edit profile', 'Name, bio, school, photo', onTap: () => _go(_SettingsTab.editProfile)),
-        _divider(),
-        _srow(Icons.lock_outline_rounded, AppColors.surfaceVariant, AppColors.textSecondary, 'Change password', 'Last changed 3 months ago', onTap: () {}),
-        _divider(),
-        _srow(Icons.mail_outline_rounded, AppColors.surfaceVariant, AppColors.textSecondary, 'Email & phone', _email, onTap: () {}),
         _divider(),
         _srow(Icons.workspace_premium_rounded, const Color(0xFF2D1E00), const Color(0xFFE8960F), 'Subscription', 'Free tier · Upgrade to Premium', onTap: () {}, trailing: _pill('Upgrade', const Color(0xFF2D1E00), const Color(0xFFE8960F), const Color(0xFFC47D0E))),
       ]),
@@ -133,9 +128,7 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
         _divider(),
         _srow(Icons.shield_outlined, AppColors.surfaceVariant, AppColors.textSecondary, 'Privacy', 'Who can see your profile', onTap: () => _go(_SettingsTab.privacy)),
         _divider(),
-        _srow(Icons.palette_outlined, AppColors.surfaceVariant, AppColors.textSecondary, 'Appearance', 'Dark mode · Font size', onTap: () {}, trailing: Text('Dark', style: GoogleFonts.dmSans(fontSize: 11, color: AppColors.textTertiary))),
-        _divider(),
-        _srow(Icons.language_rounded, AppColors.surfaceVariant, AppColors.textSecondary, 'Language', 'App display language', onTap: () {}, trailing: Text('English', style: GoogleFonts.dmSans(fontSize: 11, color: AppColors.textTertiary))),
+        _srow(Icons.palette_outlined, AppColors.surfaceVariant, AppColors.textSecondary, 'Appearance', 'Auto follows a 7am\u20133pm schedule', onTap: () => _showThemePicker(context), trailing: Text(ThemeOverrideService.label, style: GoogleFonts.dmSans(fontSize: 11, color: AppColors.textTertiary))),
       ]),
 
       // Study & learning
@@ -143,20 +136,12 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
       _card([
         _srow(Icons.track_changes_rounded, AppColors.accentSurface, AppColors.accentLight, 'Daily study goal', 'Currently 4 hours', onTap: () {}, trailing: Text('4h', style: GoogleFonts.dmSans(fontSize: 11, color: AppColors.textTertiary))),
         _divider(),
-        _srow(Icons.psychology_rounded, AppColors.successSurface, AppColors.success, 'Gemini AI settings', 'Explanation depth, language', onTap: () {}),
-        _divider(),
         _srow(Icons.phone_android_rounded, AppColors.surfaceVariant, AppColors.textSecondary, 'Offline mode', 'Download content for offline use', onTap: () {}, trailing: _toggle(_togOffline, () => setState(() => _togOffline = !_togOffline))),
       ]),
 
       // Support
       _sectionLabel('Support'),
       _card([
-        _srow(Icons.help_outline_rounded, AppColors.surfaceVariant, AppColors.textSecondary, 'Help & FAQ', '', onTap: () {}),
-        _divider(),
-        _srow(Icons.chat_bubble_outline_rounded, AppColors.surfaceVariant, AppColors.textSecondary, 'Contact support', '', onTap: () {}),
-        _divider(),
-        _srow(Icons.star_outline_rounded, AppColors.surfaceVariant, AppColors.textSecondary, 'Rate EduLink', '', onTap: () {}),
-        _divider(),
         _srow(Icons.info_outline_rounded, AppColors.surfaceVariant, AppColors.textSecondary, 'About EduLink', 'Version 1.0.0 · Build 1', onTap: () {}),
       ]),
 
@@ -224,7 +209,7 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
             child: Row(children: [
               Text('🇳🇬 Nigeria', style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textPrimary)),
               const Spacer(),
-              const Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: AppColors.textTertiary),
+              Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: AppColors.textTertiary),
             ]),
           ),
         ]),
@@ -237,14 +222,14 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
     Text(label.toUpperCase(), style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w500, color: AppColors.textTertiary, letterSpacing: 0.5)),
     const SizedBox(height: 5),
     TextField(controller: ctrl, style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textPrimary),
-      decoration: InputDecoration(filled: true, fillColor: AppColors.surface, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.border)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.border)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.accent)), contentPadding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11))),
+      decoration: InputDecoration(filled: true, fillColor: AppColors.surface, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.border)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.border)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.accent)), contentPadding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11))),
   ]);
 
   Widget _editFieldMultiline(String label, TextEditingController ctrl) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     Text(label.toUpperCase(), style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w500, color: AppColors.textTertiary, letterSpacing: 0.5)),
     const SizedBox(height: 5),
     TextField(controller: ctrl, maxLines: 3, style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textPrimary),
-      decoration: InputDecoration(filled: true, fillColor: AppColors.surface, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.border)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.border)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.accent)), contentPadding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11))),
+      decoration: InputDecoration(filled: true, fillColor: AppColors.surface, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.border)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.border)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.accent)), contentPadding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11))),
   ]);
 
   // ══════════════════════════════════════════
@@ -303,6 +288,50 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
     ]))),
   ]);
 
+  void _showThemePicker(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (sheetContext) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const SizedBox(height: 8),
+          Container(width: 36, height: 4,
+            decoration: BoxDecoration(color: AppColors.border,
+              borderRadius: BorderRadius.circular(2))),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+            child: Align(alignment: Alignment.centerLeft,
+              child: Text('Appearance', style: GoogleFonts.dmSans(
+                fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary))),
+          ),
+          _themeOption(sheetContext, null, 'Auto', 'Light 7am\u20133pm, dark otherwise'),
+          _themeOption(sheetContext, 'light', 'Light', 'Always use the light theme'),
+          _themeOption(sheetContext, 'dark', 'Dark', 'Always use the dark theme'),
+          const SizedBox(height: 8),
+        ]),
+      ),
+    );
+  }
+
+  Widget _themeOption(BuildContext sheetContext, String? value, String label, String sub) {
+    final selected = ThemeOverrideService.override == value;
+    return ListTile(
+      leading: Icon(
+        value == 'light' ? Icons.light_mode_rounded
+            : value == 'dark' ? Icons.dark_mode_rounded : Icons.brightness_auto_rounded,
+        color: selected ? AppColors.accent : AppColors.textTertiary),
+      title: Text(label, style: GoogleFonts.dmSans(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
+      subtitle: Text(sub, style: GoogleFonts.dmSans(fontSize: 11, color: AppColors.textTertiary)),
+      trailing: selected ? Icon(Icons.check_circle_rounded, color: AppColors.accent) : null,
+      onTap: () async {
+        await ThemeOverrideService.setOverride(value);
+        if (sheetContext.mounted) Navigator.pop(sheetContext);
+      },
+    );
+  }
+
   void _showDeleteAccountDialog(BuildContext context) {
     final passwordCtrl = TextEditingController();
     bool obscure = true;
@@ -335,7 +364,7 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
                 contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: AppColors.border)),
+                  borderSide: BorderSide(color: AppColors.border)),
                 suffixIcon: IconButton(
                   icon: Icon(obscure ? Icons.visibility_off_rounded : Icons.visibility_rounded,
                     size: 18, color: AppColors.textTertiary),
@@ -382,7 +411,7 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
                 }
               },
               child: deleting
-                  ? const SizedBox(width: 16, height: 16,
+                  ? SizedBox(width: 16, height: 16,
                       child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.error))
                   : Text('Delete forever', style: GoogleFonts.dmSans(
                       color: AppColors.error, fontWeight: FontWeight.w600)),
@@ -398,9 +427,9 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
   // ══════════════════════════════════════════
   Widget _header(String title, {required VoidCallback onBack, Widget? action}) => Container(
     padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-    decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
+    decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
     child: Row(children: [
-      GestureDetector(onTap: onBack, child: const Icon(Icons.arrow_back_rounded, size: 20, color: AppColors.textTertiary)),
+      GestureDetector(onTap: onBack, child: Icon(Icons.arrow_back_rounded, size: 20, color: AppColors.textTertiary)),
       const SizedBox(width: 12),
       Expanded(child: Text(title, style: GoogleFonts.dmSans(fontSize: 17, fontWeight: FontWeight.w500, color: AppColors.textPrimary))),
       if (action != null) action,
@@ -431,7 +460,7 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
           if (sub.isNotEmpty) Text(sub, style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textTertiary, height: 1.4)),
         ])),
         if (trailing != null) trailing
-        else const Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.textDisabled),
+        else Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.textDisabled),
       ]),
     ),
   );
@@ -447,7 +476,7 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
         Text(name, style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
         Text('$email · Active', style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textTertiary)),
       ])),
-      if (active) Container(width: 18, height: 18, decoration: const BoxDecoration(color: AppColors.accent, shape: BoxShape.circle), child: const Icon(Icons.check_rounded, size: 10, color: Colors.white)),
+      if (active) Container(width: 18, height: 18, decoration: BoxDecoration(color: AppColors.accent, shape: BoxShape.circle), child: const Icon(Icons.check_rounded, size: 10, color: Colors.white)),
     ]),
   );
 

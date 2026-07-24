@@ -64,7 +64,7 @@ class _LiveRoomsStripState extends State<LiveRoomsStrip>
             ],
           ),
           const SizedBox(height: AppSpacing.md),
-          const _RoomRow(
+          _RoomRow(
             emoji: '📐',
             name: 'WAEC Mathematics revision',
             sub: '14 students · Algebra & Trig',
@@ -81,7 +81,7 @@ class _LiveRoomsStripState extends State<LiveRoomsStrip>
           const SizedBox(height: AppSpacing.sm),
           Container(height: 0.5, color: AppColors.border),
           const SizedBox(height: AppSpacing.sm),
-          const _RoomRow(
+          _RoomRow(
             emoji: '🎙️',
             name: 'IELTS Speaking drills',
             sub: '7 students · recording on',

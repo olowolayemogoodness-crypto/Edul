@@ -27,13 +27,13 @@ class _ChatMsg {
   const _ChatMsg({required this.avatar, required this.name, required this.text, this.isMe = false, this.isAI = false});
 }
 
-const _subjects = [
+final _subjects = [
   _Subject(id: 'math', emoji: '📐', name: 'WAEC Mathematics', sub: 'Algebra · Trig · Geometry', iconBg: AppColors.accentSurface),
   _Subject(id: 'eng', emoji: '📝', name: 'WAEC English', sub: 'Comprehension · Essay', iconBg: AppColors.surface),
   _Subject(id: 'ielts', emoji: '🌍', name: 'IELTS Academic', sub: 'Reading · Writing · Speaking', iconBg: AppColors.successSurface),
 ];
 
-const _rooms = [
+final _rooms = [
   _Room(emoji: '📐', title: 'WAEC Mathematics revision', sub: 'Algebra · Trig · Geometry', iconBg: '#073D27', borderColor: AppColors.success, bgColor: AppColors.successSurface, tagColor: AppColors.success, tagBg: AppColors.successSurface, members: 14, joined: true),
   _Room(emoji: '🎙️', title: 'IELTS Speaking drills', sub: 'Part 1 & 2 · voice recording', iconBg: '#0C1A3D', borderColor: AppColors.border, bgColor: AppColors.surface, tagColor: AppColors.success, tagBg: AppColors.successSurface, members: 7),
   _Room(emoji: '🧮', title: 'JAMB Mathematics 2022', sub: 'UTME paper · past questions', iconBg: '#1E1240', borderColor: AppColors.border, bgColor: AppColors.surface, tagColor: AppColors.success, tagBg: AppColors.successSurface, members: 5),
@@ -60,6 +60,7 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
   bool _customTimer = false;
   bool _togBreath = true, _togBlock = true, _togSound = false;
   int _timerSecs = 25 * 60;
+  bool _isPaused = false;
   int _elapsed = 0;
   Timer? _focusTimer;
   late AnimationController _breathCtrl;
@@ -91,6 +92,7 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
     if (tab == _StudyTab.focusActive) {
       _timerSecs = _focusMins * 60;
       _elapsed = 0;
+      _isPaused = false;
       _focusTimer?.cancel();
       _focusTimer = Timer.periodic(const Duration(seconds: 1), (_) {
         if (!mounted) return;
@@ -122,6 +124,22 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
   }
 
   double get _ringProgress => _focusMins > 0 ? _timerSecs / (_focusMins * 60) : 0;
+
+  void _togglePause() {
+    HapticFeedback.selectionClick();
+    setState(() => _isPaused = !_isPaused);
+    if (_isPaused) {
+      _focusTimer?.cancel();
+    } else {
+      _focusTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (!mounted) return;
+        setState(() {
+          if (_timerSecs > 0) { _timerSecs--; _elapsed++; }
+          else { _focusTimer?.cancel(); _completeFocus(); }
+        });
+      });
+    }
+  }
   int get _xpEarned => (_elapsed ~/ 60) * 6;
   _Subject get _subject => _subjects.firstWhere((s) => s.id == _selectedSubject);
 
@@ -151,7 +169,7 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
   Widget _hub() => Column(children: [
     Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
       child: Row(children: [
         
         const SizedBox(width: 12),
@@ -176,7 +194,7 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
           ),
           child: Column(children: [
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Container(width: 52, height: 52, decoration: BoxDecoration(color: const Color(0xFF3D2580), borderRadius: BorderRadius.circular(16)), child: const Icon(Icons.psychology_rounded, size: 26, color: AppColors.accentLight)),
+              Container(width: 52, height: 52, decoration: BoxDecoration(color: const Color(0xFF3D2580), borderRadius: BorderRadius.circular(16)), child: Icon(Icons.psychology_rounded, size: 26, color: AppColors.accentLight)),
               const SizedBox(width: 14),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('Focus mode', style: GoogleFonts.dmSans(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
@@ -208,13 +226,13 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
         padding: const EdgeInsets.all(11),
         decoration: BoxDecoration(color: AppColors.surface, border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(14)),
         child: Row(children: [
-          const Icon(Icons.history_rounded, size: 18, color: AppColors.textTertiary),
+          Icon(Icons.history_rounded, size: 18, color: AppColors.textTertiary),
           const SizedBox(width: 10),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('Last session: 45 min · WAEC Maths', style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.w500, color: AppColors.textSecondary)),
             Text('Yesterday at 8:20 PM · +180 XP earned', style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textTertiary)),
           ])),
-          const Icon(Icons.chevron_right_rounded, size: 14, color: AppColors.textDisabled),
+          Icon(Icons.chevron_right_rounded, size: 14, color: AppColors.textDisabled),
         ]),
       ),
     ]))),
@@ -226,9 +244,9 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
   Widget _focusSetup() => Column(children: [
     Container(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
       child: Row(children: [
-        GestureDetector(onTap: () => _go(_StudyTab.hub), child: const Icon(Icons.arrow_back_rounded, size: 20, color: AppColors.textTertiary)),
+        GestureDetector(onTap: () => _go(_StudyTab.hub), child: Icon(Icons.arrow_back_rounded, size: 20, color: AppColors.textTertiary)),
         const SizedBox(width: 12),
         Text('Study Time', style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.textTertiary, letterSpacing: 0.5)),
           const SizedBox(height: 9),
@@ -275,20 +293,20 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(children: [
-                const Icon(Icons.tune_rounded, size: 16, color: AppColors.textTertiary),
+                Icon(Icons.tune_rounded, size: 16, color: AppColors.textTertiary),
                 const SizedBox(width: 8),
                 Expanded(child: Text('Custom', style: GoogleFonts.dmSans(fontSize: 12, color: _customTimer ? AppColors.accentLight : AppColors.textSecondary))),
                 if (_customTimer) ...[
                   GestureDetector(
                     onTap: () { HapticFeedback.selectionClick(); if (_focusMins > 5) setState(() => _focusMins -= 5); },
-                    child: Container(width: 32, height: 32, decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(9)), child: const Icon(Icons.remove_rounded, size: 16, color: AppColors.textTertiary)),
+                    child: Container(width: 32, height: 32, decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(9)), child: Icon(Icons.remove_rounded, size: 16, color: AppColors.textTertiary)),
                   ),
                   const SizedBox(width: 8),
                   Text('${_focusMins}m', style: GoogleFonts.dmSans(fontSize: 22, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
                   const SizedBox(width: 8),
                   GestureDetector(
                     onTap: () { HapticFeedback.selectionClick(); if (_focusMins < 120) setState(() => _focusMins += 5); },
-                    child: Container(width: 32, height: 32, decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(9)), child: const Icon(Icons.add_rounded, size: 16, color: AppColors.textTertiary)),
+                    child: Container(width: 32, height: 32, decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(9)), child: Icon(Icons.add_rounded, size: 16, color: AppColors.textTertiary)),
                   ),
                 ],
               ]),
@@ -331,7 +349,7 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
     onTap: () { HapticFeedback.selectionClick(); onTap(); },
     child: Container(
       padding: const EdgeInsets.symmetric(vertical: 9),
-      decoration: BoxDecoration(border: Border(bottom: border ? const BorderSide(color: AppColors.border, width: 0.5) : BorderSide.none)),
+      decoration: BoxDecoration(border: Border(bottom: border ? BorderSide(color: AppColors.border, width: 0.5) : BorderSide.none)),
       child: Row(children: [
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(title, style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.textPrimary)),
@@ -359,10 +377,10 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
       child: Row(children: [
         GestureDetector(
           onTap: () => _go(_StudyTab.focusSetup),
-          child: Container(width: 30, height: 30, decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(9)), child: const Icon(Icons.close_rounded, size: 15, color: AppColors.textTertiary)),
+          child: Container(width: 30, height: 30, decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(9)), child: Icon(Icons.close_rounded, size: 15, color: AppColors.textTertiary)),
         ),
         Expanded(child: Center(child: Text('${_subject.name} · ${_focusMins}m', style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.w500, color: AppColors.textTertiary)))),
-        Container(width: 30, height: 30, decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(9)), child: const Icon(Icons.more_horiz_rounded, size: 15, color: AppColors.textTertiary)),
+        Container(width: 30, height: 30, decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(9)), child: Icon(Icons.more_horiz_rounded, size: 15, color: AppColors.textTertiary)),
       ]),
     ),
     Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -402,13 +420,24 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
       // Pause / End
       Row(mainAxisAlignment: MainAxisAlignment.center, children: [
         GestureDetector(
-          onTap: () { _focusTimer?.cancel(); },
-          child: Container(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10), decoration: BoxDecoration(color: AppColors.surface, border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(12)), child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.pause_rounded, size: 15, color: AppColors.textSecondary), const SizedBox(width: 6), Text('Pause', style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.textSecondary))])),
+          onTap: _togglePause,
+          child: Container(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            decoration: BoxDecoration(
+              color: _isPaused ? AppColors.accentSurface : AppColors.surface,
+              border: Border.all(color: _isPaused ? AppColors.accent : AppColors.border),
+              borderRadius: BorderRadius.circular(12)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(_isPaused ? Icons.play_arrow_rounded : Icons.pause_rounded, size: 15,
+                color: _isPaused ? AppColors.accentLight : AppColors.textSecondary),
+              const SizedBox(width: 6),
+              Text(_isPaused ? 'Resume' : 'Pause', style: GoogleFonts.dmSans(fontSize: 12,
+                color: _isPaused ? AppColors.accentLight : AppColors.textSecondary)),
+            ])),
         ),
         const SizedBox(width: 12),
         GestureDetector(
           onTap: () => _go(_StudyTab.focusDone),
-          child: Container(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10), decoration: BoxDecoration(color: AppColors.surface, border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(12)), child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.stop_rounded, size: 15, color: AppColors.error), const SizedBox(width: 6), Text('End session', style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.error))])),
+          child: Container(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10), decoration: BoxDecoration(color: AppColors.surface, border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(12)), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.stop_rounded, size: 15, color: AppColors.error), const SizedBox(width: 6), Text('End session', style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.error))])),
         ),
       ]),
       const SizedBox(height: 24),
@@ -445,7 +474,7 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
     padding: const EdgeInsets.all(16),
     child: Column(children: [
       const SizedBox(height: 20),
-      Container(width: 72, height: 72, decoration: BoxDecoration(shape: BoxShape.circle, color: AppColors.accentSurface, border: Border.all(color: AppColors.accent, width: 2)), child: const Icon(Icons.psychology_rounded, size: 32, color: AppColors.accentLight)),
+      Container(width: 72, height: 72, decoration: BoxDecoration(shape: BoxShape.circle, color: AppColors.accentSurface, border: Border.all(color: AppColors.accent, width: 2)), child: Icon(Icons.psychology_rounded, size: 32, color: AppColors.accentLight)),
       const SizedBox(height: 14),
       Text('Session complete!', style: GoogleFonts.dmSans(fontSize: 21, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
       const SizedBox(height: 3),
@@ -483,7 +512,7 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
         padding: const EdgeInsets.all(11),
         decoration: BoxDecoration(color: AppColors.accentSurface, border: Border.all(color: const Color(0xFF3D2580)), borderRadius: BorderRadius.circular(14)),
         child: Row(children: [
-          const Icon(Icons.verified_user_rounded, size: 18, color: AppColors.accentLight),
+          Icon(Icons.verified_user_rounded, size: 18, color: AppColors.accentLight),
           const SizedBox(width: 9),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('Profile updated', style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.w500, color: AppColors.accentLight)),
@@ -516,9 +545,9 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
   Widget _roomsBrowse() => Column(children: [
     Container(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
       child: Row(children: [
-        GestureDetector(onTap: () => _go(_StudyTab.hub), child: const Icon(Icons.arrow_back_rounded, size: 20, color: AppColors.textTertiary)),
+        GestureDetector(onTap: () => _go(_StudyTab.hub), child: Icon(Icons.arrow_back_rounded, size: 20, color: AppColors.textTertiary)),
         const SizedBox(width: 8),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('Study rooms', style: GoogleFonts.dmSans(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
@@ -539,7 +568,7 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
           margin: const EdgeInsets.only(bottom: 12),
           decoration: BoxDecoration(color: AppColors.successSurface, border: Border.all(color: AppColors.success, width: 1.5), borderRadius: BorderRadius.circular(14)),
           child: Row(children: [
-            Container(width: 6, height: 6, decoration: const BoxDecoration(color: AppColors.success, shape: BoxShape.circle)),
+            Container(width: 6, height: 6, decoration: BoxDecoration(color: AppColors.success, shape: BoxShape.circle)),
             const SizedBox(width: 9),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text("You're in a room · WAEC Maths", style: GoogleFonts.dmSans(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.success)),
@@ -589,7 +618,7 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
           margin: const EdgeInsets.only(bottom: 6),
           decoration: BoxDecoration(color: AppColors.surface, border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(16)),
           child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            const Icon(Icons.add_rounded, size: 17, color: AppColors.textTertiary),
+            Icon(Icons.add_rounded, size: 17, color: AppColors.textTertiary),
             const SizedBox(width: 8),
             Text('Create a new study room', style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textTertiary)),
           ]),
@@ -645,11 +674,11 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
   Widget _inRoom() => Column(children: [
     Container(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
       child: Row(children: [
-        GestureDetector(onTap: () => _go(_StudyTab.rooms), child: const Icon(Icons.arrow_back_rounded, size: 20, color: AppColors.textTertiary)),
+        GestureDetector(onTap: () => _go(_StudyTab.rooms), child: Icon(Icons.arrow_back_rounded, size: 20, color: AppColors.textTertiary)),
         const SizedBox(width: 8),
-        Container(width: 6, height: 6, decoration: const BoxDecoration(color: AppColors.success, shape: BoxShape.circle)),
+        Container(width: 6, height: 6, decoration: BoxDecoration(color: AppColors.success, shape: BoxShape.circle)),
         const SizedBox(width: 6),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('WAEC Mathematics revision', style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
@@ -674,7 +703,7 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
         decoration: BoxDecoration(color: AppColors.surface, border: Border.all(color: const Color(0xFF3D2580)), borderRadius: BorderRadius.circular(14)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Container(width: 5, height: 5, decoration: const BoxDecoration(color: AppColors.accent, shape: BoxShape.circle)),
+            Container(width: 5, height: 5, decoration: BoxDecoration(color: AppColors.accent, shape: BoxShape.circle)),
             const SizedBox(width: 6),
             Text('Gemini quiz challenge', style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.accentLight)),
           ]),
@@ -702,7 +731,7 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
     // Chat input
     Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-      decoration: const BoxDecoration(border: Border(top: BorderSide(color: AppColors.border))),
+      decoration: BoxDecoration(border: Border(top: BorderSide(color: AppColors.border))),
       child: Row(children: [
         Expanded(child: TextField(
           controller: _chatCtrl,
@@ -711,16 +740,16 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
             hintText: 'Message the room…',
             hintStyle: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textTertiary),
             filled: true, fillColor: AppColors.surface,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(22), borderSide: const BorderSide(color: AppColors.border)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(22), borderSide: const BorderSide(color: AppColors.border)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(22), borderSide: const BorderSide(color: AppColors.accentDark)),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(22), borderSide: BorderSide(color: AppColors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(22), borderSide: BorderSide(color: AppColors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(22), borderSide: BorderSide(color: AppColors.accentDark)),
             contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           ),
         )),
         const SizedBox(width: 8),
         GestureDetector(
           onTap: () { HapticFeedback.lightImpact(); _chatCtrl.clear(); },
-          child: Container(width: 36, height: 36, decoration: const BoxDecoration(color: AppColors.accent, shape: BoxShape.circle), child: const Icon(Icons.send_rounded, size: 16, color: Colors.white)),
+          child: Container(width: 36, height: 36, decoration: BoxDecoration(color: AppColors.accent, shape: BoxShape.circle), child: const Icon(Icons.send_rounded, size: 16, color: Colors.white)),
         ),
       ]),
     ),
@@ -734,9 +763,9 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
       children: m.isMe ? [
         Container(constraints: const BoxConstraints(maxWidth: 220), padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), decoration: BoxDecoration(color: AppColors.accentSurface, border: Border.all(color: const Color(0xFF3D2580)), borderRadius: const BorderRadius.only(topLeft: Radius.circular(14), topRight: Radius.circular(14), bottomLeft: Radius.circular(14), bottomRight: Radius.circular(4))), child: Text(m.text, style: GoogleFonts.dmSans(fontSize: 11, color: AppColors.accentLight, height: 1.55))),
         const SizedBox(width: 6),
-        Container(width: 24, height: 24, decoration: const BoxDecoration(color: AppColors.accentSurface, shape: BoxShape.circle), child: Center(child: Text(m.avatar, style: GoogleFonts.dmSans(fontSize: 8, fontWeight: FontWeight.w600, color: AppColors.accentLight)))),
+        Container(width: 24, height: 24, decoration: BoxDecoration(color: AppColors.accentSurface, shape: BoxShape.circle), child: Center(child: Text(m.avatar, style: GoogleFonts.dmSans(fontSize: 8, fontWeight: FontWeight.w600, color: AppColors.accentLight)))),
       ] : [
-        Container(width: 24, height: 24, decoration: BoxDecoration(color: m.isAI ? AppColors.accentSurface : AppColors.surfaceVariant, shape: BoxShape.circle), child: m.isAI ? const Icon(Icons.smart_toy_rounded, size: 12, color: AppColors.accentLight) : Center(child: Text(m.avatar, style: GoogleFonts.dmSans(fontSize: 8, fontWeight: FontWeight.w600, color: AppColors.textSecondary)))),
+        Container(width: 24, height: 24, decoration: BoxDecoration(color: m.isAI ? AppColors.accentSurface : AppColors.surfaceVariant, shape: BoxShape.circle), child: m.isAI ? Icon(Icons.smart_toy_rounded, size: 12, color: AppColors.accentLight) : Center(child: Text(m.avatar, style: GoogleFonts.dmSans(fontSize: 8, fontWeight: FontWeight.w600, color: AppColors.textSecondary)))),
         const SizedBox(width: 7),
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(m.name, style: GoogleFonts.dmSans(fontSize: 9, color: AppColors.textDisabled)),
@@ -758,9 +787,9 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
     return StatefulBuilder(builder: (context, setS) => Column(children: [
       Container(
         padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-        decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
+        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
         child: Row(children: [
-          GestureDetector(onTap: () => _go(_StudyTab.rooms), child: const Icon(Icons.arrow_back_rounded, size: 20, color: AppColors.textTertiary)),
+          GestureDetector(onTap: () => _go(_StudyTab.rooms), child: Icon(Icons.arrow_back_rounded, size: 20, color: AppColors.textTertiary)),
           const SizedBox(width: 12),
           Text('Create a study room', style: GoogleFonts.dmSans(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
         ]),
@@ -781,9 +810,9 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
                 hintText: 'e.g. WAEC Maths revision group',
                 hintStyle: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textTertiary),
                 filled: true, fillColor: AppColors.surfaceVariant,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
-                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
-                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.accentDark)),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.border)),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.border)),
+                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.accentDark)),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               ),
             ),
@@ -891,7 +920,7 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
     onTap: () { HapticFeedback.selectionClick(); onTap(); },
     child: Container(
       padding: const EdgeInsets.symmetric(vertical: 9),
-      decoration: BoxDecoration(border: Border(bottom: border ? const BorderSide(color: AppColors.border, width: 0.5) : BorderSide.none)),
+      decoration: BoxDecoration(border: Border(bottom: border ? BorderSide(color: AppColors.border, width: 0.5) : BorderSide.none)),
       child: Row(children: [
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(title, style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.textPrimary)),

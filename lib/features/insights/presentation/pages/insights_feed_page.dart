@@ -8,6 +8,7 @@ import 'package:video_player/video_player.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/insights_interaction_service.dart';
 import '../../../../core/services/notifications_service.dart';
+import '../../../../core/services/user_service.dart';
 import '../../../notifications/presentation/pages/notifications_page.dart';
 
 class InsightsFeedPage extends StatefulWidget {
@@ -21,6 +22,7 @@ class InsightsFeedPage extends StatefulWidget {
 class _InsightsFeedPageState extends State<InsightsFeedPage> {
   List<Map<String, dynamic>> _videos = [];
   List<Map<String, dynamic>> _allVideos = [];
+  Set<String> _seenIds = {};
   bool _loading = true;
   String? _error;
   final PageController _pageController = PageController();
@@ -64,12 +66,35 @@ class _InsightsFeedPageState extends State<InsightsFeedPage> {
           })
           .map((d) => {'id': d.id, ...d.data()})
           .toList();
+
+      // Fetch which of these the user has already watched, so the feed
+      // can always surface unseen content first — otherwise every app
+      // open would start from whatever's newest, mixing in videos the
+      // user already sat through in a previous session.
+      final uid = UserService.uid;
+      Set<String> seenIds = {};
+      if (uid != null) {
+        try {
+          final seenSnap = await FirebaseFirestore.instance
+              .collection('users').doc(uid).collection('seenInsights').get();
+          seenIds = seenSnap.docs.map((d) => d.id).toSet();
+        } catch (_) {
+          // Best-effort — if this fails, just fall back to normal order.
+        }
+      }
+
+      final unseen = filtered.where((v) => !seenIds.contains(v['id'])).toList();
+      final seen = filtered.where((v) => seenIds.contains(v['id'])).toList();
+      final ordered = [...unseen, ...seen];
+
       if (!mounted) return;
       setState(() {
-        _allVideos = filtered;
-        _videos = filtered;
+        _seenIds = seenIds;
+        _allVideos = ordered;
+        _videos = ordered;
         _loading = false;
       });
+      if (ordered.isNotEmpty) _markSeen(ordered[0]['id'] as String);
     } catch (e) {
       debugPrint('Insights error: $e');
       if (!mounted) return;
@@ -78,6 +103,17 @@ class _InsightsFeedPageState extends State<InsightsFeedPage> {
         _loading = false;
       });
     }
+  }
+
+  void _markSeen(String videoId) {
+    if (_seenIds.contains(videoId)) return;
+    final uid = UserService.uid;
+    if (uid == null) return;
+    _seenIds.add(videoId); // update locally right away, no need to wait
+    FirebaseFirestore.instance
+        .collection('users').doc(uid).collection('seenInsights').doc(videoId)
+        .set({'seenAt': FieldValue.serverTimestamp()})
+        .catchError((_) {}); // best-effort, never block playback on this
   }
 
   void _filterByChannel(String channel) {
@@ -106,7 +142,7 @@ class _InsightsFeedPageState extends State<InsightsFeedPage> {
 
   Widget _buildBody() {
     if (_loading) {
-      return const Center(
+      return Center(
         child: CircularProgressIndicator(color: AppColors.accent),
       );
     }
@@ -114,7 +150,7 @@ class _InsightsFeedPageState extends State<InsightsFeedPage> {
     if (_error != null) {
       return Center(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Icon(Icons.wifi_off_rounded, color: AppColors.textTertiary, size: 40),
+          Icon(Icons.wifi_off_rounded, color: AppColors.textTertiary, size: 40),
           const SizedBox(height: 12),
           Text(_error!, style: GoogleFonts.dmSans(color: AppColors.textSecondary)),
           const SizedBox(height: 16),
@@ -128,7 +164,10 @@ class _InsightsFeedPageState extends State<InsightsFeedPage> {
         controller: _pageController,
         scrollDirection: Axis.vertical,
         itemCount: _videos.isEmpty ? 1 : _videos.length,
-        onPageChanged: (i) => setState(() => _currentIndex = i),
+        onPageChanged: (i) {
+          setState(() => _currentIndex = i);
+          if (i < _videos.length) _markSeen(_videos[i]['id'] as String);
+        },
         itemBuilder: (context, i) {
           if (_videos.isEmpty) {
             return Center(
@@ -373,7 +412,7 @@ class _VideoCardState extends State<_VideoCard> {
               )
             : Container(
                 color: Colors.black,
-                child: const Center(
+                child: Center(
                   child: CircularProgressIndicator(
                     color: AppColors.accent, strokeWidth: 2)),
               ),

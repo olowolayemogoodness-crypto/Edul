@@ -33,9 +33,58 @@ class _LoginPageState extends State<LoginPage> {
     context.read<AuthBloc>().add(AuthSignInWithEmail(email: email, password: pass));
   }
 
-  void _signInGoogle() {
-    HapticFeedback.lightImpact();
-    context.read<AuthBloc>().add(const AuthSignInWithGoogle());
+  void _showForgotPassword(BuildContext context) {
+    final emailCtrl = TextEditingController(text: _emailCtrl.text);
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Reset your password', style: GoogleFonts.dmSans(
+          fontSize: 16, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text("We'll email you a link to reset your password.", style: GoogleFonts.dmSans(
+            fontSize: 13, color: AppColors.textTertiary)),
+          const SizedBox(height: 14),
+          TextField(
+            controller: emailCtrl,
+            keyboardType: TextInputType.emailAddress,
+            style: GoogleFonts.dmSans(fontSize: 14, color: AppColors.textPrimary),
+            decoration: InputDecoration(
+              hintText: 'you@example.com',
+              hintStyle: GoogleFonts.dmSans(fontSize: 14, color: AppColors.textDisabled),
+              filled: true, fillColor: AppColors.background,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
+                borderSide:  BorderSide(color: AppColors.border)),
+            ),
+          ),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext),
+            child: Text('Cancel', style: GoogleFonts.dmSans(color: AppColors.textSecondary))),
+          TextButton(
+            onPressed: () {
+              final email = emailCtrl.text.trim();
+              if (email.isEmpty || !email.contains('@')) {
+                _showError('Enter a valid email address');
+                return;
+              }
+              context.read<AuthBloc>().add(AuthSendPasswordReset(email));
+              Navigator.pop(dialogContext);
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text('Password reset email sent — check your inbox',
+                  style: GoogleFonts.dmSans(fontSize: 13)),
+                backgroundColor: AppColors.success,
+                behavior: SnackBarBehavior.floating,
+              ));
+            },
+            child: Text('Send reset link', style: GoogleFonts.dmSans(
+              color: AppColors.accent, fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showError(String msg) {
@@ -58,7 +107,7 @@ class _LoginPageState extends State<LoginPage> {
         body: SafeArea(child: SingleChildScrollView(padding: const EdgeInsets.all(24), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const SizedBox(height: 12),
           Container(width: 44, height: 44, decoration: BoxDecoration(color: AppColors.accentSurface, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.accent, width: 1.5)),
-            child: const Icon(Icons.bolt_rounded, color: AppColors.accentLight, size: 24)),
+            child: Padding(padding: const EdgeInsets.all(8), child: Image.asset('assets/images/edulink_logo.png'))),
           const SizedBox(height: 18),
           Text('Welcome back', style: GoogleFonts.dmSans(fontSize: 22, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
           const SizedBox(height: 4),
@@ -72,7 +121,7 @@ class _LoginPageState extends State<LoginPage> {
           _passField(),
           Align(alignment: Alignment.centerRight, child: Padding(
             padding: const EdgeInsets.only(top: 6, bottom: 14),
-            child: GestureDetector(onTap: () {}, child: Text('Forgot password?', style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.accentLight))),
+            child: GestureDetector(onTap: () => _showForgotPassword(context), child: Text('Forgot password?', style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.accentLight))),
           )),
 
           BlocBuilder<AuthBloc, AuthState>(builder: (ctx, state) {
@@ -88,22 +137,6 @@ class _LoginPageState extends State<LoginPage> {
               ),
             );
           }),
-          const SizedBox(height: 16),
-          _divider(),
-          const SizedBox(height: 16),
-
-          GestureDetector(
-            onTap: _signInGoogle,
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(color: AppColors.surface, border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(12)),
-              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Container(width: 18, height: 18, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle), child: Center(child: Text('G', style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w700, color: const Color(0xFF4285F4))))),
-                const SizedBox(width: 8),
-                Text('Continue with Google', style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textSecondary)),
-              ]),
-            ),
-          ),
           const SizedBox(height: 20),
 
           Center(child: GestureDetector(
@@ -125,9 +158,9 @@ class _LoginPageState extends State<LoginPage> {
     style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textPrimary),
     decoration: InputDecoration(hintText: hint, hintStyle: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textDisabled),
       filled: true, fillColor: AppColors.surface,
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.accent)),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.border)),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.border)),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.accent)),
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12)),
   );
 
@@ -136,16 +169,10 @@ class _LoginPageState extends State<LoginPage> {
     style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textPrimary),
     decoration: InputDecoration(hintText: '••••••••', hintStyle: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textDisabled),
       filled: true, fillColor: AppColors.surface,
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.accent)),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.border)),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.border)),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.accent)),
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       suffixIcon: GestureDetector(onTap: () => setState(() => _obscure = !_obscure), child: Icon(_obscure ? Icons.visibility_off_rounded : Icons.visibility_rounded, size: 18, color: AppColors.textDisabled))),
   );
-
-  Widget _divider() => Row(children: [
-    Expanded(child: Container(height: 0.5, color: AppColors.border)),
-    Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: Text('or', style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.textDisabled))),
-    Expanded(child: Container(height: 0.5, color: AppColors.border)),
-  ]);
 }

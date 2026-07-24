@@ -7,7 +7,7 @@ import '../../../../core/constants/app_text_styles.dart';
 class ActivityGrid extends StatelessWidget {
   const ActivityGrid({super.key});
 
-  static const _cards = [
+  static final _cards = [
     _ActivityCard(
       name: 'AI Tutor',
       sub: 'Ask anything',

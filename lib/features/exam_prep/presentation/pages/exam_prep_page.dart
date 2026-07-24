@@ -51,7 +51,7 @@ class _ModeScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: AppColors.border),
                 ),
-                child: const Icon(Icons.arrow_back_ios_new_rounded,
+                child: Icon(Icons.arrow_back_ios_new_rounded,
                     size: 16, color: AppColors.textSecondary),
               ),
             ),
@@ -223,7 +223,7 @@ class _SetupScreenState extends State<_SetupScreen> {
                 decoration: BoxDecoration(color: AppColors.surface,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: AppColors.border)),
-                child: const Icon(Icons.arrow_back_ios_new_rounded,
+                child: Icon(Icons.arrow_back_ios_new_rounded,
                     size: 16, color: AppColors.textSecondary),
               ),
             ),
@@ -476,7 +476,7 @@ class _SubjectItem extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
           color: selected ? const Color(0xFF1E1240) : Colors.transparent,
-          border: const Border(bottom: BorderSide(color: AppColors.border, width: 0.5)),
+          border: Border(bottom: BorderSide(color: AppColors.border, width: 0.5)),
         ),
         child: Row(children: [
           Container(
@@ -496,7 +496,7 @@ class _SubjectItem extends StatelessWidget {
           ])),
           if (selected) Container(
             width: 18, height: 18,
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
                 color: AppColors.accent, shape: BoxShape.circle),
             child: const Icon(Icons.check_rounded, size: 10, color: Colors.white),
           ),
@@ -557,7 +557,7 @@ class _ObjectiveScreenState extends State<_ObjectiveScreen> {
               child: Row(children: [
                 GestureDetector(
                   onTap: () { _stopTimer(); context.read<ExamBloc>().add(ExamReset()); },
-                  child: const Icon(Icons.close_rounded,
+                  child: Icon(Icons.close_rounded,
                       color: AppColors.textTertiary, size: 20),
                 ),
                 const SizedBox(width: 12),
@@ -574,7 +574,7 @@ class _ObjectiveScreenState extends State<_ObjectiveScreen> {
                     child: LinearProgressIndicator(
                       value: s.progress, minHeight: 5,
                       backgroundColor: AppColors.border,
-                      valueColor: const AlwaysStoppedAnimation(AppColors.accent),
+                      valueColor: AlwaysStoppedAnimation(AppColors.accent),
                     )),
                 ])),
                 const SizedBox(width: 10),
@@ -614,7 +614,7 @@ class _ObjectiveScreenState extends State<_ObjectiveScreen> {
               decoration: BoxDecoration(
                   color: AppColors.surface, borderRadius: BorderRadius.circular(10)),
               child: Row(children: [
-                const Icon(Icons.visibility_off_rounded,
+                Icon(Icons.visibility_off_rounded,
                     size: 13, color: AppColors.textTertiary),
                 const SizedBox(width: 7),
                 Text('Exam mode — answers shown after all questions',
@@ -636,7 +636,7 @@ class _ObjectiveScreenState extends State<_ObjectiveScreen> {
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Row(children: [
                       Container(width: 5, height: 5,
-                          decoration: const BoxDecoration(
+                          decoration: BoxDecoration(
                               color: AppColors.accent, shape: BoxShape.circle)),
                       const SizedBox(width: 7),
                       Text('Gemini · ${s.config.subject.name}',
@@ -813,7 +813,7 @@ class _TheoryScreenState extends State<_TheoryScreen> {
               child: Row(children: [
                 GestureDetector(
                   onTap: () => context.read<ExamBloc>().add(ExamReset()),
-                  child: const Icon(Icons.close_rounded,
+                  child: Icon(Icons.close_rounded,
                       color: AppColors.textTertiary, size: 20),
                 ),
                 const SizedBox(width: 12),
@@ -976,7 +976,7 @@ class _TheoryScreenState extends State<_TheoryScreen> {
                       const SizedBox(height: 7),
                       Row(children: [
                         Container(width: 5, height: 5,
-                            decoration: const BoxDecoration(
+                            decoration: BoxDecoration(
                                 color: AppColors.accent, shape: BoxShape.circle)),
                         const SizedBox(width: 6),
                         Text('Gemini · professor mode',
@@ -1169,7 +1169,7 @@ class _ResultsScreenState extends State<_ResultsScreen>
                   border: Border.all(color: AppColors.accent, width: 2),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.workspace_premium_rounded,
+                child: Icon(Icons.workspace_premium_rounded,
                     size: 30, color: AppColors.accentLight),
               ),
               const SizedBox(height: 12),
@@ -1234,7 +1234,7 @@ class _ResultsScreenState extends State<_ResultsScreen>
                 child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Container(width: 5, height: 5,
                       margin: const EdgeInsets.only(top: 4),
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
                           color: AppColors.accent, shape: BoxShape.circle)),
                   const SizedBox(width: 9),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

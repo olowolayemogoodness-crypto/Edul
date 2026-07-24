@@ -1,4 +1,5 @@
 // lib/features/tutor/presentation/pages/tutor_page.dart
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,11 +9,10 @@ import 'package:image_picker/image_picker.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/groq_services.dart';
 import '../../../../core/services/premium_service.dart';
+import '../../../../core/services/tutor_usage_service.dart';
 import '../../../../core/utils/paywall_helper.dart';
 import '../../../../core/services/vision_service.dart';
 import '../../domain/models/message_model.dart';
-import 'dart:async';
-import '../../../../core/services/tutor_usage_service.dart';
 
 class TutorPage extends StatefulWidget {
   const TutorPage({super.key});
@@ -28,6 +28,9 @@ class _TutorPageState extends State<TutorPage> {
   final String chatTitle = 'AI Tutor';
   DateTime? _sessionStart;
 
+  // Minutes used today, persisted in Firestore from previous sessions —
+  // combined with the local `_sessionStart` timer this makes the daily cap
+  // survive closing and reopening the app, not just leaving this screen.
   int _persistedMinutesToday = 0;
   int _lastFlushedLocalMinutes = 0;
 
@@ -42,6 +45,8 @@ class _TutorPageState extends State<TutorPage> {
     if (mounted) setState(() => _persistedMinutesToday = minutes);
   }
 
+  /// Total minutes used today: what's already persisted, plus elapsed time
+  /// in the current local session.
   int get _totalMinutesUsedToday {
     final localElapsed = _sessionStart == null
         ? 0
@@ -49,6 +54,9 @@ class _TutorPageState extends State<TutorPage> {
     return _persistedMinutesToday + localElapsed;
   }
 
+  /// Persists any newly-elapsed local minutes since the last flush, so
+  /// usage is saved incrementally through the conversation rather than
+  /// only at a clean "end session" point the app might never reach.
   Future<void> _flushLocalUsage() async {
     if (_sessionStart == null) return;
     final localElapsed = DateTime.now().difference(_sessionStart!).inMinutes;
@@ -71,6 +79,8 @@ class _TutorPageState extends State<TutorPage> {
     if (text.isEmpty || isLoading) return;
 
     // ── Free tier: 20-minute daily session limit ──────────────────────────
+    // Checks total minutes today (persisted + local), not just this local
+    // session, so it can't be reset by leaving and reopening this screen.
     if (PremiumService.isRealFree) {
       _sessionStart ??= DateTime.now();
       if (_totalMinutesUsedToday >= 20) {
@@ -209,7 +219,7 @@ class _TutorPageState extends State<TutorPage> {
         elevation: 0,
         leading: GestureDetector(
           onTap: () => context.pop(),
-          child: const Padding(
+          child: Padding(
             padding: EdgeInsets.all(12.0),
             child: Icon(Icons.arrow_back_rounded, color: AppColors.textPrimary, size: 24),
           ),
@@ -240,7 +250,7 @@ class _TutorPageState extends State<TutorPage> {
                         style: GoogleFonts.dmSans(
                             fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
                     const SizedBox(width: 6),
-                    const Icon(Icons.verified, color: AppColors.success, size: 16),
+                    Icon(Icons.verified, color: AppColors.success, size: 16),
                     if (PremiumService.isRealFree) ...[
                       const SizedBox(width: 6),
                       Container(
@@ -271,7 +281,7 @@ class _TutorPageState extends State<TutorPage> {
               margin: const EdgeInsets.only(right: 12),
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(10)),
-              child: const Icon(Icons.more_vert_rounded, color: AppColors.textTertiary, size: 20),
+              child: Icon(Icons.more_vert_rounded, color: AppColors.textTertiary, size: 20),
             ),
           ),
         ],
@@ -445,7 +455,7 @@ class _TutorPageState extends State<TutorPage> {
                             Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(Icons.star_rounded, color: AppColors.success, size: 14),
+                                Icon(Icons.star_rounded, color: AppColors.success, size: 14),
                                 const SizedBox(width: 4),
                                 Text(
                                   '+${msg.xpEarned} XP',
@@ -518,7 +528,7 @@ class _TutorPageState extends State<TutorPage> {
   Widget buildInputBar() {
   return Container(
     padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-    decoration: const BoxDecoration(
+    decoration: BoxDecoration(
       border: Border(top: BorderSide(color: AppColors.border)),
     ),
     child: Row(
@@ -616,7 +626,7 @@ class _TutorPageState extends State<TutorPage> {
               border: Border.all(color: AppColors.border),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.camera_alt_rounded, color: AppColors.textTertiary, size: 20),
+            child: Icon(Icons.camera_alt_rounded, color: AppColors.textTertiary, size: 20),
           ),
         ),
         const SizedBox(width: 10),
@@ -632,15 +642,15 @@ class _TutorPageState extends State<TutorPage> {
               fillColor: AppColors.surface,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(24),
-                borderSide: const BorderSide(color: AppColors.border),
+                borderSide: BorderSide(color: AppColors.border),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(24),
-                borderSide: const BorderSide(color: AppColors.border),
+                borderSide: BorderSide(color: AppColors.border),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(24),
-                borderSide: const BorderSide(color: AppColors.accent, width: 1.5),
+                borderSide: BorderSide(color: AppColors.accent, width: 1.5),
               ),
               contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
             ),
@@ -717,7 +727,7 @@ class AnimatedDotState extends State<AnimatedDot> with SingleTickerProviderState
         child: Container(
           width: 7,
           height: 7,
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             color: AppColors.accentLight,
             shape: BoxShape.circle,
           ),

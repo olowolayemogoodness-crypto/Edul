@@ -191,7 +191,7 @@ class _LibrarySubjectSelectorPageState extends State<LibrarySubjectSelectorPage>
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: AppColors.border),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.arrow_back_ios_new_rounded,
                         size: 16,
                         color: AppColors.textSecondary,
@@ -321,7 +321,7 @@ class _LibrarySubjectSelectorPageState extends State<LibrarySubjectSelectorPage>
                                         ],
                                       ),
                                     ),
-                                    const Icon(
+                                    Icon(
                                       Icons.chevron_right_rounded,
                                       size: 20,
                                       color: AppColors.textTertiary,

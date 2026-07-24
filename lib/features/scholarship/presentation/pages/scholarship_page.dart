@@ -73,7 +73,7 @@ class _ScholarshipPageState extends State<ScholarshipPage> with TickerProviderSt
     Padding(
       padding: const EdgeInsets.fromLTRB(18, 10, 18, 8),
       child: Row(children: [
-        GestureDetector(onTap: () => context.pop(), child: const Icon(Icons.arrow_back_rounded, size: 20, color: AppColors.textTertiary)),
+        GestureDetector(onTap: () => context.pop(), child: Icon(Icons.arrow_back_rounded, size: 20, color: AppColors.textTertiary)),
         const SizedBox(width: 12),
         Expanded(child: Text('Scholarship', style: GoogleFonts.dmSans(fontSize: 17, fontWeight: FontWeight.w500, color: AppColors.textPrimary))),
         GestureDetector(
@@ -81,7 +81,7 @@ class _ScholarshipPageState extends State<ScholarshipPage> with TickerProviderSt
           child: Container(width: 34, height: 34, decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.emoji_events_rounded, size: 16, color: _goldColor)),
         ),
         const SizedBox(width: 8),
-        Container(width: 34, height: 34, decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.share_rounded, size: 16, color: AppColors.textTertiary)),
+        Container(width: 34, height: 34, decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(10)), child: Icon(Icons.share_rounded, size: 16, color: AppColors.textTertiary)),
       ]),
     ),
     Expanded(child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -152,7 +152,7 @@ class _ScholarshipPageState extends State<ScholarshipPage> with TickerProviderSt
         nodeColor = const Color(0xFF0D2219); nodeBorder = AppColors.success;
         stageBg = const Color(0xFF0D1F14); stageBorder = const Color(0xFF0F6E56);
         stageNumColor = AppColors.success; pillBg = const Color(0xFF0D2219); pillColor = AppColors.success;
-        nodeChild = const Icon(Icons.check_rounded, size: 18, color: AppColors.success);
+        nodeChild = Icon(Icons.check_rounded, size: 18, color: AppColors.success);
         break;
       case 'active':
         nodeColor = _goldBg; nodeBorder = _goldBorder;
@@ -164,7 +164,7 @@ class _ScholarshipPageState extends State<ScholarshipPage> with TickerProviderSt
         nodeColor = AppColors.surface; nodeBorder = AppColors.border;
         stageBg = AppColors.surface; stageBorder = AppColors.border;
         stageNumColor = AppColors.textDisabled; pillBg = AppColors.surfaceVariant; pillColor = AppColors.textDisabled;
-        nodeChild = const Icon(Icons.lock_outline_rounded, size: 14, color: AppColors.textDisabled);
+        nodeChild = Icon(Icons.lock_outline_rounded, size: 14, color: AppColors.textDisabled);
     }
     return GestureDetector(
       onTap: onTap,
@@ -202,9 +202,9 @@ class _ScholarshipPageState extends State<ScholarshipPage> with TickerProviderSt
   Widget _rank() => Column(children: [
     Container(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
       child: Row(children: [
-        GestureDetector(onTap: () => _go(_ScholarshipTab.overview), child: const Icon(Icons.arrow_back_rounded, size: 20, color: AppColors.textTertiary)),
+        GestureDetector(onTap: () => _go(_ScholarshipTab.overview), child: Icon(Icons.arrow_back_rounded, size: 20, color: AppColors.textTertiary)),
         const SizedBox(width: 12),
         Text('Your leaderboard rank', style: GoogleFonts.dmSans(fontSize: 15, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
       ]),
@@ -228,7 +228,7 @@ class _ScholarshipPageState extends State<ScholarshipPage> with TickerProviderSt
             Text('Goal: 3,600 pts', style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textTertiary)),
           ]),
           const SizedBox(height: 5),
-          ClipRRect(borderRadius: BorderRadius.circular(4), child: const LinearProgressIndicator(value: 0.78, minHeight: 8, backgroundColor: AppColors.background, valueColor: AlwaysStoppedAnimation(Color(0xFF534AB7)))),
+          ClipRRect(borderRadius: BorderRadius.circular(4), child: LinearProgressIndicator(value: 0.78, minHeight: 8, backgroundColor: AppColors.background, valueColor: AlwaysStoppedAnimation(Color(0xFF534AB7)))),
           const SizedBox(height: 10),
           Row(children: [
             Expanded(child: Container(padding: const EdgeInsets.symmetric(vertical: 8), decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(10)), child: Column(children: [Text('✓', style: GoogleFonts.dmSans(fontSize: 16, color: AppColors.success)), Text('Qualified!', style: GoogleFonts.dmSans(fontSize: 9, color: AppColors.textDisabled))]))),
@@ -286,9 +286,9 @@ class _ScholarshipPageState extends State<ScholarshipPage> with TickerProviderSt
   Widget _registration() => Column(children: [
     Container(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
       child: Row(children: [
-        GestureDetector(onTap: () => _go(_ScholarshipTab.overview), child: const Icon(Icons.arrow_back_rounded, size: 20, color: AppColors.textTertiary)),
+        GestureDetector(onTap: () => _go(_ScholarshipTab.overview), child: Icon(Icons.arrow_back_rounded, size: 20, color: AppColors.textTertiary)),
         const SizedBox(width: 12),
         Text('Registration', style: GoogleFonts.dmSans(fontSize: 15, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
       ]),
@@ -333,7 +333,7 @@ class _ScholarshipPageState extends State<ScholarshipPage> with TickerProviderSt
           ].map((p) => Padding(
             padding: const EdgeInsets.only(bottom: 6),
             child: Row(children: [
-              const Icon(Icons.check_rounded, size: 14, color: AppColors.success),
+              Icon(Icons.check_rounded, size: 14, color: AppColors.success),
               const SizedBox(width: 8),
               Expanded(child: Text(p, style: GoogleFonts.dmSans(fontSize: 11, color: AppColors.textSecondary))),
             ]),
@@ -392,7 +392,7 @@ class _ScholarshipPageState extends State<ScholarshipPage> with TickerProviderSt
     padding: const EdgeInsets.all(22),
     child: Column(children: [
       const SizedBox(height: 20),
-      Container(width: 72, height: 72, decoration: BoxDecoration(color: const Color(0xFF0D2219), shape: BoxShape.circle, border: Border.all(color: AppColors.success, width: 2)), child: const Icon(Icons.check_rounded, size: 32, color: AppColors.success)),
+      Container(width: 72, height: 72, decoration: BoxDecoration(color: const Color(0xFF0D2219), shape: BoxShape.circle, border: Border.all(color: AppColors.success, width: 2)), child: Icon(Icons.check_rounded, size: 32, color: AppColors.success)),
       const SizedBox(height: 16),
       Text("You're registered!", style: GoogleFonts.dmSans(fontSize: 22, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
       const SizedBox(height: 4),
@@ -432,7 +432,7 @@ class _ScholarshipPageState extends State<ScholarshipPage> with TickerProviderSt
         margin: const EdgeInsets.only(bottom: 14),
         decoration: BoxDecoration(color: AppColors.accentSurface, border: Border.all(color: const Color(0xFF3D2580)), borderRadius: BorderRadius.circular(14)),
         child: Row(children: [
-          Container(width: 5, height: 5, decoration: const BoxDecoration(color: AppColors.accent, shape: BoxShape.circle)),
+          Container(width: 5, height: 5, decoration: BoxDecoration(color: AppColors.accent, shape: BoxShape.circle)),
           const SizedBox(width: 8),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('Gemini prep plan', style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.accentLight)),
@@ -469,9 +469,9 @@ class _ScholarshipPageState extends State<ScholarshipPage> with TickerProviderSt
   Widget _winners() => Column(children: [
     Container(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
       child: Row(children: [
-        GestureDetector(onTap: () => _go(_ScholarshipTab.overview), child: const Icon(Icons.arrow_back_rounded, size: 20, color: AppColors.textTertiary)),
+        GestureDetector(onTap: () => _go(_ScholarshipTab.overview), child: Icon(Icons.arrow_back_rounded, size: 20, color: AppColors.textTertiary)),
         const SizedBox(width: 12),
         Text('Past winners', style: GoogleFonts.dmSans(fontSize: 15, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
       ]),
@@ -509,7 +509,7 @@ class _ScholarshipPageState extends State<ScholarshipPage> with TickerProviderSt
             ['EM', AppColors.surfaceVariant, AppColors.textSecondary, 'Emeka A.', 'Enugu · 83% score', '₦50,000'],
           ].map((w) => Container(
             padding: const EdgeInsets.symmetric(vertical: 8),
-            decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border, width: 0.5))),
+            decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border, width: 0.5))),
             child: Row(children: [
               Container(width: 30, height: 30, decoration: BoxDecoration(color: w[1] as Color, shape: BoxShape.circle), child: Center(child: Text(w[0] as String, style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w500, color: w[2] as Color)))),
               const SizedBox(width: 10),

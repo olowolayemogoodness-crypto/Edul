@@ -84,7 +84,7 @@ class _HomeTopBarState extends State<HomeTopBar>
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.bolt_rounded, size: 14, color: AppColors.accentLight),
+                Icon(Icons.bolt_rounded, size: 14, color: AppColors.accentLight),
                 const SizedBox(width: 4),
                 _AnimatedCounter(target: widget.xpCount),
               ],

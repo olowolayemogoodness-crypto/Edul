@@ -69,7 +69,7 @@ class _QuizQuestionPageState extends State<QuizQuestionPage> with SingleTickerPr
               child: Row(children: [
                 GestureDetector(
                   onTap: () { _stopTimer(); context.read<QuizBloc>().add(QuizReset()); },
-                  child: const Icon(Icons.close_rounded, color: AppColors.textTertiary, size: 20),
+                  child: Icon(Icons.close_rounded, color: AppColors.textTertiary, size: 20),
                 ),
                 const SizedBox(width: 12),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -84,7 +84,7 @@ class _QuizQuestionPageState extends State<QuizQuestionPage> with SingleTickerPr
                     child: LinearProgressIndicator(
                       value: s.progress, minHeight: 6,
                       backgroundColor: AppColors.border,
-                      valueColor: const AlwaysStoppedAnimation(AppColors.accent),
+                      valueColor: AlwaysStoppedAnimation(AppColors.accent),
                     )),
                 ])),
                 if (isTimed) ...[const SizedBox(width: 10), _TimerBadge(secs: _timerSecs)],
@@ -213,7 +213,7 @@ class _OutOfLivesBanner extends StatelessWidget {
               border: Border.all(color: AppColors.border),
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(Icons.play_circle_outline, size: 12, color: AppColors.textDisabled),
+              Icon(Icons.play_circle_outline, size: 12, color: AppColors.textDisabled),
               const SizedBox(width: 3),
               Text('Watch ad', style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textDisabled)),
             ]),
@@ -247,7 +247,7 @@ class _QuestionCard extends StatelessWidget {
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Container(width: 6, height: 6, decoration: const BoxDecoration(color: AppColors.accent, shape: BoxShape.circle)),
+          Container(width: 6, height: 6, decoration: BoxDecoration(color: AppColors.accent, shape: BoxShape.circle)),
           const SizedBox(width: 7),
           Text(topicLabel, style: GoogleFonts.dmSans(fontSize: 9, fontWeight: FontWeight.w500, color: AppColors.accentLight)),
           const Spacer(),

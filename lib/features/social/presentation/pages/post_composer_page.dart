@@ -17,7 +17,8 @@ import '../../../../core/services/voice_note_service.dart';
 import '../../../../core/utils/paywall_helper.dart';
 
 class PostComposerPage extends StatefulWidget {
-  const PostComposerPage({super.key});
+  final Map<String, dynamic>? quotedPost;
+  const PostComposerPage({super.key, this.quotedPost});
 
   @override
   State<PostComposerPage> createState() => _PostComposerPageState();
@@ -164,7 +165,7 @@ class _PostComposerPageState extends State<PostComposerPage> {
       final uni = profile?['university'] as String? ?? _university;
       final course = profile?['course'] as String? ?? '';
       final studentType = profile?['studentType'] as String? ?? 'university';
-      await FirebaseFirestore.instance.collection('posts').add({
+      final postRef = await FirebaseFirestore.instance.collection('posts').add({
         'uid': uid,
         'displayName': displayName,
         'university': uni,
@@ -175,11 +176,13 @@ class _PostComposerPageState extends State<PostComposerPage> {
         if (audioUrl != null) 'audioUrl': audioUrl,
         if (audioUrl != null) 'durationMs': _voiceNote!.durationMs,
         if (audioUrl != null) 'waveform': _voiceNote!.waveform,
+        if (widget.quotedPost != null) 'quotedPostId': widget.quotedPost!['id'],
         'feedTarget': _feedTarget,
         'likes': 0, 'comments': 0, 'reposts': 0, 'views': 0,
         'verified': false,
         'createdAt': FieldValue.serverTimestamp(),
       });
+      _notifyFollowers(uid, displayName, postRef.id);
       if (!mounted) return;
       Navigator.pop(context, true);
     } catch (e) {
@@ -200,11 +203,43 @@ class _PostComposerPageState extends State<PostComposerPage> {
     }
   }
 
+  /// Notifies people who follow this user that a new post went up. Capped
+  /// at 500 followers per post — a client-side fan-out beyond that starts
+  /// to risk slow/expensive writes on a single post action. If Edulink's
+  /// average follower count grows well past this, move this fan-out to a
+  /// Cloud Function triggered on post creation instead.
+  Future<void> _notifyFollowers(String posterUid, String posterName, String postId) async {
+    try {
+      final followers = await FirebaseFirestore.instance
+          .collection('users').doc(posterUid).collection('followers')
+          .limit(500).get();
+      final batch = FirebaseFirestore.instance.batch();
+      for (final doc in followers.docs) {
+        final followerUid = doc.id;
+        final notifRef = FirebaseFirestore.instance.collection('notifications').doc();
+        batch.set(notifRef, {
+          'uid': followerUid,
+          'fromUid': posterUid,
+          'fromDisplayName': posterName,
+          'type': 'new_post',
+          'postId': postId,
+          'title': '$posterName shared a new post',
+          'body': 'Tap to view it',
+          'read': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+      if (followers.docs.isNotEmpty) await batch.commit();
+    } catch (_) {
+      // Best-effort — never block or fail the post itself over notifications.
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final charCount = _textCtrl.text.length;
     final charColor = charCount > _maxChars * 0.9
-        ? AppColors.error : Colors.white38;
+        ? AppColors.error : AppColors.accentLight.withOpacity(0.5);
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
     return Scaffold(
@@ -283,6 +318,27 @@ class _PostComposerPageState extends State<PostComposerPage> {
 
             const SizedBox(height: 16),
 
+            // Quoted post preview, if this is a quote post
+            if (widget.quotedPost != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: AppColors.accentLight.withOpacity(0.3)),
+                    borderRadius: BorderRadius.circular(12)),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Quoting ${widget.quotedPost!['displayName'] ?? 'User'}',
+                      style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.w600,
+                        color: AppColors.accentLight)),
+                    const SizedBox(height: 4),
+                    Text((widget.quotedPost!['content'] as String?) ?? '',
+                      maxLines: 3, overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.textSecondary)),
+                  ]),
+                ),
+              ),
+
             // Images area (top)
             if (_images.isNotEmpty)
               Padding(
@@ -327,7 +383,7 @@ class _PostComposerPageState extends State<PostComposerPage> {
                     border: Border.all(color: AppColors.accentLight.withOpacity(0.3)),
                   ),
                   child: Row(children: [
-                    const Icon(Icons.graphic_eq_rounded,
+                    Icon(Icons.graphic_eq_rounded,
                       color: AppColors.accentLight, size: 20),
                     const SizedBox(width: 10),
                     Expanded(
@@ -394,7 +450,7 @@ class _PostComposerPageState extends State<PostComposerPage> {
               child: Container(
                 margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.82),
+                  color: AppColors.card,
                   borderRadius: BorderRadius.circular(28),
                   border: Border.all(color: AppColors.accentLight.withOpacity(0.25)),
                   boxShadow: [
@@ -407,28 +463,28 @@ class _PostComposerPageState extends State<PostComposerPage> {
                     ? Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         child: Row(children: [
-                          const Icon(Icons.fiber_manual_record_rounded,
+                          Icon(Icons.fiber_manual_record_rounded,
                             color: AppColors.error, size: 14),
                           const SizedBox(width: 8),
                           Text('Recording ${_recordingSeconds ~/ 60}:${(_recordingSeconds % 60).toString().padLeft(2, '0')}',
                             style: GoogleFonts.dmSans(
-                              fontSize: 14, color: Colors.white)),
+                              fontSize: 14, color: AppColors.textPrimary)),
                           const Spacer(),
                           GestureDetector(
                             onTap: _cancelRecording,
                             child: Container(
                               width: 34, height: 34,
                               decoration: BoxDecoration(
-                                color: Colors.white12, shape: BoxShape.circle),
-                              child: const Icon(Icons.close_rounded,
-                                color: Colors.white70, size: 16)),
+                                color: AppColors.surfaceVariant, shape: BoxShape.circle),
+                              child: Icon(Icons.close_rounded,
+                                color: AppColors.textSecondary, size: 16)),
                           ),
                           const SizedBox(width: 8),
                           GestureDetector(
                             onTap: _attachRecording,
                             child: Container(
                               width: 34, height: 34,
-                              decoration: const BoxDecoration(
+                              decoration: BoxDecoration(
                                 color: AppColors.accent, shape: BoxShape.circle),
                               child: const Icon(Icons.check_rounded,
                                 color: Colors.white, size: 18)),
@@ -476,7 +532,7 @@ class _PostComposerPageState extends State<PostComposerPage> {
                       minLines: 1,
                       maxLength: _maxChars,
                       style: GoogleFonts.dmSans(
-                        fontSize: 15, color: Colors.white, height: 1.4),
+                        fontSize: 15, color: AppColors.textPrimary, height: 1.4),
                       decoration: InputDecoration(
                         hintText: "What's happening?",
                         hintStyle: GoogleFonts.dmSans(

@@ -428,7 +428,7 @@ class _QuizSetupPageState extends State<QuizSetupPage> {
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: AppColors.border),
                   ),
-                  child: const Icon(Icons.arrow_back_ios_new_rounded, size: 16, color: AppColors.textSecondary),
+                  child: Icon(Icons.arrow_back_ios_new_rounded, size: 16, color: AppColors.textSecondary),
                 ),
               ),
               const SizedBox(width: 12),
@@ -446,7 +446,7 @@ class _QuizSetupPageState extends State<QuizSetupPage> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.edit_rounded, size: 12, color: AppColors.accent),
+                      Icon(Icons.edit_rounded, size: 12, color: AppColors.accent),
                       const SizedBox(width: 4),
                       Text(
                         'Change',

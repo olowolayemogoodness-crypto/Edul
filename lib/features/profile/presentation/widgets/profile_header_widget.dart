@@ -7,6 +7,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../auth/presentation/bloc/auth_state.dart';
 import '../../../../core/services/user_service.dart';
+import '../../../../core/services/user_tier_service.dart';
 
 class ProfileHeaderWidget extends StatefulWidget {
   const ProfileHeaderWidget({super.key});
@@ -68,7 +69,19 @@ class _State extends State<ProfileHeaderWidget> with SingleTickerProviderStateMi
   builder: (context, snapshot) {
     final profile = snapshot.data;
     final name = profile?['displayName'] as String? ?? 'User';
-    return Text(name, style: GoogleFonts.dmSans(fontSize: 18, fontWeight: FontWeight.w500, color: AppColors.textPrimary));
+    final tier = profile?['tier'] as String?;
+    IconData? icon; Color? color;
+    if (tier == 'active') { icon = Icons.circle; color = const Color(0xFF1D9E75); }
+    else if (tier == 'contributor') { icon = Icons.verified_rounded; color = const Color(0xFF534AB7); }
+    else if (tier == 'plug') { icon = Icons.workspace_premium_rounded; color = const Color(0xFF854F0B); }
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      Text(name, style: GoogleFonts.dmSans(fontSize: 18, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
+      if (icon != null) Padding(
+        padding: const EdgeInsets.only(left: 5),
+        child: Tooltip(message: UserTierService.label(tier!),
+          child: Icon(icon, size: tier == 'active' ? 11 : 15, color: color)),
+      ),
+    ]);
   },
 ),
         const SizedBox(height: 2),

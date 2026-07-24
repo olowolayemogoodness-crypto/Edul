@@ -41,7 +41,7 @@ class NotificationsPage extends StatelessWidget {
         elevation: 0,
         leading: GestureDetector(
           onTap: () => context.canPop() ? context.pop() : null,
-          child: const Padding(
+          child: Padding(
             padding: EdgeInsets.all(12.0),
             child: Icon(Icons.arrow_back_rounded,
                 color: AppColors.textPrimary, size: 24),
@@ -57,7 +57,7 @@ class NotificationsPage extends StatelessWidget {
         stream: NotificationService.stream(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
+            return Center(
               child: CircularProgressIndicator(color: AppColors.accent),
             );
           }
@@ -130,7 +130,7 @@ class NotificationsPage extends StatelessWidget {
                             Container(
                               width: 38,
                               height: 38,
-                              decoration: const BoxDecoration(
+                              decoration: BoxDecoration(
                                 color: AppColors.accentSurface,
                                 shape: BoxShape.circle,
                               ),
@@ -163,7 +163,7 @@ class NotificationsPage extends StatelessWidget {
                                           height: 8,
                                           margin:
                                               const EdgeInsets.only(left: 6),
-                                          decoration: const BoxDecoration(
+                                          decoration: BoxDecoration(
                                             color: AppColors.accent,
                                             shape: BoxShape.circle,
                                           ),
@@ -217,11 +217,11 @@ class _EmptyState extends StatelessWidget {
           Container(
             width: 72,
             height: 72,
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: AppColors.surface,
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.notifications_none_rounded,
+            child: Icon(Icons.notifications_none_rounded,
                 color: AppColors.textTertiary, size: 32),
           ),
           const SizedBox(height: 16),

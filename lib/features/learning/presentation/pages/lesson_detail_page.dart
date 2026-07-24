@@ -126,7 +126,7 @@ class _LessonDetailPageState extends State<LessonDetailPage> {
           child: Column(children: [
             Container(
               padding: const EdgeInsets.all(16),
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 color: AppColors.surface,
                 border: Border(bottom: BorderSide(color: AppColors.border)),
               ),
@@ -219,7 +219,7 @@ class _LessonDetailPageState extends State<LessonDetailPage> {
           child: Column(children: [
             Container(
               padding: const EdgeInsets.all(16),
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 color: AppColors.surface,
                 border: Border(bottom: BorderSide(color: AppColors.border)),
               ),
@@ -241,7 +241,7 @@ class _LessonDetailPageState extends State<LessonDetailPage> {
                     value: (currentQuestionIndex + 1) / questions.length,
                     minHeight: 6,
                     backgroundColor: AppColors.border,
-                    valueColor: const AlwaysStoppedAnimation(AppColors.accent),
+                    valueColor: AlwaysStoppedAnimation(AppColors.accent),
                   ),
                 )),
                 const SizedBox(width: 12),
@@ -291,7 +291,7 @@ class _LessonDetailPageState extends State<LessonDetailPage> {
                             ),
                             const SizedBox(width: 12),
                             Expanded(child: Text(option, style: GoogleFonts.dmSans(fontSize: 14, color: AppColors.textPrimary))),
-                            if (showResult && isCorrectOption) const Icon(Icons.check_circle, color: AppColors.success, size: 20)
+                            if (showResult && isCorrectOption) Icon(Icons.check_circle, color: AppColors.success, size: 20)
                             else if (showResult && isSelected && !isCorrect) const Icon(Icons.cancel, color: Color(0xFFEF4444), size: 20),
                           ]),
                         ),
@@ -337,7 +337,7 @@ class _LessonDetailPageState extends State<LessonDetailPage> {
           child: Column(children: [
             Container(
               padding: const EdgeInsets.all(16),
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 color: AppColors.surface,
                 border: Border(bottom: BorderSide(color: AppColors.border)),
               ),

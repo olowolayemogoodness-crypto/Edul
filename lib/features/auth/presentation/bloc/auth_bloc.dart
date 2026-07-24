@@ -22,9 +22,33 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthSignOut>(_onSignOut);
     on<AuthSendPasswordReset>(_onPasswordReset);
   }
-  void _onStarted(AuthStarted event, Emitter<AuthState> emit) {
-    final current = _repository.currentUser;
-    if (current != null) { emit(AuthAuthenticated(current)); } else { emit(const AuthUnauthenticated()); }
+  Future<void> _onStarted(AuthStarted event, Emitter<AuthState> emit) async {
+    // Checking _repository.currentUser synchronously here is a known race
+    // condition: right after app launch, Firebase Auth's SDK may not have
+    // finished restoring the persisted session from local storage yet, so
+    // .currentUser can briefly read null even though the user is genuinely
+    // still logged in — showing the login screen for someone who shouldn't
+    // see it. Waiting for the first authStateChanges() event instead
+    // correctly reflects Firebase's actual restored session state.
+    try {
+      final user = await _repository.authStateChanges.first
+          .timeout(const Duration(seconds: 5));
+      if (user != null) {
+        emit(AuthAuthenticated(user));
+      } else {
+        emit(const AuthUnauthenticated());
+      }
+    } catch (_) {
+      // If the stream doesn't fire in time (e.g. genuinely offline on
+      // first launch), fall back to the synchronous check rather than
+      // leaving the user stuck.
+      final current = _repository.currentUser;
+      if (current != null) {
+        emit(AuthAuthenticated(current));
+      } else {
+        emit(const AuthUnauthenticated());
+      }
+    }
   }
   Future<void> _onSignInWithEmail(AuthSignInWithEmail event, Emitter<AuthState> emit) async {
     emit(const AuthLoading());

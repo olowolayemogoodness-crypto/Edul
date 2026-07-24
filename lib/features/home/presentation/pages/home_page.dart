@@ -213,7 +213,7 @@ class _BottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.surface,
         border: Border(top: BorderSide(color: AppColors.border, width: 0.5)),
       ),
@@ -233,7 +233,7 @@ class _BottomNav extends StatelessWidget {
               if (active)
                 Container(margin: const EdgeInsets.only(top: 2),
                     width: 4, height: 4,
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                         color: AppColors.accentLight, shape: BoxShape.circle)),
             ]),
           );

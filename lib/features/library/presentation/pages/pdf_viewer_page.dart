@@ -7,8 +7,8 @@ import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
-import '../../../../../core/constants/app_colors.dart';
-import '../../../../../core/services/study_time_service.dart';
+import '../../../../core/constants/app_colors.dart';
+import '../../../../core/services/study_time_service.dart';
 
 class PdfViewerPage extends StatefulWidget {
   final String title;
@@ -87,7 +87,7 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
               child: Row(children: [
                 GestureDetector(
                   onTap: () => Navigator.pop(context),
-                  child: const Icon(Icons.arrow_back_ios_new_rounded,
+                  child: Icon(Icons.arrow_back_ios_new_rounded,
                     size: 18, color: AppColors.textTertiary),
                 ),
                 const SizedBox(width: 12),
@@ -167,7 +167,7 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
       return Center(child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const CircularProgressIndicator(color: AppColors.accent),
+          CircularProgressIndicator(color: AppColors.accent),
           const SizedBox(height: 16),
           Text('Loading PDF...', style: GoogleFonts.dmSans(
             fontSize: 13, color: AppColors.textTertiary)),
@@ -179,7 +179,7 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
       return Center(child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.wifi_off_rounded,
+          Icon(Icons.wifi_off_rounded,
             color: AppColors.textTertiary, size: 40),
           const SizedBox(height: 12),
           Text(_error!, style: GoogleFonts.dmSans(

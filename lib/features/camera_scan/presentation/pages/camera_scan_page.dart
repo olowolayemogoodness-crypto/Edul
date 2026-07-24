@@ -60,7 +60,7 @@ EXPLANATION: Gemini API integration is not enabled in this build. Please configu
         Padding(
           padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
           child: Row(children: [
-            GestureDetector(onTap: () => context.pop(), child: const Icon(Icons.arrow_back_rounded, size: 20, color: AppColors.textTertiary)),
+            GestureDetector(onTap: () => context.pop(), child: Icon(Icons.arrow_back_rounded, size: 20, color: AppColors.textTertiary)),
             const SizedBox(width: 12),
             Expanded(child: Text('Camera scan', style: GoogleFonts.dmSans(fontSize: 17, fontWeight: FontWeight.w600, color: AppColors.textPrimary))),
             if (_image != null) GestureDetector(onTap: _reset, child: Text('Reset', style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.accentLight))),
@@ -77,7 +77,7 @@ EXPLANATION: Gemini API integration is not enabled in this build. Please configu
             child: _image != null
               ? ClipRRect(borderRadius: BorderRadius.circular(15), child: Image.file(_image!, fit: BoxFit.cover))
               : Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  const Icon(Icons.camera_alt_outlined, size: 36, color: AppColors.textDisabled),
+                  Icon(Icons.camera_alt_outlined, size: 36, color: AppColors.textDisabled),
                   const SizedBox(height: 8),
                   Text('Take a photo or choose from gallery', style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.textDisabled), textAlign: TextAlign.center),
                 ]),
@@ -89,7 +89,7 @@ EXPLANATION: Gemini API integration is not enabled in this build. Please configu
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(color: AppColors.surface, border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(14)),
             child: Row(children: [
-              const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accentLight)),
+              SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accentLight)),
               const SizedBox(width: 12),
               Text('Gemini is analysing your question…', style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.textSecondary)),
             ]),
@@ -100,7 +100,7 @@ EXPLANATION: Gemini API integration is not enabled in this build. Please configu
             padding: const EdgeInsets.all(13),
             decoration: BoxDecoration(color: AppColors.errorSurface, border: Border.all(color: AppColors.error.withValues(alpha: 0.5)), borderRadius: BorderRadius.circular(14)),
             child: Row(children: [
-              const Icon(Icons.error_outline_rounded, size: 16, color: AppColors.error),
+              Icon(Icons.error_outline_rounded, size: 16, color: AppColors.error),
               const SizedBox(width: 8),
               Expanded(child: Text(_error!, style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.textSecondary))),
             ]),
@@ -113,7 +113,7 @@ EXPLANATION: Gemini API integration is not enabled in this build. Please configu
               decoration: BoxDecoration(color: AppColors.surface, border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(14)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
-                  Container(width: 5, height: 5, decoration: const BoxDecoration(color: AppColors.accent, shape: BoxShape.circle)),
+                  Container(width: 5, height: 5, decoration: BoxDecoration(color: AppColors.accent, shape: BoxShape.circle)),
                   const SizedBox(width: 6),
                   Text('Question detected', style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.accentLight)),
                 ]),
@@ -123,7 +123,7 @@ EXPLANATION: Gemini API integration is not enabled in this build. Please configu
                 Container(height: 0.5, color: AppColors.border),
                 const SizedBox(height: 12),
                 Row(children: [
-                  Container(width: 5, height: 5, decoration: const BoxDecoration(color: AppColors.success, shape: BoxShape.circle)),
+                  Container(width: 5, height: 5, decoration: BoxDecoration(color: AppColors.success, shape: BoxShape.circle)),
                   const SizedBox(width: 6),
                   Text('Gemini explanation', style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.success)),
                 ]),
@@ -156,7 +156,7 @@ EXPLANATION: Gemini API integration is not enabled in this build. Please configu
                   padding: const EdgeInsets.symmetric(vertical: 13),
                   decoration: BoxDecoration(color: AppColors.surface, border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(12)),
                   child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    const Icon(Icons.photo_library_rounded, color: AppColors.textSecondary, size: 18),
+                    Icon(Icons.photo_library_rounded, color: AppColors.textSecondary, size: 18),
                     const SizedBox(width: 8),
                     Text('Gallery', style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textSecondary)),
                   ]),

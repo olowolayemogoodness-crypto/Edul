@@ -31,12 +31,15 @@ class LiveStudySessionComingSoon extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          Text(
-                            'Live study session',
-                            style: GoogleFonts.dmSans(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
+                          Flexible(
+                            child: Text(
+                              'Live study session',
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.dmSans(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -125,4 +128,3 @@ class LiveStudySessionComingSoon extends StatelessWidget {
       );
   }
 }
-

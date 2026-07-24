@@ -376,19 +376,32 @@ class _SubjectPickerPageState extends State<SubjectPickerPage> {
 
   void _loadRecommendedSubjects(String? course) {
     if (course == null) {
-      // Fallback: show empty or default message
       setState(() => _loading = false);
       return;
     }
 
-    // Get recommended subjects from CoursesData
     final recommendedSubjectNames = CoursesData.getSubjectsForCourse(course);
-    
-    // Convert subject names to SubjectOption objects using the display map
+
     final subjects = recommendedSubjectNames
         .map((name) => _subjectDisplayMap[name])
         .whereType<SubjectOption>()
         .toList();
+
+    // Many real, selectable courses (Marketing, Public Health, IT, Political
+    // Science, and 37 others) have no entry in courseToSubjects at all, or
+    // only a partial one — meaning some testers would otherwise land on a
+    // dead-end "No subjects available / complete registration" screen even
+    // though they registered correctly. Rather than block them, fall back
+    // to the full catalog of subjects we do have real content for, so
+    // everyone can proceed regardless of which course they picked.
+    if (subjects.length < 3) {
+      final fallback = _subjectDisplayMap.values.toList();
+      setState(() {
+        _subjects = fallback;
+        _loading = false;
+      });
+      return;
+    }
 
     setState(() {
       _subjects = subjects;
@@ -628,7 +641,7 @@ class _SubjectPickerPageState extends State<SubjectPickerPage> {
                       decoration: BoxDecoration(
                           color: AppColors.border,
                           borderRadius: BorderRadius.circular(7)),
-                      child: const Icon(Icons.add_rounded,
+                      child: Icon(Icons.add_rounded,
                           size: 14, color: AppColors.textTertiary),
                     ),
                 ]),
@@ -652,7 +665,7 @@ class _SubjectPickerPageState extends State<SubjectPickerPage> {
                       padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
                       decoration: BoxDecoration(
                         color: picked ? subject.bg : Colors.transparent,
-                        border: const Border(
+                        border: Border(
                             bottom: BorderSide(color: AppColors.border, width: 0.5)),
                       ),
                       child: Row(children: [
@@ -697,7 +710,7 @@ class _SubjectPickerPageState extends State<SubjectPickerPage> {
       // CTA
       Container(
         padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
             color: AppColors.background,
             border: Border(top: BorderSide(color: AppColors.border))),
         child: GestureDetector(
@@ -797,7 +810,7 @@ class _SubjectPickerPageState extends State<SubjectPickerPage> {
                   _selected.removeAt(i);
                   _reviewing = false;
                 }),
-                child: const Icon(Icons.close_rounded,
+                child: Icon(Icons.close_rounded,
                     size: 16, color: AppColors.textTertiary),
               ),
             ]),
@@ -807,7 +820,7 @@ class _SubjectPickerPageState extends State<SubjectPickerPage> {
       // CTAs
       Container(
         padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
             color: AppColors.background,
             border: Border(top: BorderSide(color: AppColors.border))),
         child: Column(children: [

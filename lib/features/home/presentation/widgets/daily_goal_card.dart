@@ -72,7 +72,7 @@ class _DailyGoalCardState extends State<DailyGoalCard>
                 minHeight: 10,
                 backgroundColor: AppColors.surfaceVariant,
                 valueColor:
-                    const AlwaysStoppedAnimation<Color>(AppColors.accent),
+                    AlwaysStoppedAnimation<Color>(AppColors.accent),
               ),
             ),
           ),

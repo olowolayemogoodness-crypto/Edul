@@ -26,13 +26,13 @@ class _DuelQuestion {
   const _DuelQuestion({required this.q, required this.opts, required this.ans});
 }
 
-const _scholarships = [
+final _scholarships = [
   _Scholarship(emoji: '🇬🇧', title: 'Chevening Scholarship 2026', sub: 'UK government · fully funded Masters', deadline: 'Nov 5', tag: 'Closing', tagColor: AppColors.error, tagBg: AppColors.errorSurface, borderColor: AppColors.border, bgColor: AppColors.surface),
   _Scholarship(emoji: '🌍', title: 'MasterCard Foundation Scholars', sub: 'African students · global universities', deadline: 'Dec 1', tag: 'Open', tagColor: AppColors.success, tagBg: AppColors.successSurface, borderColor: AppColors.border, bgColor: AppColors.surface),
   _Scholarship(emoji: '🇺🇸', title: 'AAUW International Fellowship', sub: 'Women · graduate study in the US', deadline: 'Nov 15', tag: 'Open', tagColor: AppColors.success, tagBg: AppColors.successSurface, borderColor: AppColors.border, bgColor: AppColors.surface),
 ];
 
-const _opponents = [
+final _opponents = [
   _Opponent(initials: 'TF', name: 'Tunde F.', rank: 'Rank #39', streak: '14-day streak', bg: AppColors.successSurface, tc: AppColors.success),
   _Opponent(initials: 'KO', name: 'Kemi O.', rank: 'Rank #42', streak: '9-day streak', bg: Color(0xFF2D1E00), tc: Color(0xFFE8960F)),
   _Opponent(initials: 'ZN', name: 'Zara N.', rank: 'Rank #2', streak: '18-day streak', bg: Color(0xFF0C1A3D), tc: Color(0xFF60A5FA)),
@@ -223,7 +223,7 @@ class _DiscoverPageState extends State<DiscoverPage> with TickerProviderStateMix
               Row(children: [
                 Text('EduLink Scholarship S3', style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
                 const SizedBox(width: 6),
-                Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2), decoration: BoxDecoration(color: AppColors.errorSurface, border: Border.all(color: AppColors.error.withValues(alpha: 0.5)), borderRadius: BorderRadius.circular(20)), child: Row(mainAxisSize: MainAxisSize.min, children: [Container(width: 5, height: 5, decoration: const BoxDecoration(color: AppColors.error, shape: BoxShape.circle)), const SizedBox(width: 3), Text('4 days left', style: GoogleFonts.dmSans(fontSize: 9, color: AppColors.error))])),
+                Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2), decoration: BoxDecoration(color: AppColors.errorSurface, border: Border.all(color: AppColors.error.withValues(alpha: 0.5)), borderRadius: BorderRadius.circular(20)), child: Row(mainAxisSize: MainAxisSize.min, children: [Container(width: 5, height: 5, decoration: BoxDecoration(color: AppColors.error, shape: BoxShape.circle)), const SizedBox(width: 3), Text('4 days left', style: GoogleFonts.dmSans(fontSize: 9, color: AppColors.error))])),
               ]),
               const SizedBox(height: 2),
               Text("You're already qualified at #38 — register to compete", style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textTertiary)),
@@ -245,7 +245,7 @@ class _DiscoverPageState extends State<DiscoverPage> with TickerProviderStateMix
       Padding(
         padding: const EdgeInsets.only(bottom: 9, top: 4),
         child: Row(children: [
-          const Icon(Icons.sports_kabaddi_rounded, size: 18, color: AppColors.error),
+          Icon(Icons.sports_kabaddi_rounded, size: 18, color: AppColors.error),
           const SizedBox(width: 7),
           Text('DUEL ARENA', style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textTertiary, letterSpacing: 0.5)),
           const Spacer(),
@@ -262,7 +262,7 @@ class _DiscoverPageState extends State<DiscoverPage> with TickerProviderStateMix
           decoration: BoxDecoration(color: AppColors.errorSurface, border: Border.all(color: AppColors.error, width: 1.5), borderRadius: BorderRadius.circular(18)),
           child: Column(children: [
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Container(width: 42, height: 42, decoration: BoxDecoration(color: const Color(0xFF3D1200), shape: BoxShape.circle, border: Border.all(color: AppColors.error, width: 2)), child: const Icon(Icons.sports_kabaddi_rounded, size: 20, color: AppColors.error)),
+              Container(width: 42, height: 42, decoration: BoxDecoration(color: const Color(0xFF3D1200), shape: BoxShape.circle, border: Border.all(color: AppColors.error, width: 2)), child: Icon(Icons.sports_kabaddi_rounded, size: 20, color: AppColors.error)),
               const SizedBox(width: 10),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
@@ -280,7 +280,7 @@ class _DiscoverPageState extends State<DiscoverPage> with TickerProviderStateMix
             ]),
             const SizedBox(height: 8),
             Row(children: [
-              Container(width: 24, height: 24, decoration: const BoxDecoration(color: AppColors.successSurface, shape: BoxShape.circle), child: Center(child: Text('TF', style: GoogleFonts.dmSans(fontSize: 8, color: AppColors.success)))),
+              Container(width: 24, height: 24, decoration: BoxDecoration(color: AppColors.successSurface, shape: BoxShape.circle), child: Center(child: Text('TF', style: GoogleFonts.dmSans(fontSize: 8, color: AppColors.success)))),
               const SizedBox(width: 6),
               Text('Tunde F. · Rank #39', style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textTertiary)),
               Text(' · expires in 23h', style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textDisabled)),
@@ -303,13 +303,13 @@ class _DiscoverPageState extends State<DiscoverPage> with TickerProviderStateMix
           margin: const EdgeInsets.only(bottom: 9),
           decoration: BoxDecoration(color: AppColors.surface, border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(18)),
           child: Row(children: [
-            Container(width: 42, height: 42, decoration: BoxDecoration(color: AppColors.surfaceVariant, shape: BoxShape.circle, border: Border.all(color: AppColors.border, width: 1.5)), child: const Icon(Icons.sports_kabaddi_rounded, size: 20, color: AppColors.textTertiary)),
+            Container(width: 42, height: 42, decoration: BoxDecoration(color: AppColors.surfaceVariant, shape: BoxShape.circle, border: Border.all(color: AppColors.border, width: 1.5)), child: Icon(Icons.sports_kabaddi_rounded, size: 20, color: AppColors.textTertiary)),
             const SizedBox(width: 10),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Challenge a friend', style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
               Text('Pick a subject, set question count, send a duel invite', style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textTertiary)),
             ])),
-            const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.textDisabled),
+            Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.textDisabled),
           ]),
         ),
       ),
@@ -320,7 +320,7 @@ class _DiscoverPageState extends State<DiscoverPage> with TickerProviderStateMix
         margin: const EdgeInsets.only(bottom: 9),
         decoration: BoxDecoration(color: AppColors.successSurface, border: Border.all(color: AppColors.success), borderRadius: BorderRadius.circular(18)),
         child: Row(children: [
-          Container(width: 42, height: 42, decoration: BoxDecoration(color: const Color(0xFF073D27), shape: BoxShape.circle, border: Border.all(color: AppColors.success, width: 1.5)), child: const Icon(Icons.sports_kabaddi_rounded, size: 20, color: AppColors.success)),
+          Container(width: 42, height: 42, decoration: BoxDecoration(color: const Color(0xFF073D27), shape: BoxShape.circle, border: Border.all(color: AppColors.success, width: 1.5)), child: Icon(Icons.sports_kabaddi_rounded, size: 20, color: AppColors.success)),
           const SizedBox(width: 10),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
@@ -392,7 +392,7 @@ class _DiscoverPageState extends State<DiscoverPage> with TickerProviderStateMix
       child: Column(children: [
         SizedBox(width: 58, height: 58, child: CustomPaint(
           painter: _StoryRingPainter(color, progress),
-          child: Center(child: Container(width: 50, height: 50, decoration: const BoxDecoration(color: AppColors.surface, shape: BoxShape.circle), child: Icon(icon, size: 22, color: color))),
+          child: Center(child: Container(width: 50, height: 50, decoration: BoxDecoration(color: AppColors.surface, shape: BoxShape.circle), child: Icon(icon, size: 22, color: color))),
         )),
         const SizedBox(height: 4),
         SizedBox(width: 58, child: Text(label, style: GoogleFonts.dmSans(fontSize: 8, color: AppColors.textSecondary), textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis)),
@@ -412,11 +412,11 @@ class _DiscoverPageState extends State<DiscoverPage> with TickerProviderStateMix
   Widget _sendDuel() => Column(children: [
     Container(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
       child: Row(children: [
-        GestureDetector(onTap: () => _go(_DiscoverTab.feed), child: const Icon(Icons.arrow_back_rounded, size: 20, color: AppColors.textTertiary)),
+        GestureDetector(onTap: () => _go(_DiscoverTab.feed), child: Icon(Icons.arrow_back_rounded, size: 20, color: AppColors.textTertiary)),
         const SizedBox(width: 10),
-        const Icon(Icons.sports_kabaddi_rounded, size: 18, color: AppColors.error),
+        Icon(Icons.sports_kabaddi_rounded, size: 18, color: AppColors.error),
         const SizedBox(width: 8),
         Text('Send a challenge', style: GoogleFonts.dmSans(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
       ]),
@@ -522,11 +522,11 @@ class _DiscoverPageState extends State<DiscoverPage> with TickerProviderStateMix
   Widget _duelPending() => Column(children: [
     Container(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
       child: Row(children: [
-        GestureDetector(onTap: () => _go(_DiscoverTab.feed), child: const Icon(Icons.arrow_back_rounded, size: 20, color: AppColors.textTertiary)),
+        GestureDetector(onTap: () => _go(_DiscoverTab.feed), child: Icon(Icons.arrow_back_rounded, size: 20, color: AppColors.textTertiary)),
         const SizedBox(width: 10),
-        const Icon(Icons.sports_kabaddi_rounded, size: 18, color: AppColors.error),
+        Icon(Icons.sports_kabaddi_rounded, size: 18, color: AppColors.error),
         const SizedBox(width: 8),
         Text('Duel pending', style: GoogleFonts.dmSans(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
       ]),
@@ -536,13 +536,13 @@ class _DiscoverPageState extends State<DiscoverPage> with TickerProviderStateMix
       // VS card
       Container(
         padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
-        decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
+        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
         child: Column(children: [
           Row(mainAxisAlignment: MainAxisAlignment.center, children: [
             _vsAvatar('AO', AppColors.accentSurface, AppColors.accentLight, AppColors.accent, 'You', 'Rank #38'),
             const SizedBox(width: 16),
             Column(children: [
-              Container(width: 44, height: 44, decoration: BoxDecoration(color: AppColors.errorSurface, shape: BoxShape.circle, border: Border.all(color: AppColors.error, width: 2)), child: const Icon(Icons.sports_kabaddi_rounded, size: 22, color: AppColors.error)),
+              Container(width: 44, height: 44, decoration: BoxDecoration(color: AppColors.errorSurface, shape: BoxShape.circle, border: Border.all(color: AppColors.error, width: 2)), child: Icon(Icons.sports_kabaddi_rounded, size: 22, color: AppColors.error)),
               const SizedBox(height: 4),
               Text('VS', style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.w500, color: AppColors.error)),
             ]),
@@ -616,7 +616,7 @@ class _DiscoverPageState extends State<DiscoverPage> with TickerProviderStateMix
         Text(title, style: GoogleFonts.dmSans(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
         Text(sub, style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textTertiary)),
       ])),
-      const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.textDisabled),
+      Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.textDisabled),
     ]),
   );
 
@@ -632,24 +632,24 @@ class _DiscoverPageState extends State<DiscoverPage> with TickerProviderStateMix
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         color: AppColors.errorSurface,
         child: Row(children: [
-          Container(width: 28, height: 28, decoration: const BoxDecoration(color: AppColors.accentSurface, shape: BoxShape.circle), child: Center(child: Text('AO', style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.accentLight)))),
+          Container(width: 28, height: 28, decoration: BoxDecoration(color: AppColors.accentSurface, shape: BoxShape.circle), child: Center(child: Text('AO', style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.accentLight)))),
           Expanded(child: Center(child: Row(mainAxisSize: MainAxisSize.min, children: [
             Text('You  $_yourScore', style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.error)),
             const SizedBox(width: 7),
-            Container(width: 30, height: 30, decoration: BoxDecoration(color: AppColors.background, shape: BoxShape.circle, border: Border.all(color: AppColors.error, width: 1.5)), child: const Icon(Icons.sports_kabaddi_rounded, size: 14, color: AppColors.error)),
+            Container(width: 30, height: 30, decoration: BoxDecoration(color: AppColors.background, shape: BoxShape.circle, border: Border.all(color: AppColors.error, width: 1.5)), child: Icon(Icons.sports_kabaddi_rounded, size: 14, color: AppColors.error)),
             const SizedBox(width: 7),
             Text('Tunde  $_oppScore', style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.textSecondary)),
           ]))),
-          Container(width: 28, height: 28, decoration: const BoxDecoration(color: AppColors.successSurface, shape: BoxShape.circle), child: Center(child: Text('TF', style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.success)))),
+          Container(width: 28, height: 28, decoration: BoxDecoration(color: AppColors.successSurface, shape: BoxShape.circle), child: Center(child: Text('TF', style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.success)))),
         ]),
       ),
 
       // Progress + timer
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
+        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
         child: Row(children: [
-          Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(3), child: LinearProgressIndicator(value: (_duelQIdx + 1) / _duelQuestions.length, minHeight: 5, backgroundColor: AppColors.surfaceVariant, valueColor: const AlwaysStoppedAnimation(AppColors.error)))),
+          Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(3), child: LinearProgressIndicator(value: (_duelQIdx + 1) / _duelQuestions.length, minHeight: 5, backgroundColor: AppColors.surfaceVariant, valueColor: AlwaysStoppedAnimation(AppColors.error)))),
           const SizedBox(width: 10),
           Text('Q ${_duelQIdx + 1}/${_duelQuestions.length}', style: GoogleFonts.dmSans(fontSize: 11, color: AppColors.textTertiary)),
           const SizedBox(width: 10),
@@ -667,7 +667,7 @@ class _DiscoverPageState extends State<DiscoverPage> with TickerProviderStateMix
           padding: const EdgeInsets.fromLTRB(14, 14, 14, 0),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              const Icon(Icons.sports_kabaddi_rounded, size: 14, color: AppColors.error),
+              Icon(Icons.sports_kabaddi_rounded, size: 14, color: AppColors.error),
               const SizedBox(width: 6),
               Text('Duel · WAEC Mathematics', style: GoogleFonts.dmSans(fontSize: 9, fontWeight: FontWeight.w600, color: AppColors.error)),
               const Spacer(),
@@ -702,7 +702,7 @@ class _DiscoverPageState extends State<DiscoverPage> with TickerProviderStateMix
             },
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(color: bg, border: const Border(bottom: BorderSide(color: AppColors.border))),
+              decoration: BoxDecoration(color: bg, border: Border(bottom: BorderSide(color: AppColors.border))),
               child: Row(children: [
                 Container(width: 22, height: 22, decoration: BoxDecoration(color: _duelAnswered && isCorrect ? AppColors.success : _duelAnswered && selected ? AppColors.error : AppColors.surfaceVariant, borderRadius: BorderRadius.circular(7)), child: Center(child: Text(String.fromCharCode(65 + i), style: GoogleFonts.dmSans(fontSize: 9, fontWeight: FontWeight.w500, color: _duelAnswered && (isCorrect || selected) ? Colors.white : AppColors.textTertiary)))),
                 const SizedBox(width: 10),
@@ -847,7 +847,7 @@ class _DiscoverPageState extends State<DiscoverPage> with TickerProviderStateMix
           margin: const EdgeInsets.only(bottom: 11),
           decoration: BoxDecoration(color: AppColors.accentSurface, border: Border.all(color: const Color(0xFF3D2580)), borderRadius: BorderRadius.circular(16)),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Container(width: 5, height: 5, margin: const EdgeInsets.only(top: 5), decoration: const BoxDecoration(color: AppColors.accent, shape: BoxShape.circle)),
+            Container(width: 5, height: 5, margin: const EdgeInsets.only(top: 5), decoration: BoxDecoration(color: AppColors.accent, shape: BoxShape.circle)),
             const SizedBox(width: 8),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Gemini insight', style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.accentLight)),
@@ -868,7 +868,7 @@ class _DiscoverPageState extends State<DiscoverPage> with TickerProviderStateMix
             margin: const EdgeInsets.only(bottom: 8),
             decoration: BoxDecoration(color: AppColors.errorSurface, border: Border.all(color: AppColors.error, width: 1.5), borderRadius: BorderRadius.circular(14)),
             child: Center(child: Row(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(Icons.sports_kabaddi_rounded, size: 15, color: AppColors.error),
+              Icon(Icons.sports_kabaddi_rounded, size: 15, color: AppColors.error),
               const SizedBox(width: 8),
               Text('Rematch Tunde', style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.error)),
             ])),

@@ -50,7 +50,7 @@ class _DeckSelectScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: AppColors.border),
                   ),
-                  child: const Icon(Icons.arrow_back_ios_new_rounded,
+                  child: Icon(Icons.arrow_back_ios_new_rounded,
                       size: 16, color: AppColors.textSecondary),
                 ),
               ),
@@ -64,7 +64,7 @@ class _DeckSelectScreen extends StatelessWidget {
                     color: AppColors.surface,
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(color: AppColors.border)),
-                child: const Icon(Icons.add_rounded,
+                child: Icon(Icons.add_rounded,
                     size: 18, color: AppColors.textSecondary),
               ),
             ]),
@@ -206,7 +206,7 @@ class _AddDeckCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-        const Icon(Icons.add_rounded, size: 18, color: AppColors.textTertiary),
+        Icon(Icons.add_rounded, size: 18, color: AppColors.textTertiary),
         const SizedBox(width: 8),
         Text('Create a new deck',
             style: GoogleFonts.dmSans(
@@ -282,7 +282,7 @@ class _StudyScreen extends StatelessWidget {
                   onTap: () => context
                       .read<FlashcardBloc>()
                       .add(FlashcardSessionReset()),
-                  child: const Icon(Icons.close_rounded,
+                  child: Icon(Icons.close_rounded,
                       color: AppColors.textTertiary, size: 20),
                 ),
                 const SizedBox(width: 12),
@@ -308,7 +308,7 @@ class _StudyScreen extends StatelessWidget {
                       value: s.progress,
                       minHeight: 5,
                       backgroundColor: AppColors.border,
-                      valueColor: const AlwaysStoppedAnimation(
+                      valueColor: AlwaysStoppedAnimation(
                           AppColors.accent),
                     ),
                   ),
@@ -546,7 +546,7 @@ class _RatingButtons extends StatelessWidget {
         ),
       ]),
       const SizedBox(height: 8),
-      const Row(children: [
+      Row(children: [
         _RatingBtn(
           label: 'Good', sub: 'Tomorrow',
           icon: Icons.thumb_up_rounded,
@@ -827,7 +827,7 @@ class _ResultsScreenState extends State<_ResultsScreen>
                     Container(
                       width: 6, height: 6,
                       margin: const EdgeInsets.only(top: 4),
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
                           color: AppColors.accent,
                           shape: BoxShape.circle),
                     ),

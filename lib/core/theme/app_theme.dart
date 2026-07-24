@@ -13,7 +13,7 @@ class AppTheme {
     brightness: Brightness.dark,
     scaffoldBackgroundColor: AppColors.background,
     primaryColor: AppColors.accent,
-    colorScheme: const ColorScheme.dark(
+    colorScheme: ColorScheme.dark(
       primary: AppColors.accent,
       onPrimary: Colors.white,
       secondary: AppColors.accentLight,
@@ -46,14 +46,14 @@ class AppTheme {
       scrolledUnderElevation: 0,
       surfaceTintColor: Colors.transparent,
       centerTitle: false,
-      iconTheme: const IconThemeData(color: AppColors.textPrimary),
+      iconTheme: IconThemeData(color: AppColors.textPrimary),
       titleTextStyle: AppTextStyles.headlineSmall,
       systemOverlayStyle: const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.light,
       ),
     ),
-    bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+    bottomNavigationBarTheme: BottomNavigationBarThemeData(
       backgroundColor: AppColors.surface,
       selectedItemColor: AppColors.accent,
       unselectedItemColor: AppColors.textTertiary,
@@ -65,9 +65,9 @@ class AppTheme {
       indicatorColor: AppColors.accentSurface,
       iconTheme: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) {
-          return const IconThemeData(color: AppColors.accentLight);
+          return IconThemeData(color: AppColors.accentLight);
         }
-        return const IconThemeData(color: AppColors.textTertiary);
+        return IconThemeData(color: AppColors.textTertiary);
       }),
       labelTextStyle: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) {
@@ -81,7 +81,7 @@ class AppTheme {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppRadius.lg),
-        side: const BorderSide(color: AppColors.border, width: 1),
+        side: BorderSide(color: AppColors.border, width: 1),
       ),
       margin: EdgeInsets.zero,
     ),
@@ -106,7 +106,7 @@ class AppTheme {
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         foregroundColor: AppColors.textPrimary,
-        side: const BorderSide(color: AppColors.border),
+        side: BorderSide(color: AppColors.border),
         textStyle: AppTextStyles.button.copyWith(color: AppColors.textPrimary),
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xxl, vertical: AppSpacing.lg),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
@@ -120,37 +120,37 @@ class AppTheme {
       hintStyle: AppTextStyles.bodyMedium.copyWith(color: AppColors.textTertiary),
       labelStyle: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary),
       floatingLabelStyle: AppTextStyles.labelMedium.copyWith(color: AppColors.accentLight),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.md), borderSide: const BorderSide(color: AppColors.border)),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.md), borderSide: const BorderSide(color: AppColors.border)),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.md), borderSide: const BorderSide(color: AppColors.accent, width: 1.5)),
-      errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.md), borderSide: const BorderSide(color: AppColors.error)),
-      focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.md), borderSide: const BorderSide(color: AppColors.error, width: 1.5)),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.md), borderSide: BorderSide(color: AppColors.border)),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.md), borderSide: BorderSide(color: AppColors.border)),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.md), borderSide: BorderSide(color: AppColors.accent, width: 1.5)),
+      errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.md), borderSide: BorderSide(color: AppColors.error)),
+      focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.md), borderSide: BorderSide(color: AppColors.error, width: 1.5)),
     ),
     chipTheme: ChipThemeData(
       backgroundColor: AppColors.surfaceVariant,
       selectedColor: AppColors.accentSurface,
       labelStyle: AppTextStyles.labelMedium,
-      side: const BorderSide(color: AppColors.border),
+      side: BorderSide(color: AppColors.border),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.full)),
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
     ),
-    dividerTheme: const DividerThemeData(color: AppColors.border, thickness: 1, space: 1),
+    dividerTheme: DividerThemeData(color: AppColors.border, thickness: 1, space: 1),
     dialogTheme: DialogThemeData(
       backgroundColor: AppColors.card,
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppRadius.xl),
-        side: const BorderSide(color: AppColors.border),
+        side: BorderSide(color: AppColors.border),
       ),
       titleTextStyle: AppTextStyles.headlineSmall,
       contentTextStyle: AppTextStyles.bodyMedium,
     ),
-    bottomSheetTheme: const BottomSheetThemeData(
+    bottomSheetTheme: BottomSheetThemeData(
       backgroundColor: AppColors.card,
       elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
     ),
-    progressIndicatorTheme: const ProgressIndicatorThemeData(
+    progressIndicatorTheme: ProgressIndicatorThemeData(
       color: AppColors.accent,
       linearTrackColor: AppColors.border,
       circularTrackColor: AppColors.border,
@@ -165,6 +165,6 @@ class AppTheme {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
       behavior: SnackBarBehavior.floating,
     ),
-    iconTheme: const IconThemeData(color: AppColors.textSecondary, size: 24),
+    iconTheme: IconThemeData(color: AppColors.textSecondary, size: 24),
   );
 }

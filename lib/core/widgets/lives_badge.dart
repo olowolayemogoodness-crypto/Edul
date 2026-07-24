@@ -105,7 +105,7 @@ class _LivesBadgeState extends State<LivesBadge> {
             border: Border.all(color: AppColors.border),
           ),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(Icons.play_circle_outline, size: 12, color: AppColors.textDisabled),
+            Icon(Icons.play_circle_outline, size: 12, color: AppColors.textDisabled),
             const SizedBox(width: 3),
             Text('Watch ad', style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textDisabled)),
           ]),

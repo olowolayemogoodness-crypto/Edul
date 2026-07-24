@@ -15,7 +15,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
   final _ctrl = PageController();
   int _page = 0;
 
-  static const _slides = [
+  static final _slides = [
     _Slide(icon: Icons.auto_awesome_rounded, iconBg: AppColors.accentSurface, iconColor: AppColors.accentLight, title: 'AI tutor,\nalways ready', body: 'Ask anything about WAEC, JAMB, IELTS or TOEFL. Gemini AI explains concepts and quizzes you step by step.'),
     _Slide(icon: Icons.emoji_events_rounded, iconBg: AppColors.successSurface, iconColor: AppColors.success, title: 'Compete &\nwin prizes', body: 'Climb the leaderboard, challenge friends in duels and enter scholarship competitions for exciting prizes.'),
     _Slide(icon: Icons.groups_rounded, iconBg: AppColors.accentSurface, iconColor: AppColors.accentLight, title: 'Live study\nrooms', body: 'Join real-time study sessions with peers. Solve Gemini quiz widgets together and learn faster as a group.'),

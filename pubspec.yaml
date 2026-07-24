@@ -1,8 +1,7 @@
 name: edulink
 description: AI-powered learning platform for secondary and university students.
 publish_to: 'none'
-version: 1.0.0+1
-
+version: 1.0.0+8
 environment:
   sdk: '>=3.3.0 <4.0.0'
 

@@ -42,6 +42,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'notifications_service.dart';
 import 'user_service.dart';
+import 'user_tier_service.dart';
 
 class PostInteractionService {
   PostInteractionService._();
@@ -62,15 +63,22 @@ class PostInteractionService {
         .snapshots().map((s) => s.docs.length);
   }
 
-  static Future<void> toggleLike(String postId) async {
+  static Future<void> toggleLike(String postId, String postOwnerUid) async {
     final uid = UserService.uid;
     if (uid == null) return;
     final ref = _posts().doc(postId).collection('likes').doc(uid);
     final doc = await ref.get();
     if (doc.exists) {
       await ref.delete();
+      if (uid != postOwnerUid) {
+        await UserTierService.adjustScore(postOwnerUid, -2);
+      }
     } else {
       await ref.set({'uid': uid, 'createdAt': FieldValue.serverTimestamp()});
+      // Don't let liking your own post farm your own score.
+      if (uid != postOwnerUid) {
+        await UserTierService.adjustScore(postOwnerUid, 2);
+      }
     }
   }
 
@@ -87,15 +95,38 @@ class PostInteractionService {
         .snapshots().map((s) => s.docs.length);
   }
 
-  static Future<void> toggleRepost(String postId) async {
+  static Future<void> toggleRepost(String postId, {
+    required String feedTarget,
+    required String myDisplayName,
+    required String myUniversity,
+  }) async {
     final uid = UserService.uid;
     if (uid == null) return;
     final ref = _posts().doc(postId).collection('reposts').doc(uid);
+    // Deterministic ID so we can find-and-delete this pointer without an
+    // extra query. This pointer is what makes the repost show up in the
+    // feed's chronological order — it carries NO likes/comments/views of
+    // its own. All interactions on a repost read/write the ORIGINAL post
+    // (see _PostCard's repost-wrapper rendering), so engagement always
+    // stays tied to whoever actually wrote the post.
+    final pointerRef = FirebaseFirestore.instance
+        .collection('posts').doc('repost_${postId}_$uid');
     final doc = await ref.get();
     if (doc.exists) {
       await ref.delete();
+      await pointerRef.delete();
     } else {
       await ref.set({'uid': uid, 'createdAt': FieldValue.serverTimestamp()});
+      await pointerRef.set({
+        'type': 'repost',
+        'originalPostId': postId,
+        'uid': uid,
+        'displayName': myDisplayName,
+        'university': myUniversity,
+        'feedTarget': feedTarget,
+        'verified': false,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
     }
   }
 
