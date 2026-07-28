@@ -11,6 +11,7 @@ import '../../../auth/presentation/bloc/auth_state.dart';
 import '../../../../core/services/user_service.dart';
 import '../../../../core/services/account_deletion_service.dart';
 import '../../../../core/services/theme_override_service.dart';
+import '../../../notifications/presentation/pages/notifications_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 enum _SettingsTab { main, editProfile, notifications, privacy }
@@ -238,6 +239,12 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
   Widget _notifications() => Column(children: [
     _header('Notifications', onBack: () => _go(_SettingsTab.main)),
     Expanded(child: SingleChildScrollView(child: Column(children: [
+      _sectionLabel('History'),
+      _card([
+        _srow(Icons.notifications_none_rounded, AppColors.surfaceVariant, AppColors.textSecondary, 'Notification history', 'View past likes, comments, follows and reposts', onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const NotificationsPage()),
+        )),
+      ]),
       _sectionLabel('Study reminders'),
       _card([
         _srow(Icons.alarm_rounded, AppColors.accentSurface, AppColors.accentLight, 'Daily study reminder', '8:00 PM every day', onTap: (){}, trailing: _toggle(_togRemind, () => setState(() => _togRemind = !_togRemind))),

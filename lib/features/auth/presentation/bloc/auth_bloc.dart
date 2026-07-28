@@ -6,6 +6,7 @@ import '../../domain/usecases/register_with_email.dart';
 import '../../domain/usecases/sign_in_with_email.dart';
 import '../../domain/usecases/sign_out.dart';
 import '../../../../core/usecases/usecase.dart';
+import '../../../../core/services/push_notification_service.dart';
 import 'auth_event.dart';
 import 'auth_state.dart';
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
@@ -62,6 +63,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     result.fold((f) => emit(AuthError(f.message)), (u) => emit(AuthAuthenticated(u)));
   }
   Future<void> _onSignOut(AuthSignOut event, Emitter<AuthState> emit) async {
+    await PushNotificationService.clearToken();
     await _signOut(const NoParams()); emit(const AuthUnauthenticated());
   }
   Future<void> _onPasswordReset(AuthSendPasswordReset event, Emitter<AuthState> emit) async {

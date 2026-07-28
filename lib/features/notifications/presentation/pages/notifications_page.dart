@@ -13,8 +13,18 @@ class NotificationsPage extends StatelessWidget {
     switch (type) {
       case 'like':
         return Icons.favorite_rounded;
+      case 'like_milestone':
+        return Icons.celebration_rounded;
       case 'comment':
         return Icons.chat_bubble_rounded;
+      case 'reply':
+        return Icons.reply_rounded;
+      case 'follow':
+        return Icons.person_add_rounded;
+      case 'repost':
+        return Icons.repeat_rounded;
+      case 'badge_eligible':
+        return Icons.workspace_premium_rounded;
       case 'system':
       case 'welcome':
         return Icons.school_rounded;
@@ -60,6 +70,10 @@ class NotificationsPage extends StatelessWidget {
             return Center(
               child: CircularProgressIndicator(color: AppColors.accent),
             );
+          }
+
+          if (snapshot.hasError) {
+            return _ErrorState(error: snapshot.error.toString());
           }
 
           final notifications = snapshot.data ?? [];
@@ -200,6 +214,43 @@ class NotificationsPage extends StatelessWidget {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _ErrorState extends StatelessWidget {
+  final String error;
+  const _ErrorState({required this.error});
+
+  @override
+  Widget build(BuildContext context) {
+    // Most likely cause: Firestore needs a composite index for this query
+    // (it filters on `uid` AND orders by a different field, `createdAt`) —
+    // that combination isn't covered by Firestore's automatic single-field
+    // indexes. If that's it, the real Firestore error (visible below, and
+    // in your device logs) contains a direct link to auto-create the
+    // missing index in the Firebase Console.
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline_rounded, color: AppColors.error, size: 32),
+            const SizedBox(height: 16),
+            Text('Couldn\'t load notifications',
+                style: GoogleFonts.dmSans(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary)),
+            const SizedBox(height: 6),
+            Text(error,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.dmSans(
+                    fontSize: 12, color: AppColors.textTertiary)),
+          ],
+        ),
       ),
     );
   }

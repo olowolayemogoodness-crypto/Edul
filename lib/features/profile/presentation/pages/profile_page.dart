@@ -79,8 +79,6 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
                             IconButton(onPressed: () => context.push('/settings'),
                                 icon: Icon(Icons.settings_outlined, color: AppColors.textTertiary, size: 22),
                                 padding: EdgeInsets.zero, constraints: const BoxConstraints()),
-                            const SizedBox(width: 16),
-                            _NotifIcon(),
                           ]),
                         ],
                       ),
@@ -213,18 +211,5 @@ class _ComingSoonOverlay extends StatelessWidget {
         ),
       ]),
     );
-  }
-}
-
-class _NotifIcon extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Stack(clipBehavior: Clip.none, children: [
-      Icon(Icons.notifications_outlined, color: AppColors.textTertiary, size: 22),
-      Positioned(top: -1, right: -1,
-          child: Container(width: 7, height: 7,
-              decoration: BoxDecoration(color: const Color(0xFFE24B4A), shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.background, width: 1.5)))),
-    ]);
   }
 }

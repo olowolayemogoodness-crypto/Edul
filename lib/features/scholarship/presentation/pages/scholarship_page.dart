@@ -456,7 +456,7 @@ class _ScholarshipPageState extends State<ScholarshipPage> with TickerProviderSt
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(color: AppColors.surface, border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(14)),
-          child: Center(child: Text('Back to Discover', style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.textSecondary))),
+          child: Center(child: Text('Back to Insights', style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.textSecondary))),
         ),
       ),
       const SizedBox(height: 16),

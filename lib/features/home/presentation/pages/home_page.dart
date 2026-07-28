@@ -19,6 +19,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../auth/presentation/bloc/auth_state.dart';
 import '../../../../core/services/user_service.dart';
+import '../../../../core/services/notifications_service.dart';
+import '../../../../core/services/push_notification_service.dart';
 import '../../../leaderboard/presentation/pages/compete_coming_soon_page.dart';
 import '../widgets/live_rooms_coming_soon_widget.dart';
 import '../widgets/leaderboard_coming_soon_widget.dart';
@@ -33,6 +35,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int _activeIndex = 0;
   int _unreadSocial = 0;
+  List<String> _unreadIds = [];
 
   @override
   void initState() {
@@ -45,6 +48,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _listenUnread() {
+    PushNotificationService.initialize();
     final uid = UserService.uid;
     if (uid == null) return;
     FirebaseFirestore.instance
@@ -53,7 +57,12 @@ class _HomePageState extends State<HomePage> {
         .where('read', isEqualTo: false)
         .snapshots()
         .listen((snap) {
-      if (mounted) setState(() => _unreadSocial = snap.docs.length);
+      if (mounted) {
+        setState(() {
+          _unreadSocial = snap.docs.length;
+          _unreadIds = snap.docs.map((d) => d.id).toList();
+        });
+      }
     });
   }
 
@@ -91,7 +100,14 @@ class _HomePageState extends State<HomePage> {
               child: _SocialFAB(
                 unread: _unreadSocial,
                 onTap: () {
-                  setState(() => _unreadSocial = 0);
+                  final idsToClear = _unreadIds;
+                  setState(() {
+                    _unreadSocial = 0;
+                    _unreadIds = [];
+                  });
+                  if (idsToClear.isNotEmpty) {
+                    NotificationService.markAllAsRead(idsToClear);
+                  }
                   Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const SocialFeedPage()),
                   );
@@ -208,7 +224,7 @@ class _BottomNav extends StatelessWidget {
     Icons.person_rounded,
   ];
 
-  static const _labels = ['Home', 'Study', 'Compete', 'Discover', 'Profile'];
+  static const _labels = ['Home', 'Study', 'Compete', 'Insights', 'Profile'];
 
   @override
   Widget build(BuildContext context) {

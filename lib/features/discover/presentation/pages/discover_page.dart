@@ -162,11 +162,6 @@ class _DiscoverPageState extends State<DiscoverPage> with TickerProviderStateMix
           Text('Scholarships · duels · career', style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textTertiary)),
         ])),
         _iBtn(Icons.search_rounded, () {}),
-        const SizedBox(width: 7),
-        Stack(children: [
-          _iBtn(Icons.notifications_none_rounded, () {}),
-          Positioned(top: 5, right: 5, child: Container(width: 7, height: 7, decoration: BoxDecoration(color: AppColors.error, shape: BoxShape.circle, border: Border.all(color: AppColors.surface, width: 1.5)))),
-        ]),
       ]),
     ),
 

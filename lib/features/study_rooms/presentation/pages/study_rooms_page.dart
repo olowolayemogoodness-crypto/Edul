@@ -554,8 +554,6 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
           Text('3 sessions live right now', style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textTertiary)),
         ])),
         _iBtn(Icons.search_rounded, () {}),
-        const SizedBox(width: 6),
-        _iBtn(Icons.notifications_none_rounded, () {}),
       ]),
     ),
     Expanded(child: SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

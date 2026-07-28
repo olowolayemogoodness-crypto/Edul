@@ -52,7 +52,7 @@ class UserService {
         'uid': uid,
         'type': 'welcome',
         'title': 'Welcome to Edulink 🎉',
-        'body': 'Glad to have you here — explore Discover, join a study room, or ask the AI Tutor anything.',
+        'body': 'Glad to have you here — explore Insights, join a study room, or ask the AI Tutor anything.',
         'read': false,
         'createdAt': FieldValue.serverTimestamp(),
       });
