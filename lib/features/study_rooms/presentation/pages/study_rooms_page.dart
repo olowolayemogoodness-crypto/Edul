@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -6,6 +7,9 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/feature_flags.dart';
 import '../../../../core/services/user_service.dart';
 import '../widgets/live_study_session_coming_soon_widget.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:image_picker/image_picker.dart';
+import '../../../../core/services/study_room_service.dart';
 
 enum _StudyTab { hub, focusSetup, focusActive, focusDone, rooms, inRoom, createRoom }
 class _Subject {
@@ -14,38 +18,23 @@ class _Subject {
   const _Subject({required this.id, required this.emoji, required this.name, required this.sub, required this.iconBg});
 }
 
-class _Room {
-  final String emoji, title, sub, iconBg;
-  final Color borderColor, bgColor, tagColor, tagBg;
-  final int members;
-  final bool joined;
-  const _Room({required this.emoji, required this.title, required this.sub, required this.iconBg, required this.borderColor, required this.bgColor, required this.tagColor, required this.tagBg, required this.members, this.joined = false});
-}
-
-class _ChatMsg {
-  final String avatar, name, text;
-  final bool isMe, isAI;
-  const _ChatMsg({required this.avatar, required this.name, required this.text, this.isMe = false, this.isAI = false});
-}
-
 final _subjects = [
   _Subject(id: 'math', emoji: '📐', name: 'WAEC Mathematics', sub: 'Algebra · Trig · Geometry', iconBg: AppColors.accentSurface),
   _Subject(id: 'eng', emoji: '📝', name: 'WAEC English', sub: 'Comprehension · Essay', iconBg: AppColors.surface),
   _Subject(id: 'ielts', emoji: '🌍', name: 'IELTS Academic', sub: 'Reading · Writing · Speaking', iconBg: AppColors.successSurface),
 ];
 
-final _rooms = [
-  _Room(emoji: '📐', title: 'WAEC Mathematics revision', sub: 'Algebra · Trig · Geometry', iconBg: '#073D27', borderColor: AppColors.success, bgColor: AppColors.successSurface, tagColor: AppColors.success, tagBg: AppColors.successSurface, members: 14, joined: true),
-  _Room(emoji: '🎙️', title: 'IELTS Speaking drills', sub: 'Part 1 & 2 · voice recording', iconBg: '#0C1A3D', borderColor: AppColors.border, bgColor: AppColors.surface, tagColor: AppColors.success, tagBg: AppColors.successSurface, members: 7),
-  _Room(emoji: '🧮', title: 'JAMB Mathematics 2022', sub: 'UTME paper · past questions', iconBg: '#1E1240', borderColor: AppColors.border, bgColor: AppColors.surface, tagColor: AppColors.success, tagBg: AppColors.successSurface, members: 5),
-  _Room(emoji: '⚗️', title: 'WAEC Chemistry', sub: 'Organic · Inorganic · Physical', iconBg: '#141418', borderColor: AppColors.border, bgColor: AppColors.surface, tagColor: AppColors.success, tagBg: AppColors.successSurface, members: 9),
-];
-
-const _chatMsgs = [
-  _ChatMsg(avatar: 'TF', name: 'Tunde', text: 'Can someone explain Q7 on the trig sheet?'),
-  _ChatMsg(avatar: 'AO', name: 'Adaeze', text: 'Sure! sin θ = 3/5 means opposite=3, hypotenuse=5, so adjacent=4. cos θ = 4/5.', isMe: true),
-  _ChatMsg(avatar: 'AI', name: 'Gemini', text: 'Great explanation Adaeze! Here\'s a quick tip: always draw the right triangle first to visualise SOHCAHTOA.', isAI: true),
-  _ChatMsg(avatar: 'KM', name: 'Kemi', text: 'This is so helpful, thanks!'),
+// Course tags for Study Rooms -- deliberately separate from _subjects above,
+// which belongs to Focus Mode and shouldn't be touched.
+const _roomCourseTags = [
+  ['📐', 'Maths'],
+  ['⚡', 'Physics'],
+  ['⚗️', 'Chemistry'],
+  ['💻', 'Software Engineering'],
+  ['🧬', 'Biology'],
+  ['🎓', 'GNS'],
+  ['📘', 'GST'],
+  ['🖥️', 'Computer Science'],
 ];
 
 class StudyRoomsPage extends StatefulWidget {
@@ -70,6 +59,173 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
   late Animation<double> _ringAnim;
   final TextEditingController _chatCtrl = TextEditingController();
 
+  // ── Real study room state ──────────────────────────────────────────
+  String? _currentRoomId;
+  StudyRoom? _currentRoom;
+  Timer? _roomExpiryWatch;
+  bool _sendingAttachment = false;
+  final TextEditingController _roomTitleCtrl = TextEditingController();
+  String? _roomCourseTag;
+  int _roomMaxParticipants = 4;
+  int _roomDurationMinutes = 60;
+  bool _creatingRoom = false;
+
+  String get _myDisplayName =>
+      FirebaseAuth.instance.currentUser?.displayName?.trim().isNotEmpty == true
+          ? FirebaseAuth.instance.currentUser!.displayName!.trim()
+          : 'Student';
+
+  void _openRoom(String roomId, StudyRoom room) {
+    setState(() {
+      _currentRoomId = roomId;
+      _currentRoom = room;
+    });
+    _roomExpiryWatch?.cancel();
+    _roomExpiryWatch = Timer.periodic(const Duration(seconds: 5), (_) {
+      final room = _currentRoom;
+      if (room == null) return;
+      if (room.isExpiredNow) {
+        _roomExpiryWatch?.cancel();
+        StudyRoomService.instance.markExpiredIfPast(room);
+        if (mounted && _tab == _StudyTab.inRoom) {
+          _leaveCurrentRoom(showExpiredMessage: true);
+        }
+      } else {
+        setState(() {}); // tick the countdown label
+      }
+    });
+    _go(_StudyTab.inRoom);
+  }
+
+  Future<void> _leaveCurrentRoom({bool showExpiredMessage = false}) async {
+    final roomId = _currentRoomId;
+    _roomExpiryWatch?.cancel();
+    _roomExpiryWatch = null;
+    if (roomId != null) {
+      try {
+        await StudyRoomService.instance.leaveRoom(roomId);
+      } catch (_) {
+        // Room may already be gone/expired -- leaving is best-effort.
+      }
+    }
+    setState(() {
+      _currentRoomId = null;
+      _currentRoom = null;
+    });
+    if (mounted) {
+      _go(_StudyTab.rooms);
+      if (showExpiredMessage) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('This room has ended.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleJoinRoom(StudyRoom room) async {
+    try {
+      await StudyRoomService.instance.joinRoom(room.id, displayName: _myDisplayName);
+      _openRoom(room.id, room);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      }
+    }
+  }
+
+  Future<void> _handleCreateRoom() async {
+    final title = _roomTitleCtrl.text.trim();
+    if (title.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Give the room a name first.')),
+      );
+      return;
+    }
+    setState(() => _creatingRoom = true);
+    try {
+      final roomId = await StudyRoomService.instance.createRoom(
+        title: title,
+        courseTag: _roomCourseTag,
+        maxParticipants: _roomMaxParticipants,
+        durationMinutes: _roomDurationMinutes,
+        hostDisplayName: _myDisplayName,
+      );
+      final snap = await StudyRoomService.instance.roomStream(roomId).first;
+      _roomTitleCtrl.clear();
+      if (mounted) _openRoom(roomId, snap);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      }
+    } finally {
+      if (mounted) setState(() => _creatingRoom = false);
+    }
+  }
+
+  Future<void> _handleSendText() async {
+    final roomId = _currentRoomId;
+    final text = _chatCtrl.text;
+    if (roomId == null || text.trim().isEmpty) return;
+    _chatCtrl.clear();
+    try {
+      await StudyRoomService.instance.sendTextMessage(roomId, text);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    }
+  }
+
+  Future<void> _handleSendImage() async {
+    final roomId = _currentRoomId;
+    if (roomId == null) return;
+    final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 80);
+    if (picked == null) return;
+    setState(() => _sendingAttachment = true);
+    try {
+      await StudyRoomService.instance.sendImageMessage(roomId, File(picked.path));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    } finally {
+      if (mounted) setState(() => _sendingAttachment = false);
+    }
+  }
+
+  Future<void> _handleReport(String reportedUserId, String reportedName) async {
+    final reasonCtrl = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: Text('Report $reportedName', style: GoogleFonts.dmSans(color: AppColors.textPrimary, fontSize: 15)),
+        content: TextField(
+          controller: reasonCtrl,
+          maxLines: 3,
+          style: GoogleFonts.dmSans(color: AppColors.textPrimary, fontSize: 13),
+          decoration: InputDecoration(
+            hintText: 'What happened?',
+            hintStyle: GoogleFonts.dmSans(color: AppColors.textTertiary, fontSize: 13),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Report')),
+        ],
+      ),
+    );
+    if (confirmed != true || _currentRoomId == null) return;
+    try {
+      await StudyRoomService.instance.reportParticipant(
+        roomId: _currentRoomId!,
+        reportedUserId: reportedUserId,
+        reason: reasonCtrl.text.trim().isEmpty ? 'No reason given' : reasonCtrl.text.trim(),
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Report sent. Thanks for flagging this.')));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -82,9 +238,11 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
   @override
   void dispose() {
     _focusTimer?.cancel();
+    _roomExpiryWatch?.cancel();
     _breathCtrl.dispose();
     _ringCtrl.dispose();
     _chatCtrl.dispose();
+    _roomTitleCtrl.dispose();
     super.dispose();
   }
 
@@ -220,6 +378,29 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
         ),
       ),
 
+      // Study rooms card -- real entry point into the live rooms feature
+      GestureDetector(
+        onTap: () => _go(_StudyTab.rooms),
+        child: Container(
+          padding: const EdgeInsets.all(18),
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            color: AppColors.successSurface,
+            border: Border.all(color: AppColors.success, width: 1.5),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(width: 52, height: 52, decoration: BoxDecoration(color: AppColors.success.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(16)), child: Icon(Icons.groups_rounded, size: 26, color: AppColors.success)),
+            const SizedBox(width: 14),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Study rooms', style: GoogleFonts.dmSans(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+              const SizedBox(height: 4),
+              Text('Study together, live. Create a room or join one already open — chat, share images and notes, room closes automatically when time\'s up.', style: GoogleFonts.dmSans(fontSize: 11, color: AppColors.success, height: 1.6)),
+            ])),
+            Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.success),
+          ]),
+        ),
+      ),
       // Live study session card
       if (FeatureFlags.showLiveStudySession) const LiveStudySessionComingSoon(),
       // Last session nudge
@@ -542,7 +723,6 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
 
   // ══════════════════════════════════════════
   // ROOMS BROWSE
-  // ══════════════════════════════════════════
   Widget _roomsBrowse() => Column(children: [
     Container(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
@@ -552,237 +732,233 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
         const SizedBox(width: 8),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('Study rooms', style: GoogleFonts.dmSans(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-          Text('3 sessions live right now', style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textTertiary)),
+          Text('Study together, live', style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textTertiary)),
         ])),
-        _iBtn(Icons.search_rounded, () {}),
       ]),
     ),
-    Expanded(child: SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-
-      // You're in a room banner
-      GestureDetector(
-        onTap: () => _go(_StudyTab.inRoom),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
-          margin: const EdgeInsets.only(bottom: 12),
-          decoration: BoxDecoration(color: AppColors.successSurface, border: Border.all(color: AppColors.success, width: 1.5), borderRadius: BorderRadius.circular(14)),
-          child: Row(children: [
-            Container(width: 6, height: 6, decoration: BoxDecoration(color: AppColors.success, shape: BoxShape.circle)),
-            const SizedBox(width: 9),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text("You're in a room · WAEC Maths", style: GoogleFonts.dmSans(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.success)),
-              Text('14 students · 28 min elapsed', style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textTertiary)),
-            ])),
-            Text('Return →', style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.w500, color: AppColors.success)),
-          ]),
-        ),
-      ),
-
-      Text('LIVE NOW', style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.textTertiary, letterSpacing: 0.5)),
-      const SizedBox(height: 8),
-      ..._rooms.map((r) => _roomCard(r)),
-
-
-      // Scheduled
-      Padding(
-        padding: const EdgeInsets.only(bottom: 8, top: 4),
-        child: Text('SCHEDULED TODAY', style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.textTertiary, letterSpacing: 0.5)),
-      ),
-      Container(
-        padding: const EdgeInsets.all(12),
-        margin: const EdgeInsets.only(bottom: 9),
-        decoration: BoxDecoration(color: AppColors.surface, border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(16)),
-        child: Column(children: [
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Container(width: 38, height: 38, decoration: BoxDecoration(color: const Color(0xFF2D1E00), borderRadius: BorderRadius.circular(11)), child: const Center(child: Text('⚡', style: TextStyle(fontSize: 18)))),
-            const SizedBox(width: 9),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Physics — Waves & Sound', style: GoogleFonts.dmSans(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
-              Text('Starts in 40 min · Emeka A.', style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textTertiary)),
-            ])),
-            Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2), decoration: BoxDecoration(color: const Color(0xFF2D1E00), border: Border.all(color: const Color(0xFFC47D0E).withValues(alpha: 0.5)), borderRadius: BorderRadius.circular(20)), child: Text('Soon', style: GoogleFonts.dmSans(fontSize: 9, color: const Color(0xFFE8960F)))),
-          ]),
-          const SizedBox(height: 8),
-          Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-            Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: AppColors.surfaceVariant, border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(20)), child: Text('Remind me', style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textTertiary))),
-          ]),
-        ]),
-      ),
-
-      // Create room
-      GestureDetector(
-        onTap: () => _go(_StudyTab.createRoom),
-        child: Container(
-          padding: const EdgeInsets.all(13),
-          margin: const EdgeInsets.only(bottom: 6),
-          decoration: BoxDecoration(color: AppColors.surface, border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(16)),
-          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(Icons.add_rounded, size: 17, color: AppColors.textTertiary),
-            const SizedBox(width: 8),
-            Text('Create a new study room', style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textTertiary)),
-          ]),
-        ),
-      ),
-    ]))),
+    Expanded(child: StreamBuilder<List<StudyRoom>>(
+      stream: StudyRoomService.instance.activeRoomsStream(),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snap.hasError) {
+          return Center(child: Text('Could not load rooms.', style: GoogleFonts.dmSans(color: AppColors.textTertiary)));
+        }
+        final rooms = (snap.data ?? []).where((r) => !r.isExpiredNow).toList();
+        return SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          GestureDetector(
+            onTap: () => _go(_StudyTab.createRoom),
+            child: Container(
+              padding: const EdgeInsets.all(13),
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(color: AppColors.accentSurface, border: Border.all(color: AppColors.accentDark), borderRadius: BorderRadius.circular(16)),
+              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Icon(Icons.add_rounded, size: 17, color: AppColors.accentLight),
+                const SizedBox(width: 8),
+                Text('Create a new study room', style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.accentLight)),
+              ]),
+            ),
+          ),
+          if (rooms.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 40),
+              child: Center(child: Text('No rooms open right now — start one!', style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.textTertiary))),
+            )
+          else ...[
+            Text('OPEN NOW', style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.textTertiary, letterSpacing: 0.5)),
+            const SizedBox(height: 8),
+            ...rooms.map((r) => _roomCard(r)),
+          ],
+        ]));
+      },
+    )),
   ]);
-  Widget _roomCard(_Room r) => GestureDetector(
-    onTap: () => _go(_StudyTab.inRoom),
-    child: Container(
+
+  Widget _roomCard(StudyRoom r) {
+    final full = r.isFull;
+    final mins = r.remaining.inMinutes.clamp(0, 999);
+    return Container(
       padding: const EdgeInsets.all(12),
       margin: const EdgeInsets.only(bottom: 9),
-      decoration: BoxDecoration(color: r.bgColor, border: Border.all(color: r.borderColor), borderRadius: BorderRadius.circular(16)),
+      decoration: BoxDecoration(color: AppColors.surface, border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(16)),
       child: Column(children: [
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(width: 38, height: 38, decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(11)), child: Center(child: Text(r.emoji, style: const TextStyle(fontSize: 18)))),
+          Container(width: 38, height: 38, decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(11)), child: Center(child: Icon(Icons.groups_rounded, size: 18, color: AppColors.textTertiary))),
           const SizedBox(width: 9),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(r.title, style: GoogleFonts.dmSans(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
-            Text(r.sub, style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textTertiary)),
+            Text(r.courseTag ?? 'General study', style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textTertiary)),
           ])),
-          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: r.tagBg, border: Border.all(color: r.tagColor.withValues(alpha: 0.5)), borderRadius: BorderRadius.circular(20)), child: Text('Live', style: GoogleFonts.dmSans(fontSize: 9, color: r.tagColor))),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(color: AppColors.successSurface, border: Border.all(color: AppColors.success.withValues(alpha: 0.5)), borderRadius: BorderRadius.circular(20)),
+            child: Text('$mins min left', style: GoogleFonts.dmSans(fontSize: 9, color: AppColors.success)),
+          ),
         ]),
         const SizedBox(height: 8),
         Row(children: [
-          // Avatars
-          Row(children: [
-            _avatar('AO', AppColors.accentSurface, AppColors.accentLight),
-            _avatar('TF', AppColors.successSurface, AppColors.success, offset: true),
-            Transform.translate(offset: const Offset(-4, 0), child: Container(width: 20, height: 20, decoration: BoxDecoration(color: const Color(0xFF2D1E00), shape: BoxShape.circle, border: Border.all(color: AppColors.background, width: 1)), child: Center(child: Text('+${r.members - 2}', style: GoogleFonts.dmSans(fontSize: 7, color: const Color(0xFFE8960F)))))),
-          ]),
-          const SizedBox(width: 5),
-          Text('${r.members} students', style: GoogleFonts.dmSans(fontSize: 9, color: AppColors.textTertiary)),
+          Text('${r.participantCount}/${r.maxParticipants} students', style: GoogleFonts.dmSans(fontSize: 9, color: AppColors.textTertiary)),
           const Spacer(),
-          r.joined
-            ? Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: AppColors.successSurface, borderRadius: BorderRadius.circular(20)), child: Text("You're in ✓", style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w500, color: AppColors.success)))
-            : Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: AppColors.accentSurface, borderRadius: BorderRadius.circular(20)), child: Text('Join →', style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w500, color: AppColors.accentLight))),
+          GestureDetector(
+            onTap: full ? null : () => _handleJoinRoom(r),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(color: full ? AppColors.surfaceVariant : AppColors.accentSurface, borderRadius: BorderRadius.circular(20)),
+              child: Text(full ? 'Full' : 'Join →', style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w500, color: full ? AppColors.textDisabled : AppColors.accentLight)),
+            ),
+          ),
         ]),
       ]),
-    ),
-  );
-
-  Widget _avatar(String initials, Color bg, Color tc, {bool offset = false}) => Container(
-    transform: Matrix4.translationValues(offset ? -4 : 0, 0, 0),
-    width: 20, height: 20,
-    decoration: BoxDecoration(color: bg, shape: BoxShape.circle, border: Border.all(color: AppColors.background, width: 1)),
-    child: Center(child: Text(initials, style: GoogleFonts.dmSans(fontSize: 7, fontWeight: FontWeight.w500, color: tc))),
-  );
+    );
+  }
 
   // ══════════════════════════════════════════
   // IN ROOM
   // ══════════════════════════════════════════
-  Widget _inRoom() => Column(children: [
-    Container(
-      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
-      child: Row(children: [
-        GestureDetector(onTap: () => _go(_StudyTab.rooms), child: Icon(Icons.arrow_back_rounded, size: 20, color: AppColors.textTertiary)),
-        const SizedBox(width: 8),
-        Container(width: 6, height: 6, decoration: BoxDecoration(color: AppColors.success, shape: BoxShape.circle)),
-        const SizedBox(width: 6),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('WAEC Mathematics revision', style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-          Text('14 students · live', style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textTertiary)),
-        ])),
-        Row(children: [
-          _avatar('AO', AppColors.accentSurface, AppColors.accentLight),
-          _avatar('TF', AppColors.successSurface, AppColors.success, offset: true),
-          _avatar('KM', const Color(0xFF2D1E00), const Color(0xFFE8960F), offset: true),
-        ]),
-        const SizedBox(width: 8),
-        _iBtn(Icons.more_horiz_rounded, () {}),
-      ]),
-    ),
-    Expanded(child: ListView(padding: const EdgeInsets.all(12), children: [
-      ..._chatMsgs.map((m) => _chatBubble(m)),
-      const SizedBox(height: 8),
-
-      // Gemini quiz widget
-      Container(
-        padding: const EdgeInsets.all(13),
-        decoration: BoxDecoration(color: AppColors.surface, border: Border.all(color: const Color(0xFF3D2580)), borderRadius: BorderRadius.circular(14)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Container(width: 5, height: 5, decoration: BoxDecoration(color: AppColors.accent, shape: BoxShape.circle)),
-            const SizedBox(width: 6),
-            Text('Gemini quiz challenge', style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.accentLight)),
-          ]),
-          const SizedBox(height: 8),
-          Text('If sin θ = 3/5 and θ is in Q1, what is cos θ?', style: GoogleFonts.dmSans(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textPrimary, height: 1.5)),
-          const SizedBox(height: 10),
-          ...['A  3/4', 'B  4/5', 'C  5/3', 'D  2/5'].asMap().entries.map((e) => Container(
-            margin: const EdgeInsets.only(bottom: 5),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-            decoration: BoxDecoration(
-              color: e.key == 1 ? AppColors.successSurface : AppColors.surfaceVariant,
-              border: Border.all(color: e.key == 1 ? AppColors.success : AppColors.border),
-              borderRadius: BorderRadius.circular(10),
-            ),
+  Widget _inRoom() {
+    final roomId = _currentRoomId;
+    if (roomId == null) {
+      return Center(child: Text('No room selected.', style: GoogleFonts.dmSans(color: AppColors.textTertiary)));
+    }
+    return StreamBuilder<StudyRoom>(
+      stream: StudyRoomService.instance.roomStream(roomId),
+      builder: (context, roomSnap) {
+        if (roomSnap.hasData) _currentRoom = roomSnap.data;
+        final room = roomSnap.data;
+        return Column(children: [
+          Container(
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+            decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
             child: Row(children: [
-              Container(width: 20, height: 20, decoration: BoxDecoration(color: e.key == 1 ? AppColors.success : AppColors.surface, borderRadius: BorderRadius.circular(6)), child: Center(child: Text(e.value[0], style: GoogleFonts.dmSans(fontSize: 9, fontWeight: FontWeight.w500, color: e.key == 1 ? Colors.white : AppColors.textTertiary)))),
+              GestureDetector(onTap: () => _leaveCurrentRoom(), child: Icon(Icons.arrow_back_rounded, size: 20, color: AppColors.textTertiary)),
               const SizedBox(width: 8),
-              Text(e.value.substring(3), style: GoogleFonts.dmSans(fontSize: 12, color: e.key == 1 ? const Color(0xFF6EE7B7) : AppColors.textSecondary)),
+              Container(width: 6, height: 6, decoration: BoxDecoration(color: AppColors.success, shape: BoxShape.circle)),
+              const SizedBox(width: 6),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(room?.title ?? '…', style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
+                Text(
+                  room == null ? 'live' : '${room.participantCount}/${room.maxParticipants} · ${room.remaining.inMinutes.clamp(0, 999)} min left',
+                  style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textTertiary),
+                ),
+              ])),
+              _iBtn(Icons.exit_to_app_rounded, () => _leaveCurrentRoom()),
             ]),
-          )),
-        ]),
-      ),
-    ])),
-
-    // Chat input
-    Container(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-      decoration: BoxDecoration(border: Border(top: BorderSide(color: AppColors.border))),
-      child: Row(children: [
-        Expanded(child: TextField(
-          controller: _chatCtrl,
-          style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textPrimary),
-          decoration: InputDecoration(
-            hintText: 'Message the room…',
-            hintStyle: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textTertiary),
-            filled: true, fillColor: AppColors.surface,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(22), borderSide: BorderSide(color: AppColors.border)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(22), borderSide: BorderSide(color: AppColors.border)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(22), borderSide: BorderSide(color: AppColors.accentDark)),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           ),
-        )),
-        const SizedBox(width: 8),
-        GestureDetector(
-          onTap: () { HapticFeedback.lightImpact(); _chatCtrl.clear(); },
-          child: Container(width: 36, height: 36, decoration: BoxDecoration(color: AppColors.accent, shape: BoxShape.circle), child: const Icon(Icons.send_rounded, size: 16, color: Colors.white)),
-        ),
-      ]),
-    ),
-  ]);
+          Expanded(child: StreamBuilder<List<StudyRoomMessage>>(
+            stream: StudyRoomService.instance.messagesStream(roomId),
+            builder: (context, msgSnap) {
+              final messages = msgSnap.data ?? [];
+              if (msgSnap.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              return ListView(padding: const EdgeInsets.all(12), children: [
+                if (messages.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 30),
+                    child: Center(child: Text('No messages yet — say hi 👋', style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.textTertiary))),
+                  ),
+                ...messages.map((m) => _chatBubble(m)),
+              ]);
+            },
+          )),
+          Container(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+            decoration: BoxDecoration(border: Border(top: BorderSide(color: AppColors.border))),
+            child: Row(children: [
+              GestureDetector(
+                onTap: _sendingAttachment ? null : _handleSendImage,
+                child: Container(
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(color: AppColors.surface, border: Border.all(color: AppColors.border), shape: BoxShape.circle),
+                  child: _sendingAttachment
+                      ? const Padding(padding: EdgeInsets.all(10), child: CircularProgressIndicator(strokeWidth: 2))
+                      : Icon(Icons.image_outlined, size: 16, color: AppColors.textTertiary),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(child: TextField(
+                controller: _chatCtrl,
+                style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textPrimary),
+                decoration: InputDecoration(
+                  hintText: 'Message the room…',
+                  hintStyle: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textTertiary),
+                  filled: true, fillColor: AppColors.surface,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(22), borderSide: BorderSide(color: AppColors.border)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(22), borderSide: BorderSide(color: AppColors.border)),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(22), borderSide: BorderSide(color: AppColors.accentDark)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                ),
+                onSubmitted: (_) => _handleSendText(),
+              )),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () { HapticFeedback.lightImpact(); _handleSendText(); },
+                child: Container(width: 36, height: 36, decoration: BoxDecoration(color: AppColors.accent, shape: BoxShape.circle), child: const Icon(Icons.send_rounded, size: 16, color: Colors.white)),
+              ),
+            ]),
+          ),
+        ]);
+      },
+    );
+  }
 
-  Widget _chatBubble(_ChatMsg m) => Padding(
-    padding: const EdgeInsets.only(bottom: 8),
-    child: Row(
-      mainAxisAlignment: m.isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: m.isMe ? [
-        Container(constraints: const BoxConstraints(maxWidth: 220), padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), decoration: BoxDecoration(color: AppColors.accentSurface, border: Border.all(color: const Color(0xFF3D2580)), borderRadius: const BorderRadius.only(topLeft: Radius.circular(14), topRight: Radius.circular(14), bottomLeft: Radius.circular(14), bottomRight: Radius.circular(4))), child: Text(m.text, style: GoogleFonts.dmSans(fontSize: 11, color: AppColors.accentLight, height: 1.55))),
-        const SizedBox(width: 6),
-        Container(width: 24, height: 24, decoration: BoxDecoration(color: AppColors.accentSurface, shape: BoxShape.circle), child: Center(child: Text(m.avatar, style: GoogleFonts.dmSans(fontSize: 8, fontWeight: FontWeight.w600, color: AppColors.accentLight)))),
-      ] : [
-        Container(width: 24, height: 24, decoration: BoxDecoration(color: m.isAI ? AppColors.accentSurface : AppColors.surfaceVariant, shape: BoxShape.circle), child: m.isAI ? Icon(Icons.smart_toy_rounded, size: 12, color: AppColors.accentLight) : Center(child: Text(m.avatar, style: GoogleFonts.dmSans(fontSize: 8, fontWeight: FontWeight.w600, color: AppColors.textSecondary)))),
-        const SizedBox(width: 7),
-        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(m.name, style: GoogleFonts.dmSans(fontSize: 9, color: AppColors.textDisabled)),
-          const SizedBox(height: 2),
-          Container(constraints: const BoxConstraints(maxWidth: 220), padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8), decoration: BoxDecoration(color: m.isAI ? AppColors.surface : AppColors.surfaceVariant, border: m.isAI ? Border.all(color: const Color(0xFF3D2580)) : null, borderRadius: const BorderRadius.only(topLeft: Radius.circular(14), topRight: Radius.circular(14), bottomLeft: Radius.circular(4), bottomRight: Radius.circular(14))), child: Text(m.text, style: GoogleFonts.dmSans(fontSize: 11, color: AppColors.textSecondary, height: 1.55))),
-        ]),
-      ],
-    ),
-  );
+  Widget _chatBubble(StudyRoomMessage m) {
+    final isMe = m.senderId == FirebaseAuth.instance.currentUser?.uid;
+    Widget content;
+    switch (m.type) {
+      case StudyRoomMessageType.text:
+        content = Text(m.content, style: GoogleFonts.dmSans(fontSize: 11, color: isMe ? AppColors.accentLight : AppColors.textSecondary, height: 1.55));
+        break;
+      case StudyRoomMessageType.image:
+        content = ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: Image.network(m.content, width: 180, fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Text('Image failed to load', style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textTertiary))),
+        );
+        break;
+      case StudyRoomMessageType.pdf:
+        content = GestureDetector(
+          onTap: () {}, // TODO: open in-app PDF viewer / launch URL once wired
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.picture_as_pdf_rounded, size: 16, color: AppColors.error),
+            const SizedBox(width: 6),
+            Flexible(child: Text(m.fileName ?? 'PDF file', style: GoogleFonts.dmSans(fontSize: 11, color: AppColors.textSecondary), overflow: TextOverflow.ellipsis)),
+          ]),
+        );
+        break;
+    }
+
+    final initials = m.senderName.trim().isNotEmpty
+        ? m.senderName.trim().split(RegExp(r'\s+')).map((w) => w[0]).take(2).join().toUpperCase()
+        : '?';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: isMe ? [
+          Container(constraints: const BoxConstraints(maxWidth: 220), padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), decoration: BoxDecoration(color: AppColors.accentSurface, border: Border.all(color: AppColors.accentDark), borderRadius: const BorderRadius.only(topLeft: Radius.circular(14), topRight: Radius.circular(14), bottomLeft: Radius.circular(14), bottomRight: Radius.circular(4))), child: content),
+        ] : [
+          GestureDetector(
+            onLongPress: () => _handleReport(m.senderId, m.senderName),
+            child: Container(width: 24, height: 24, decoration: BoxDecoration(color: AppColors.accentSurface, shape: BoxShape.circle), child: Center(child: Text(initials, style: GoogleFonts.dmSans(fontSize: 9, fontWeight: FontWeight.w600, color: AppColors.accentLight)))),
+          ),
+          const SizedBox(width: 7),
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Padding(padding: const EdgeInsets.only(left: 2, bottom: 2), child: Text(m.senderName, style: GoogleFonts.dmSans(fontSize: 9, color: AppColors.textDisabled))),
+            Container(constraints: const BoxConstraints(maxWidth: 220), padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8), decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: const BorderRadius.only(topLeft: Radius.circular(14), topRight: Radius.circular(14), bottomLeft: Radius.circular(4), bottomRight: Radius.circular(14))), child: content),
+          ]),
+        ],
+      ),
+    );
+  }
+
   // ══════════════════════════════════════════
   // CREATE ROOM
   // ══════════════════════════════════════════
   Widget _createRoom() {
-    String roomSubject = 'math';
-    bool isOpen = true;
-    bool geminiQuiz = true;
-    bool voiceChat = false;
-
     return StatefulBuilder(builder: (context, setS) => Column(children: [
       Container(
         padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
@@ -795,7 +971,6 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
       ),
       Expanded(child: SingleChildScrollView(padding: const EdgeInsets.all(14), child: Column(children: [
 
-        // Room name
         Container(
           padding: const EdgeInsets.all(13),
           margin: const EdgeInsets.only(bottom: 10),
@@ -804,6 +979,7 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
             Text('ROOM NAME', style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.textTertiary, letterSpacing: 0.5)),
             const SizedBox(height: 8),
             TextField(
+              controller: _roomTitleCtrl,
               style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textPrimary),
               decoration: InputDecoration(
                 hintText: 'e.g. WAEC Maths revision group',
@@ -818,125 +994,91 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
           ]),
         ),
 
-        // Subject
         Container(
           padding: const EdgeInsets.all(13),
           margin: const EdgeInsets.only(bottom: 10),
           decoration: BoxDecoration(color: AppColors.surface, border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(16)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('SUBJECT', style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.textTertiary, letterSpacing: 0.5)),
+            Text('SUBJECT (optional)', style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.textTertiary, letterSpacing: 0.5)),
             const SizedBox(height: 8),
-            Wrap(spacing: 7, runSpacing: 7, children: [
-              ['math', '📐', 'Maths'], ['eng', '📝', 'English'], ['sci', '🔬', 'Science'], ['ielts', '🌍', 'IELTS'], ['phys', '⚡', 'Physics'],
-            ].map((s) {
-              final on = roomSubject == s[0];
+            Wrap(spacing: 7, runSpacing: 7, children: _roomCourseTags.map((c) {
+              final emoji = c[0];
+              final name = c[1];
+              final on = _roomCourseTag == name;
               return GestureDetector(
-                onTap: () { HapticFeedback.selectionClick(); setS(() => roomSubject = s[0]); },
+                onTap: () { HapticFeedback.selectionClick(); setS(() => _roomCourseTag = on ? null : name); },
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(color: on ? AppColors.accentSurface : AppColors.surfaceVariant, border: Border.all(color: on ? AppColors.accent : AppColors.border, width: on ? 1.5 : 0.5), borderRadius: BorderRadius.circular(20)),
-                  child: Text('${s[1]} ${s[2]}', style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.w500, color: on ? AppColors.accentLight : AppColors.textTertiary)),
+                  child: Text('$emoji $name', style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.w500, color: on ? AppColors.accentLight : AppColors.textTertiary)),
                 ),
               );
             }).toList()),
           ]),
         ),
 
-        // Room type
         Container(
           padding: const EdgeInsets.all(13),
           margin: const EdgeInsets.only(bottom: 10),
           decoration: BoxDecoration(color: AppColors.surface, border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(16)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('ROOM TYPE', style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.textTertiary, letterSpacing: 0.5)),
-            const SizedBox(height: 9),
-            GestureDetector(
-              onTap: () { HapticFeedback.selectionClick(); setS(() => isOpen = true); },
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                margin: const EdgeInsets.only(bottom: 7),
-                decoration: BoxDecoration(color: isOpen ? AppColors.successSurface : AppColors.surfaceVariant, border: Border.all(color: isOpen ? AppColors.success : AppColors.border, width: isOpen ? 1.5 : 0.5), borderRadius: BorderRadius.circular(12)),
-                child: Row(children: [
-                  Icon(Icons.language_rounded, size: 18, color: isOpen ? AppColors.success : AppColors.textTertiary),
-                  const SizedBox(width: 9),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Open', style: GoogleFonts.dmSans(fontSize: 12, fontWeight: FontWeight.w500, color: isOpen ? AppColors.success : AppColors.textSecondary)),
-                    Text('Anyone can join from the rooms list', style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textTertiary)),
-                  ])),
-                  Container(width: 16, height: 16, decoration: BoxDecoration(color: isOpen ? AppColors.success : AppColors.surfaceVariant, shape: BoxShape.circle), child: isOpen ? const Icon(Icons.check_rounded, size: 10, color: Colors.white) : null),
-                ]),
-              ),
-            ),
-            GestureDetector(
-              onTap: () { HapticFeedback.selectionClick(); setS(() => isOpen = false); },
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: !isOpen ? AppColors.accentSurface : AppColors.surfaceVariant, border: Border.all(color: !isOpen ? AppColors.accent : AppColors.border, width: !isOpen ? 1.5 : 0.5), borderRadius: BorderRadius.circular(12)),
-                child: Row(children: [
-                  Icon(Icons.lock_outline_rounded, size: 18, color: !isOpen ? AppColors.accentLight : AppColors.textTertiary),
-                  const SizedBox(width: 9),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Invite only', style: GoogleFonts.dmSans(fontSize: 12, fontWeight: FontWeight.w500, color: !isOpen ? AppColors.accentLight : AppColors.textSecondary)),
-                    Text('Share a link to invite friends', style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textTertiary)),
-                  ])),
-                  Container(width: 16, height: 16, decoration: BoxDecoration(color: !isOpen ? AppColors.accent : AppColors.surfaceVariant, shape: BoxShape.circle), child: !isOpen ? const Icon(Icons.check_rounded, size: 10, color: Colors.white) : null),
-                ]),
-              ),
-            ),
+            Text('MAX PARTICIPANTS', style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.textTertiary, letterSpacing: 0.5)),
+            const SizedBox(height: 8),
+            Row(children: [2, 4, 6, 10].map((n) {
+              final on = _roomMaxParticipants == n;
+              return Expanded(child: GestureDetector(
+                onTap: () { HapticFeedback.selectionClick(); setS(() => _roomMaxParticipants = n); },
+                child: Container(
+                  margin: EdgeInsets.only(right: n == 10 ? 0 : 6),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  decoration: BoxDecoration(color: on ? AppColors.accentSurface : AppColors.surfaceVariant, border: Border.all(color: on ? AppColors.accent : AppColors.border, width: on ? 1.5 : 0.5), borderRadius: BorderRadius.circular(11)),
+                  child: Center(child: Text('$n', style: GoogleFonts.dmSans(fontSize: 15, fontWeight: FontWeight.w500, color: on ? AppColors.accentLight : AppColors.textTertiary))),
+                ),
+              ));
+            }).toList()),
           ]),
         ),
 
-        // Settings toggles
         Container(
           padding: const EdgeInsets.all(13),
           margin: const EdgeInsets.only(bottom: 14),
           decoration: BoxDecoration(color: AppColors.surface, border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(16)),
-          child: Column(children: [
-            _createToggle('Enable Gemini quiz drops', 'AI drops live questions for the group', geminiQuiz, () => setS(() => geminiQuiz = !geminiQuiz), border: true),
-            _createToggle('Voice chat', 'Allow members to speak', voiceChat, () => setS(() => voiceChat = !voiceChat)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('DURATION', style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.textTertiary, letterSpacing: 0.5)),
+            const SizedBox(height: 8),
+            Row(children: [30, 60, 90, 120].map((n) {
+              final on = _roomDurationMinutes == n;
+              return Expanded(child: GestureDetector(
+                onTap: () { HapticFeedback.selectionClick(); setS(() => _roomDurationMinutes = n); },
+                child: Container(
+                  margin: EdgeInsets.only(right: n == 120 ? 0 : 6),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  decoration: BoxDecoration(color: on ? AppColors.accentSurface : AppColors.surfaceVariant, border: Border.all(color: on ? AppColors.accent : AppColors.border, width: on ? 1.5 : 0.5), borderRadius: BorderRadius.circular(11)),
+                  child: Center(child: Text('${n}m', style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w500, color: on ? AppColors.accentLight : AppColors.textTertiary))),
+                ),
+              ));
+            }).toList()),
           ]),
         ),
 
-        // Create CTA
         GestureDetector(
-          onTap: () => _go(_StudyTab.inRoom),
+          onTap: _creatingRoom ? null : _handleCreateRoom,
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 13),
             decoration: BoxDecoration(color: AppColors.success, borderRadius: BorderRadius.circular(14)),
-            child: Center(child: Row(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(Icons.meeting_room_rounded, color: Colors.white, size: 18),
-              const SizedBox(width: 8),
-              Text('Create & join room', style: GoogleFonts.dmSans(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white)),
-            ])),
+            child: Center(child: _creatingRoom
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : Row(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.meeting_room_rounded, color: Colors.white, size: 18),
+                    const SizedBox(width: 8),
+                    Text('Create & join room', style: GoogleFonts.dmSans(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white)),
+                  ])),
           ),
         ),
         const SizedBox(height: 16),
       ]))),
     ]));
   }
-
-  Widget _createToggle(String title, String sub, bool val, VoidCallback onTap, {bool border = false}) => GestureDetector(
-    onTap: () { HapticFeedback.selectionClick(); onTap(); },
-    child: Container(
-      padding: const EdgeInsets.symmetric(vertical: 9),
-      decoration: BoxDecoration(border: Border(bottom: border ? BorderSide(color: AppColors.border, width: 0.5) : BorderSide.none)),
-      child: Row(children: [
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title, style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.textPrimary)),
-          Text(sub, style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textTertiary)),
-        ])),
-        Container(
-          width: 40, height: 22,
-          decoration: BoxDecoration(color: val ? AppColors.accent : AppColors.surfaceVariant, borderRadius: BorderRadius.circular(11)),
-          child: AnimatedAlign(
-            duration: const Duration(milliseconds: 200),
-            alignment: val ? Alignment.centerRight : Alignment.centerLeft,
-            child: Container(margin: const EdgeInsets.all(2), width: 18, height: 18, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle)),
-          ),
-        ),
-      ]),
-    ),
-  );
   Widget _iBtn(IconData icon, VoidCallback fn) => GestureDetector(
     onTap: fn,
     child: Container(width: 30, height: 30, decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(9)), child: Icon(icon, size: 15, color: AppColors.textTertiary)),
