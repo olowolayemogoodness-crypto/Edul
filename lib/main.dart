@@ -1,6 +1,8 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'core/services/premium_service.dart';
 import 'core/services/theme_override_service.dart';
+import 'core/services/study_reminder_service.dart';
+import 'core/services/rewarded_ad_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -45,10 +47,18 @@ void main() async {
     systemNavigationBarIconBrightness: Brightness.light,
   ));
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  // Best-effort: never let a notification setup failure block app startup.
+  try {
+    await StudyReminderService.init();
+    await StudyReminderService.scheduleAll();
+  } catch (_) {}
   // Currently using Google's official TEST ad unit IDs everywhere ads
   // are shown (see AdService) -- safe to initialize unconditionally.
   // Swap to real ad unit IDs before release.
   MobileAds.instance.initialize();
+  try {
+    await RewardedAdService.configureTestDevices();
+  } catch (_) {}
   await PremiumService.initialize();
   await ThemeOverrideService.init();
   await initDependencies();

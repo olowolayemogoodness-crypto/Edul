@@ -371,6 +371,80 @@ class NotificationService {
     } catch (_) {}
   }
 
+  /// Notifies [targetUid] they've been challenged to a duel. Includes
+  /// the challenger's score so the opponent knows what they're up
+  /// against before even opening it.
+  static Future<void> createDuelChallengeNotification({
+    required String targetUid,
+    required String duelId,
+    required String courseKey,
+    required String correctOutOfTotal,
+  }) async {
+    final fromUid = UserService.uid;
+    if (fromUid == null || fromUid == targetUid) return;
+    try {
+      final profile = await UserService.getProfile();
+      final fromDisplayName = profile?['displayName'] as String? ?? 'Someone';
+      await _col.add({
+        'uid': targetUid,
+        'fromUid': fromUid,
+        'fromDisplayName': fromDisplayName,
+        'type': 'duel_challenge',
+        'title': '$fromDisplayName challenged you to a $courseKey duel! ⚔️',
+        'body': 'They scored $correctOutOfTotal — think you can beat it?',
+        'duelId': duelId,
+        'read': false,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      await _sendPush(
+        targetUid: targetUid,
+        title: '$fromDisplayName challenged you to a $courseKey duel! ⚔️',
+        body: 'They scored $correctOutOfTotal — think you can beat it?',
+        data: {'type': 'duel_challenge', 'duelId': duelId},
+      );
+    } catch (_) {}
+  }
+
+  /// Notifies [targetUid] of a completed duel's outcome, from THEIR
+  /// perspective (myScore/opponentScore are already oriented correctly
+  /// by the caller — see DuelService._notifyDuelResult, which calls this
+  /// twice, once per player, with the scores swapped accordingly).
+  static Future<void> createDuelResultNotification({
+    required String targetUid,
+    required String duelId,
+    required String courseKey,
+    required int myScore,
+    required int opponentScore,
+  }) async {
+    final fromUid = UserService.uid;
+    if (fromUid == null) return;
+    try {
+      final won = myScore > opponentScore;
+      final tied = myScore == opponentScore;
+      final title = tied
+          ? 'Your $courseKey duel ended in a tie! 🤝'
+          : won
+              ? 'You won your $courseKey duel! 🏆'
+              : 'You lost your $courseKey duel 😔';
+      await _col.add({
+        'uid': targetUid,
+        'fromUid': fromUid,
+        'type': 'duel_result',
+        'title': title,
+        'body': 'Final score: $myScore vs $opponentScore',
+        'duelId': duelId,
+        'read': false,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      await _sendPush(
+        targetUid: targetUid,
+        title: title,
+        body: 'Final score: $myScore vs $opponentScore',
+        data: {'type': 'duel_result', 'duelId': duelId},
+      );
+    } catch (_) {}
+  }
+
   static Future<void> markAsRead(String notificationId) async {
     try {
       await _col.doc(notificationId).update({'read': true});

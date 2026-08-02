@@ -53,7 +53,7 @@ class _PaywallPageState extends State<PaywallPage> {
         Navigator.pop(context, tier);
       }
     } catch (e) {
-      setState(() => _errorMsg = 'Purchase failed. Please try again.');
+      setState(() => _errorMsg = e.toString().replaceFirst('Exception: ', ''));
     } finally {
       if (mounted) setState(() => _loading = false);
     }

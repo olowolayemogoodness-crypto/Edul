@@ -23,6 +23,10 @@ class NotificationsPage extends StatelessWidget {
         return Icons.person_add_rounded;
       case 'repost':
         return Icons.repeat_rounded;
+      case 'duel_challenge':
+        return Icons.sports_martial_arts_rounded;
+      case 'duel_result':
+        return Icons.emoji_events_rounded;
       case 'badge_eligible':
         return Icons.workspace_premium_rounded;
       case 'system':

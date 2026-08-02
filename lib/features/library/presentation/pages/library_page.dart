@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/premium_service.dart';
+import '../../../../core/services/user_service.dart';
 import '../../../../core/utils/paywall_helper.dart';
 import 'pdf_viewer_page.dart';
 
@@ -19,6 +20,7 @@ class LibraryPage extends StatefulWidget {
 
 class _LibraryPageState extends State<LibraryPage> {
   String _selectedCourse = 'All';
+  int _selectedTab = 0; // 0 = Global, 1 = My Uni
   List<Map<String, dynamic>> _allPdfs = [];
   List<Map<String, dynamic>> _filtered = [];
   List<String> _courses = ['All'];
@@ -28,11 +30,44 @@ class _LibraryPageState extends State<LibraryPage> {
   final _searchCtrl = TextEditingController();
   String _searchQuery = '';
 
+  // Same source-of-truth priority as the social feed's "My Uni" tab
+  // (Firestore profile first, SharedPreferences cache as fallback) — the
+  // two MUST agree, since library docs are targeted by the same stored
+  // acronym the social feed already filters by. If this page picked a
+  // different value than the feed does, a PDF uploaded "for UNILAG"
+  // could show to the wrong students, or nobody at all.
+  String _universityFull = '';
+  String _universityLabel = 'My Uni';
+
   @override
   void initState() {
     super.initState();
+    _loadUniversity();
     _loadPdfs();
     _loadMonthlyCount();
+  }
+
+  Future<void> _loadUniversity() async {
+    String? uni;
+    try {
+      final profile = await UserService.getProfile();
+      uni = profile?['university'] as String?;
+    } catch (_) {
+      // offline or read failed — fall through to the local cache below
+    }
+    if (uni == null || uni.isEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      uni = prefs.getString('user_university') ?? '';
+    }
+    final safeUni = uni;
+    if (mounted && safeUni.isNotEmpty) {
+      setState(() {
+        _universityFull = safeUni;
+        _universityLabel = safeUni.length > 10
+            ? safeUni.substring(0, 10).trim() : safeUni;
+        _applyFilters(); // PDFs may have already loaded before this resolved
+      });
+    }
   }
 
   @override
@@ -88,6 +123,14 @@ class _LibraryPageState extends State<LibraryPage> {
 
   void _applyFilters() {
     _filtered = _allPdfs.where((p) {
+      // Missing `target` field means this PDF predates the global/uni
+      // split — treat it as global so nothing already uploaded
+      // disappears from view.
+      final target = p['target'] as String? ?? 'global';
+      final matchesTab = _selectedTab == 1
+          ? (target == 'university' && p['university'] == _universityFull)
+          : target == 'global';
+
       final matchesCourse = _selectedCourse == 'All' ||
           p['courseTag'] == _selectedCourse;
       final q = _searchQuery.toLowerCase();
@@ -95,8 +138,15 @@ class _LibraryPageState extends State<LibraryPage> {
           (p['title'] as String? ?? '').toLowerCase().contains(q) ||
           (p['topic'] as String? ?? '').toLowerCase().contains(q) ||
           (p['description'] as String? ?? '').toLowerCase().contains(q);
-      return matchesCourse && matchesSearch;
+      return matchesTab && matchesCourse && matchesSearch;
     }).toList();
+  }
+
+  void _selectTab(int tab) {
+    setState(() {
+      _selectedTab = tab;
+      _applyFilters();
+    });
   }
 
   void _filterByCourse(String course) {
@@ -127,6 +177,29 @@ class _LibraryPageState extends State<LibraryPage> {
         courseTag: pdf['courseTag'] as String? ?? '',
       ),
     ));
+  }
+
+  Widget _tabPill(String label, int tab) {
+    final selected = _selectedTab == tab;
+    return GestureDetector(
+      onTap: () => _selectTab(tab),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 9),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.accent : AppColors.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected ? AppColors.accent : AppColors.border),
+        ),
+        child: Text(label, textAlign: TextAlign.center,
+          style: GoogleFonts.dmSans(
+            fontSize: 13,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+            color: selected ? Colors.white : AppColors.textSecondary,
+          )),
+      ),
+    );
   }
 
   String _formatSize(int? bytes) {
@@ -169,6 +242,16 @@ class _LibraryPageState extends State<LibraryPage> {
                       style: GoogleFonts.dmSans(
                         fontSize: 11, color: AppColors.accentLight)),
                   ),
+              ]),
+            ),
+
+            // Global / My Uni tabs
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+              child: Row(children: [
+                Expanded(child: _tabPill('Global', 0)),
+                const SizedBox(width: 8),
+                Expanded(child: _tabPill(_universityLabel, 1)),
               ]),
             ),
 

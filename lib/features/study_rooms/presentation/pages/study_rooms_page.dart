@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/constants/feature_flags.dart';
 import '../../../../core/services/user_service.dart';
 import '../widgets/live_study_session_coming_soon_widget.dart';
 
@@ -220,7 +221,7 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
       ),
 
       // Live study session card
-      const LiveStudySessionComingSoon(),
+      if (FeatureFlags.showLiveStudySession) const LiveStudySessionComingSoon(),
       // Last session nudge
       Container(
         padding: const EdgeInsets.all(11),

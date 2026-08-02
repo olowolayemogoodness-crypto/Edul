@@ -9,6 +9,8 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/insights_interaction_service.dart';
 import '../../../../core/services/notifications_service.dart';
 import '../../../../core/services/user_service.dart';
+import '../../../../core/services/insights_ad_service.dart';
+import '../../../../core/services/premium_service.dart';
 import '../../../notifications/presentation/pages/notifications_page.dart';
 
 class InsightsFeedPage extends StatefulWidget {
@@ -23,6 +25,7 @@ class _InsightsFeedPageState extends State<InsightsFeedPage> {
   List<Map<String, dynamic>> _videos = [];
   List<Map<String, dynamic>> _allVideos = [];
   Set<String> _seenIds = {};
+  int _videosSinceLastAd = 0;
   bool _loading = true;
   String? _error;
   final PageController _pageController = PageController();
@@ -43,6 +46,7 @@ class _InsightsFeedPageState extends State<InsightsFeedPage> {
   void initState() {
     super.initState();
     _loadVideos();
+    if (PremiumService.isRealFree) InsightsAdService.preload();
   }
 
   @override
@@ -167,6 +171,13 @@ class _InsightsFeedPageState extends State<InsightsFeedPage> {
         onPageChanged: (i) {
           setState(() => _currentIndex = i);
           if (i < _videos.length) _markSeen(_videos[i]['id'] as String);
+          if (PremiumService.isRealFree) {
+            _videosSinceLastAd++;
+            if (_videosSinceLastAd >= 5) {
+              _videosSinceLastAd = 0;
+              InsightsAdService.showIfReady();
+            }
+          }
         },
         itemBuilder: (context, i) {
           if (_videos.isEmpty) {

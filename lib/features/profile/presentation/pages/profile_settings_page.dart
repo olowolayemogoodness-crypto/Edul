@@ -10,8 +10,8 @@ import '../../../auth/presentation/bloc/auth_event.dart';
 import '../../../auth/presentation/bloc/auth_state.dart';
 import '../../../../core/services/user_service.dart';
 import '../../../../core/services/account_deletion_service.dart';
+import '../../../../core/utils/paywall_helper.dart';
 import '../../../../core/services/theme_override_service.dart';
-import '../../../notifications/presentation/pages/notifications_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 enum _SettingsTab { main, editProfile, notifications, privacy }
@@ -119,7 +119,7 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
       _card([
         _srow(Icons.person_outline_rounded, AppColors.accentSurface, AppColors.accentLight, 'Edit profile', 'Name, bio, school, photo', onTap: () => _go(_SettingsTab.editProfile)),
         _divider(),
-        _srow(Icons.workspace_premium_rounded, const Color(0xFF2D1E00), const Color(0xFFE8960F), 'Subscription', 'Free tier · Upgrade to Premium', onTap: () {}, trailing: _pill('Upgrade', const Color(0xFF2D1E00), const Color(0xFFE8960F), const Color(0xFFC47D0E))),
+        _srow(Icons.workspace_premium_rounded, const Color(0xFF2D1E00), const Color(0xFFE8960F), 'Subscription', 'Free tier · Upgrade to Premium', onTap: () => showPaywall(context, triggerReason: 'Unlock Plus or Pro for the full Edulink experience.'), trailing: _pill('Upgrade', const Color(0xFF2D1E00), const Color(0xFFE8960F), const Color(0xFFC47D0E))),
       ]),
 
       // Preferences
@@ -239,12 +239,6 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
   Widget _notifications() => Column(children: [
     _header('Notifications', onBack: () => _go(_SettingsTab.main)),
     Expanded(child: SingleChildScrollView(child: Column(children: [
-      _sectionLabel('History'),
-      _card([
-        _srow(Icons.notifications_none_rounded, AppColors.surfaceVariant, AppColors.textSecondary, 'Notification history', 'View past likes, comments, follows and reposts', onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const NotificationsPage()),
-        )),
-      ]),
       _sectionLabel('Study reminders'),
       _card([
         _srow(Icons.alarm_rounded, AppColors.accentSurface, AppColors.accentLight, 'Daily study reminder', '8:00 PM every day', onTap: (){}, trailing: _toggle(_togRemind, () => setState(() => _togRemind = !_togRemind))),

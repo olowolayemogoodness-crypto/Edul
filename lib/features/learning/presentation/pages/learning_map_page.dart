@@ -7,7 +7,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/data/course_catalog/course_catalog.dart';
 import '../../../../core/data/course_catalog/subjects_data.dart';
-import '../../../../core/services/premium_service.dart';
+import '../../../../core/services/lesson_gate_service.dart';
+import '../../../../core/services/rewarded_ad_service.dart';
 class LearningMapPage extends StatefulWidget {
   const LearningMapPage({super.key});
 
@@ -44,6 +45,7 @@ class _LearningMapPageState extends State<LearningMapPage> {
   String selectedSubject = 'MTS 102'; // Default subject
   List<String> unlockedCatalogCodes = [];
   String? selectedCatalogOnlyCode; // Non-null when viewing a "coming soon" course // Default subject
+  bool _canStartNextLesson = true; // fail-open until the real check loads
 
 
 
@@ -51,6 +53,68 @@ class _LearningMapPageState extends State<LearningMapPage> {
   void initState() {
     super.initState();
     _loadPreferences();
+    _loadGateStatus();
+  }
+
+  Future<void> _loadGateStatus() async {
+    final canStart = await LessonGateService.canStartNextLesson();
+    if (mounted) setState(() => _canStartNextLesson = canStart);
+  }
+
+  void _showDailyCapSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(width: 36, height: 4,
+              decoration: BoxDecoration(color: AppColors.border,
+                borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 18),
+            const Text('🎓', style: TextStyle(fontSize: 40)),
+            const SizedBox(height: 12),
+            Text('Daily lesson limit reached', style: GoogleFonts.dmSans(
+              fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+            const SizedBox(height: 6),
+            Text('Free accounts get ${LessonGateService.dailyFreeLimit} lessons a day. '
+                 'Come back tomorrow, or watch a quick ad to unlock one more now.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textTertiary, height: 1.4)),
+            const SizedBox(height: 20),
+            SizedBox(width: double.infinity, child: ElevatedButton(
+              onPressed: () {
+                Navigator.pop(sheetContext);
+                RewardedAdService.show(
+                  onRewarded: () async {
+                    await LessonGateService.grantExtraUnlock();
+                    if (mounted) setState(() => _canStartNextLesson = true);
+                  },
+                  onNotReady: () {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text('Ad not ready yet — try again in a moment',
+                        style: GoogleFonts.dmSans(fontSize: 13)),
+                      backgroundColor: AppColors.surfaceVariant,
+                      behavior: SnackBarBehavior.floating));
+                  },
+                );
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent,
+                padding: const EdgeInsets.symmetric(vertical: 14)),
+              child: Text('Watch ad to unlock', style: GoogleFonts.dmSans(
+                fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white)),
+            )),
+            const SizedBox(height: 8),
+            TextButton(onPressed: () => Navigator.pop(sheetContext),
+              child: Text('Come back tomorrow', style: GoogleFonts.dmSans(
+                fontSize: 13, color: AppColors.textSecondary))),
+          ]),
+        ),
+      ),
+    );
   }
 
   Future<void> _loadPreferences() async {
@@ -445,34 +509,29 @@ class _LearningMapPageState extends State<LearningMapPage> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'UNIT $unitNumber',
-                        style: GoogleFonts.dmSans(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: color,
-                          letterSpacing: 1,
-                        ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'UNIT $unitNumber',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: color,
+                        letterSpacing: 1,
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        unitName,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.dmSans(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary,
-                        ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      unitName,
+                      style: GoogleFonts.dmSans(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
                 Container(
                   width: 50,
                   height: 50,
@@ -506,7 +565,10 @@ class _LearningMapPageState extends State<LearningMapPage> {
     for (int i = 0; i < lessons.length; i++) {
       final lesson = lessons[i];
       final isLeft = i % 2 == 0;
-      final isLocked = i > 0 && !completedLessons.containsKey(lessons[i - 1]['id']);
+      final progressLocked = i > 0 && !completedLessons.containsKey(lessons[i - 1]['id']);
+      final isNextNewLesson = !completedLessons.containsKey(lesson['id']) && !progressLocked;
+      final capLocked = isNextNewLesson && !_canStartNextLesson;
+      final isLocked = progressLocked || capLocked;
 
       // Draw diagonal line before next lesson
       if (i < lessons.length - 1) {
@@ -526,14 +588,11 @@ class _LearningMapPageState extends State<LearningMapPage> {
         Align(
           alignment: isLeft ? Alignment.centerLeft : Alignment.centerRight,
           child: GestureDetector(
-            onTap: isLocked
+            onTap: progressLocked
                 ? null
-                : () async {
-                    // Free users see an interstitial ad before each lesson
-                    if (PremiumService.showLearningMapAds) {
-                      await Future.delayed(const Duration(milliseconds: 500));
-                      if (!context.mounted) return;
-                    }
+                : capLocked
+                    ? () => _showDailyCapSheet(context)
+                    : () {
                     context.push(
                       '/lesson-detail',
                       extra: {

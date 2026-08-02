@@ -3,6 +3,7 @@
 import 'dart:async';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -12,6 +13,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/post_interaction_service.dart';
 import '../../../../core/services/user_follow_service.dart';
 import '../../../../core/services/user_tier_service.dart';
+import '../../../../core/services/premium_service.dart';
 import '../../../../core/services/user_service.dart';
 import '../../../../core/services/voice_note_service.dart';
 import 'post_composer_page.dart';
@@ -247,15 +249,26 @@ class _SocialFeedPageState extends State<SocialFeedPage> {
                     );
                   }
 
+                  final showAds = PremiumService.isRealFree;
+                  const adInterval = 5;
+                  final numAds = showAds ? posts.length ~/ adInterval : 0;
+                  final blockSize = adInterval + 1;
+
                   return ListView.separated(
                     padding: const EdgeInsets.only(bottom: 100),
-                    itemCount: posts.length,
+                    itemCount: posts.length + numAds,
                     separatorBuilder: (_, __) => const Divider(
                       color: Color(0xFF1E1E24), height: 1, thickness: 1),
-                    itemBuilder: (_, i) => _PostCard(
-                      key: ValueKey(posts[i]['id']),
-                      post: posts[i],
-                    ),
+                    itemBuilder: (_, i) {
+                      if (showAds && i % blockSize == adInterval) {
+                        return _FeedNativeAdCard(key: ValueKey('ad_$i'));
+                      }
+                      final postIndex = showAds ? i - (i ~/ blockSize) : i;
+                      return _PostCard(
+                        key: ValueKey(posts[postIndex]['id']),
+                        post: posts[postIndex],
+                      );
+                    },
                   );
                 },
               ),
@@ -302,6 +315,76 @@ class _Pill extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 // Post card
 // ─────────────────────────────────────────────────────────────────────────────
+class _FeedNativeAdCard extends StatefulWidget {
+  const _FeedNativeAdCard({super.key});
+
+  @override
+  State<_FeedNativeAdCard> createState() => _FeedNativeAdCardState();
+}
+
+class _FeedNativeAdCardState extends State<_FeedNativeAdCard> {
+  NativeAd? _ad;
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  void _load() {
+    NativeAd(
+      adUnitId: 'ca-app-pub-8635571505694976/8988009786',
+      request: const AdRequest(),
+      listener: NativeAdListener(
+        onAdLoaded: (ad) {
+          if (!mounted) { ad.dispose(); return; }
+          setState(() { _ad = ad as NativeAd; _loaded = true; });
+        },
+        onAdFailedToLoad: (ad, error) {
+          ad.dispose();
+        },
+      ),
+      // Small template is the one Google recommends specifically for
+      // in-feed/list placements -- medium is meant for landing-page-style
+      // full ads, wrong shape for a scrolling feed.
+      nativeTemplateStyle: NativeTemplateStyle(
+        templateType: TemplateType.small,
+        mainBackgroundColor: AppColors.surface,
+        cornerRadius: 12.0,
+        callToActionTextStyle: NativeTemplateTextStyle(
+          textColor: Colors.white,
+          backgroundColor: AppColors.accent,
+        ),
+        primaryTextStyle: NativeTemplateTextStyle(
+          textColor: AppColors.textPrimary,
+        ),
+        secondaryTextStyle: NativeTemplateTextStyle(
+          textColor: AppColors.textSecondary,
+        ),
+        tertiaryTextStyle: NativeTemplateTextStyle(
+          textColor: AppColors.textTertiary,
+        ),
+      ),
+    ).load();
+  }
+
+  @override
+  void dispose() {
+    _ad?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded || _ad == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: SizedBox(height: 100, child: AdWidget(ad: _ad!)),
+    );
+  }
+}
+
 class _TierBadge extends StatelessWidget {
   final String uid;
   const _TierBadge({required this.uid});
@@ -845,7 +928,6 @@ class _CommentsSheet extends StatefulWidget {
 
 class _CommentsSheetState extends State<_CommentsSheet> {
   final _ctrl = TextEditingController();
-  final _inputFocus = FocusNode();
   bool _sending = false;
 
   bool _isRecording = false;
@@ -853,61 +935,11 @@ class _CommentsSheetState extends State<_CommentsSheet> {
   int _recordingSeconds = 0;
   Timer? _recordTimer;
 
-  // Which comment (if any) the next send should be posted as a reply to.
-  String? _replyingToId;
-  String? _replyingToName;
-
   @override
   void dispose() {
     _ctrl.dispose();
-    _inputFocus.dispose();
     _recordTimer?.cancel();
     super.dispose();
-  }
-
-  void _startReply(String commentId, String name) {
-    setState(() {
-      _replyingToId = commentId;
-      _replyingToName = name;
-    });
-    _inputFocus.requestFocus();
-  }
-
-  void _cancelReply() {
-    setState(() {
-      _replyingToId = null;
-      _replyingToName = null;
-    });
-  }
-
-  Future<void> _confirmDelete(String commentId) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: Text('Delete comment?', style: GoogleFonts.dmSans(
-          fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-        content: Text('This can\'t be undone.', style: GoogleFonts.dmSans(
-          fontSize: 13, color: AppColors.textSecondary)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Cancel', style: GoogleFonts.dmSans(
-              color: AppColors.textSecondary)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Delete', style: GoogleFonts.dmSans(
-              color: AppColors.error, fontWeight: FontWeight.w600)),
-          ),
-        ],
-      ),
-    );
-    if (confirmed == true) {
-      // If we were mid-reply to the comment being deleted, clear that state.
-      if (_replyingToId == commentId) _cancelReply();
-      await PostInteractionService.deleteComment(widget.postId, commentId);
-    }
   }
 
   String _timeAgo(dynamic createdAt) {
@@ -925,12 +957,8 @@ class _CommentsSheetState extends State<_CommentsSheet> {
     if (text.isEmpty || _sending) return;
     setState(() => _sending = true);
     try {
-      await PostInteractionService.addComment(
-        widget.postId, text,
-        parentCommentId: _replyingToId,
-      );
+      await PostInteractionService.addComment(widget.postId, text);
       _ctrl.clear();
-      if (mounted && _replyingToId != null) _cancelReply();
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -982,9 +1010,7 @@ class _CommentsSheetState extends State<_CommentsSheet> {
         file: result.file,
         durationMs: result.durationMs,
         waveform: result.waveform,
-        parentCommentId: _replyingToId,
       );
-      if (mounted && _replyingToId != null) _cancelReply();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -1042,167 +1068,98 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                         fontSize: 13, color: AppColors.textTertiary)),
                   );
                 }
-
-                // Group into top-level comments + their replies, in a flat
-                // render order: each top-level comment immediately followed
-                // by its replies (indented). A reply whose parent was
-                // deleted (parentCommentId no longer matches any top-level
-                // comment) is rendered at depth 0 rather than dropped, so
-                // nothing silently disappears.
-                final byId = {for (final c in comments) c['id'] as String: c};
-                final topLevel = <Map<String, dynamic>>[];
-                final repliesOf = <String, List<Map<String, dynamic>>>{};
-                for (final c in comments) {
-                  final parentId = c['parentCommentId'] as String?;
-                  if (parentId != null && byId.containsKey(parentId)) {
-                    repliesOf.putIfAbsent(parentId, () => []).add(c);
-                  } else {
-                    topLevel.add(c);
-                  }
-                }
-                final rows = <MapEntry<Map<String, dynamic>, bool>>[];
-                for (final top in topLevel) {
-                  rows.add(MapEntry(top, false));
-                  for (final reply in repliesOf[top['id']] ?? []) {
-                    rows.add(MapEntry(reply, true));
-                  }
-                }
-
                 return ListView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: rows.length,
+                  itemCount: comments.length,
                   itemBuilder: (_, i) {
-                    final c = rows[i].key;
-                    final isReply = rows[i].value;
+                    final c = comments[i];
                     final commentId = c['id'] as String;
                     final name = c['displayName'] as String? ?? 'User';
                     final audioUrl = c['audioUrl'] as String?;
                     final isVoice = audioUrl != null && audioUrl.isNotEmpty;
-                    final isMine = (c['uid'] as String?) == UserService.uid;
 
                     return Padding(
-                      padding: EdgeInsets.only(
-                        bottom: 14, left: isReply ? 34 : 0),
-                      child: GestureDetector(
-                        onLongPress: isMine ? () => _confirmDelete(commentId) : null,
-                        behavior: HitTestBehavior.opaque,
-                        child: Row(crossAxisAlignment: CrossAxisAlignment.start,
+                      padding: const EdgeInsets.only(bottom: 14),
+                      child: Row(crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                        Container(
+                          width: 32, height: 32,
+                          decoration: BoxDecoration(
+                            color: AppColors.accentSurface, shape: BoxShape.circle),
+                          child: Center(child: Text(
+                            name.isNotEmpty ? name[0].toUpperCase() : 'U',
+                            style: GoogleFonts.dmSans(fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.accentLight))),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                          Container(
-                            width: isReply ? 26 : 32, height: isReply ? 26 : 32,
-                            decoration: BoxDecoration(
-                              color: AppColors.accentSurface, shape: BoxShape.circle),
-                            child: Center(child: Text(
-                              name.isNotEmpty ? name[0].toUpperCase() : 'U',
-                              style: GoogleFonts.dmSans(fontSize: isReply ? 11 : 12,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.accentLight))),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                            Row(children: [
-                              Text(name, style: GoogleFonts.dmSans(
-                                fontSize: 13, fontWeight: FontWeight.w600,
-                                color: AppColors.textPrimary)),
-                              _TierBadge(uid: c['uid'] as String? ?? ''),
-                              const SizedBox(width: 6),
-                              Text(_timeAgo(c['createdAt']), style: GoogleFonts.dmSans(
-                                fontSize: 11, color: AppColors.textTertiary)),
-                            ]),
-                            const SizedBox(height: 4),
-                            if (isVoice)
-                              _VoiceNoteBubble(
-                                commentId: commentId,
-                                audioUrl: audioUrl,
-                                durationMs: c['durationMs'] as int? ?? 0,
-                                waveform: ((c['waveform'] as List<dynamic>?) ?? [])
-                                    .map((e) => (e as num).toDouble())
-                                    .toList(),
-                              )
-                            else
-                              Text(c['content'] as String? ?? '',
-                                style: GoogleFonts.dmSans(
-                                  fontSize: 13, color: AppColors.textSecondary, height: 1.4)),
-                            const SizedBox(height: 4),
-                            Row(children: [
-                              StreamBuilder<bool>(
-                                stream: PostInteractionService.isCommentLikedByMe(
+                          Row(children: [
+                            Text(name, style: GoogleFonts.dmSans(
+                              fontSize: 13, fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary)),
+                            _TierBadge(uid: c['uid'] as String? ?? ''),
+                            const SizedBox(width: 6),
+                            Text(_timeAgo(c['createdAt']), style: GoogleFonts.dmSans(
+                              fontSize: 11, color: AppColors.textTertiary)),
+                          ]),
+                          const SizedBox(height: 4),
+                          if (isVoice)
+                            _VoiceNoteBubble(
+                              commentId: commentId,
+                              audioUrl: audioUrl,
+                              durationMs: c['durationMs'] as int? ?? 0,
+                              waveform: ((c['waveform'] as List<dynamic>?) ?? [])
+                                  .map((e) => (e as num).toDouble())
+                                  .toList(),
+                            )
+                          else
+                            Text(c['content'] as String? ?? '',
+                              style: GoogleFonts.dmSans(
+                                fontSize: 13, color: AppColors.textSecondary, height: 1.4)),
+                          const SizedBox(height: 4),
+                          StreamBuilder<bool>(
+                            stream: PostInteractionService.isCommentLikedByMe(
+                              widget.postId, commentId),
+                            builder: (context, likedSnap) {
+                              final liked = likedSnap.data ?? false;
+                              return StreamBuilder<int>(
+                                stream: PostInteractionService.commentLikeCount(
                                   widget.postId, commentId),
-                                builder: (context, likedSnap) {
-                                  final liked = likedSnap.data ?? false;
-                                  return StreamBuilder<int>(
-                                    stream: PostInteractionService.commentLikeCount(
-                                      widget.postId, commentId),
-                                    builder: (context, countSnap) => GestureDetector(
-                                      onTap: () => PostInteractionService
-                                          .toggleCommentLike(widget.postId, commentId),
-                                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                        Icon(
-                                          liked ? Icons.favorite_rounded
-                                                : Icons.favorite_border_rounded,
-                                          size: 14,
-                                          color: liked
-                                              ? const Color(0xFFE24B4A)
-                                              : AppColors.textTertiary,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text('${countSnap.data ?? 0}',
-                                          style: GoogleFonts.dmSans(
-                                            fontSize: 11,
-                                            color: liked
-                                                ? const Color(0xFFE24B4A)
-                                                : AppColors.textTertiary)),
-                                      ]),
+                                builder: (context, countSnap) => GestureDetector(
+                                  onTap: () => PostInteractionService
+                                      .toggleCommentLike(widget.postId, commentId),
+                                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                    Icon(
+                                      liked ? Icons.favorite_rounded
+                                            : Icons.favorite_border_rounded,
+                                      size: 14,
+                                      color: liked
+                                          ? const Color(0xFFE24B4A)
+                                          : AppColors.textTertiary,
                                     ),
-                                  );
-                                },
-                              ),
-                              const SizedBox(width: 16),
-                              GestureDetector(
-                                onTap: () => _startReply(commentId, name),
-                                child: Text('Reply', style: GoogleFonts.dmSans(
-                                  fontSize: 11, fontWeight: FontWeight.w600,
-                                  color: AppColors.textTertiary)),
-                              ),
-                              if (isMine) ...[
-                                const SizedBox(width: 16),
-                                GestureDetector(
-                                  onTap: () => _confirmDelete(commentId),
-                                  child: Text('Delete', style: GoogleFonts.dmSans(
-                                    fontSize: 11, fontWeight: FontWeight.w600,
-                                    color: AppColors.textTertiary)),
+                                    const SizedBox(width: 4),
+                                    Text('${countSnap.data ?? 0}',
+                                      style: GoogleFonts.dmSans(
+                                        fontSize: 11,
+                                        color: liked
+                                            ? const Color(0xFFE24B4A)
+                                            : AppColors.textTertiary)),
+                                  ]),
                                 ),
-                              ],
-                            ]),
-                          ])),
-                        ]),
-                      ),
+                              );
+                            },
+                          ),
+                        ])),
+                      ]),
                     );
                   },
                 );
               },
             ),
           ),
-          if (_replyingToId != null)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              color: AppColors.surfaceVariant,
-              child: Row(children: [
-                Expanded(
-                  child: Text('Replying to $_replyingToName',
-                    style: GoogleFonts.dmSans(
-                      fontSize: 12, color: AppColors.textSecondary)),
-                ),
-                GestureDetector(
-                  onTap: _cancelReply,
-                  child: Icon(Icons.close_rounded,
-                    size: 16, color: AppColors.textTertiary),
-                ),
-              ]),
-            ),
           Padding(
             padding: EdgeInsets.fromLTRB(16, 8, 16,
               MediaQuery.of(context).viewInsets.bottom + 12),
@@ -1239,12 +1196,9 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                     Expanded(
                       child: TextField(
                         controller: _ctrl,
-                        focusNode: _inputFocus,
                         style: GoogleFonts.dmSans(fontSize: 14, color: AppColors.textPrimary),
                         decoration: InputDecoration(
-                          hintText: _replyingToId != null
-                              ? 'Reply to $_replyingToName…'
-                              : 'Add a comment…',
+                          hintText: 'Add a comment…',
                           hintStyle: GoogleFonts.dmSans(fontSize: 14, color: AppColors.textTertiary),
                           filled: true,
                           fillColor: AppColors.surface,
@@ -1414,7 +1368,30 @@ class _UserProfileSheet extends StatelessWidget {
                   ),
                 ]),
                 const SizedBox(height: 22),
-                if (!isSelf) _FollowButton(uid: uid),
+                if (!isSelf)
+                  StreamBuilder<bool>(
+                    stream: UserFollowService.isFollowing(uid),
+                    builder: (context, snap) {
+                      final following = snap.data ?? false;
+                      return GestureDetector(
+                        onTap: () => UserFollowService.toggleFollow(uid),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            color: following ? Colors.transparent : AppColors.accent,
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(color: AppColors.accent),
+                          ),
+                          child: Text(following ? 'Following' : 'Follow',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.dmSans(
+                              fontSize: 14, fontWeight: FontWeight.w600,
+                              color: following ? AppColors.accent : Colors.white)),
+                        ),
+                      );
+                    },
+                  ),
               ]),
             ),
           ),
@@ -1442,65 +1419,6 @@ class _StatColumn extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Follow button — guards against rapid repeat taps. Without this, tapping
-// "Follow" multiple times quickly (before the isFollowing stream has had
-// time to update and flip the button to "Following") would fire
-// UserFollowService.toggleFollow() once per tap. Each of those calls
-// independently reads "not following yet" (since none of the earlier
-// calls have finished writing), so they'd ALL take the "new follow"
-// branch — creating one duplicate follow notification (and one duplicate
-// +5 score adjustment) per extra tap, even though only one actual follow
-// relationship ends up existing. This widget tracks its own in-flight
-// state so a burst of taps collapses into a single toggle.
-class _FollowButton extends StatefulWidget {
-  final String uid;
-  const _FollowButton({required this.uid});
-
-  @override
-  State<_FollowButton> createState() => _FollowButtonState();
-}
-
-class _FollowButtonState extends State<_FollowButton> {
-  bool _toggling = false;
-
-  Future<void> _handleTap() async {
-    if (_toggling) return;
-    setState(() => _toggling = true);
-    try {
-      await UserFollowService.toggleFollow(widget.uid);
-    } finally {
-      if (mounted) setState(() => _toggling = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<bool>(
-      stream: UserFollowService.isFollowing(widget.uid),
-      builder: (context, snap) {
-        final following = snap.data ?? false;
-        return GestureDetector(
-          onTap: _handleTap,
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            decoration: BoxDecoration(
-              color: following ? Colors.transparent : AppColors.accent,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: AppColors.accent),
-            ),
-            child: Text(following ? 'Following' : 'Follow',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.dmSans(
-                fontSize: 14, fontWeight: FontWeight.w600,
-                color: following ? AppColors.accent : Colors.white)),
-          ),
-        );
-      },
-    );
-  }
-}
-
 // Voice note playback bubble
 // ─────────────────────────────────────────────────────────────────────────────
 class _VoiceNoteBubble extends StatefulWidget {

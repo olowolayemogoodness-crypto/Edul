@@ -5,51 +5,77 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/user_service.dart';
+import '../../../../core/services/practice_attempt_service.dart';
+import '../../../../core/data/course_catalog/subjects_data.dart';
+import '../../../quiz/data/topic_question_source.dart';
+import '../../../quiz/domain/models/quiz_question.dart';
+
 // ── Models ──
+//
+// A practice test is now just "one of your courses, sat under exam
+// conditions" — no fabricated WAEC/JAMB/IELTS papers. Questions come
+// straight from the existing question banks via TopicQuestionSource, so
+// nothing has to be re-authored, and every attempt draws a fresh shuffled
+// selection from the whole course pool rather than a fixed list.
 class _PracticeTest {
-  final String emoji, title, subtitle, paper, tag;
-  final Color tagColor, tagBg, iconBg, iconBorder;
+  final String courseKey;   // e.g. 'MTS 102' — the question-bank key
+  final String emoji, title, subtitle;
+  final Color accent;
   final int questions, minutes;
-  final String? best;
-  final int attempts;
-  final bool recommended;
+  final int poolSize;       // how many questions exist for this course
   const _PracticeTest({
+    required this.courseKey,
     required this.emoji, required this.title, required this.subtitle,
-    required this.paper, required this.tag, required this.tagColor,
-    required this.tagBg, required this.iconBg, required this.iconBorder,
-    required this.questions, required this.minutes,
-    this.best, this.attempts = 0, this.recommended = false,
+    required this.accent,
+    required this.questions, required this.minutes, required this.poolSize,
   });
 }
 
-class _Question {
-  final String q, topic, diff;
-  final List<String> opts;
-  final int ans;
-  const _Question({required this.q, required this.topic, required this.diff, required this.opts, required this.ans});
+// Exam sitting shape: 40 questions in 40 minutes (a minute a question,
+// matching how UTME-style objective papers are sat). Courses whose bank
+// can't fill 40 yet sit a shorter paper rather than repeating questions,
+// and keep the same minute-per-question pacing.
+const int _targetQuestions = 40;
+
+// Per-course cover emoji. Purely cosmetic — the course catalog carries a
+// colour but no icon at course level, so these live here.
+const Map<String, String> _courseEmoji = {
+  'MTS 102': '📐',
+  'MTS 104': '📊',
+  'PHY 102': '⚡',
+  'CHE 102': '⚗️',
+  'BIO 102': '🧬',
+  'GNS 106': '📖',
+  'CSC 102': '💻',
+  'COS 102': '🖥️',
+};
+
+/// Builds one practice test per course that actually has a question
+/// bank. Courses with no bank are skipped entirely rather than shown as
+/// empty or "coming soon" cards.
+List<_PracticeTest> _buildTests() {
+  final tests = <_PracticeTest>[];
+  for (final entry in subjectsData.entries) {
+    final courseKey = entry.key;
+    if (!TopicQuestionSource.hasQuestionBank(courseKey)) continue;
+
+    final poolSize = TopicQuestionSource.questionsForCourse(courseKey).length;
+    if (poolSize == 0) continue;
+
+    final count = poolSize < _targetQuestions ? poolSize : _targetQuestions;
+    tests.add(_PracticeTest(
+      courseKey: courseKey,
+      emoji: _courseEmoji[courseKey] ?? '📚',
+      title: courseKey,
+      subtitle: (entry.value['fullName'] as String?) ?? courseKey,
+      accent: (entry.value['color'] as Color?) ?? AppColors.accent,
+      questions: count,
+      minutes: count, // one minute per question
+      poolSize: poolSize,
+    ));
+  }
+  return tests;
 }
-
-// ── Mock data ──
-final _tests = [
-  _PracticeTest(emoji: '📐', title: 'WAEC Mathematics 2023', subtitle: '2023 past paper · Paper 1', paper: 'Paper 1 — Obj.', tag: 'Recommended', tagColor: Color(0xFFE8960F), tagBg: Color(0xFF2D1E00), iconBg: Color(0xFF2D1E00), iconBorder: Color(0xFFC47D0E), questions: 40, minutes: 90, best: '68%', attempts: 3, recommended: true),
-  _PracticeTest(emoji: '🌍', title: 'IELTS Academic Reading', subtitle: 'Full mock test', paper: 'Reading', tag: 'IELTS', tagColor: AppColors.success, tagBg: AppColors.successSurface, iconBg: AppColors.successSurface, iconBorder: AppColors.success, questions: 40, minutes: 60, best: '65%', attempts: 1),
-  _PracticeTest(emoji: '🧮', title: 'JAMB Mathematics 2022', subtitle: 'UTME paper', paper: 'UTME', tag: 'JAMB', tagColor: AppColors.accentLight, tagBg: AppColors.accentSurface, iconBg: AppColors.accentSurface, iconBorder: AppColors.accent, questions: 40, minutes: 40, best: null, attempts: 0),
-  _PracticeTest(emoji: '⚗️', title: 'WAEC Chemistry 2023', subtitle: 'Objective paper', paper: 'Paper 1', tag: 'WAEC', tagColor: AppColors.textTertiary, tagBg: AppColors.surface, iconBg: AppColors.surface, iconBorder: AppColors.border, questions: 50, minutes: 75, best: '74%', attempts: 2),
-  _PracticeTest(emoji: '⚡', title: 'Quick drill — 10 questions', subtitle: 'Mixed topics · warm up', paper: 'Mixed', tag: '+50 XP', tagColor: AppColors.accentLight, tagBg: AppColors.accentSurface, iconBg: Color(0xFF2D1200), iconBorder: Color(0xFFEA580C), questions: 10, minutes: 10, best: null, attempts: 0),
-];
-
-const _questions = [
-  _Question(q: 'If sin θ = 3/5 and θ is in Q1, find cos θ.', opts: ['3/4', '4/5', '5/4', '3/5'], ans: 1, topic: 'Trigonometry', diff: 'Medium'),
-  _Question(q: 'What is the derivative of f(x) = 3x² + 2x − 5?', opts: ['6x + 2', '3x + 2', '6x − 5', '3x²'], ans: 0, topic: 'Calculus', diff: 'Easy'),
-  _Question(q: 'Sum of interior angles of a hexagon:', opts: ['540°', '720°', '360°', '900°'], ans: 1, topic: 'Geometry', diff: 'Easy'),
-  _Question(q: 'Simplify (x² − 4) ÷ (x − 2):', opts: ['x − 2', 'x + 2', 'x² + 2', '2x'], ans: 1, topic: 'Algebra', diff: 'Easy'),
-  _Question(q: '15% of 240:', opts: ['30', '36', '24', '42'], ans: 1, topic: 'Arithmetic', diff: 'Easy'),
-  _Question(q: 'Find x if 2ˣ = 32:', opts: ['4', '5', '6', '3'], ans: 1, topic: 'Indices', diff: 'Medium'),
-  _Question(q: 'Circle with centre (3,−2) and r=5. Its equation:', opts: ['(x+3)²+(y−2)²=5', '(x−3)²+(y+2)²=25', '(x+3)²+(y+2)²=25', '(x−3)²+(y−2)²=5'], ans: 1, topic: 'Circle geo.', diff: 'Hard'),
-  _Question(q: 'Solve: 3x + 7 = 22', opts: ['3', '4', '5', '6'], ans: 2, topic: 'Algebra', diff: 'Easy'),
-  _Question(q: 'P(even number) on a standard die:', opts: ['1/3', '1/2', '2/3', '1/6'], ans: 1, topic: 'Statistics', diff: 'Easy'),
-  _Question(q: 'log₂(64) = ?', opts: ['4', '5', '6', '7'], ans: 2, topic: 'Logarithms', diff: 'Medium'),
-];
 
 enum _PracticeTab { browse, setup, exam, results, review }
 
@@ -61,13 +87,27 @@ class PracticeTestPage extends StatefulWidget {
 
 class _PracticeTestPageState extends State<PracticeTestPage> with TickerProviderStateMixin {
   _PracticeTab _tab = _PracticeTab.browse;
-  _PracticeTest _selected = _tests[0];
+
+  // Built once — questionsForCourse() walks every lesson in a course, so
+  // it's not something to redo on each rebuild.
+  late final List<_PracticeTest> _tests = _buildTests();
+  late _PracticeTest _selected;
+
+  // Drawn fresh from the course pool at the start of each attempt, so
+  // sitting the same paper twice doesn't give the same 40 questions.
+  List<QuizQuestion> _questions = [];
+
   int _qi = 0;
-  final List<int?> _answers = List.filled(10, null);
-  final List<bool> _flagged = List.filled(10, false);
+  List<int?> _answers = [];
+  List<bool> _flagged = [];
   late DateTime _startTime;
   int _elapsed = 0;
-  int _timerSecs = 5400;
+  int _timerSecs = 0;
+
+  // Live attempt history, keyed by courseKey.
+  Map<String, PracticeAttempt> _history = {};
+  int? _prevBest; // best on this course before the attempt just finished
+  StreamSubscription<Map<String, PracticeAttempt>>? _historySub;
 
   // Toggles
   bool _togTimer = true, _togAns = true, _togSound = false;
@@ -78,6 +118,16 @@ class _PracticeTestPageState extends State<PracticeTestPage> with TickerProvider
   @override
   void initState() {
     super.initState();
+    _selected = _tests.isNotEmpty
+        ? _tests.first
+        :  _PracticeTest(
+            courseKey: '', emoji: '📚', title: 'No tests yet',
+            subtitle: 'Question banks are still being added',
+            accent: AppColors.accent,
+            questions: 0, minutes: 0, poolSize: 0);
+    _historySub = PracticeAttemptService.streamAll().listen((h) {
+      if (mounted) setState(() => _history = h);
+    });
     _ringCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200));
     _ringAnim = Tween(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _ringCtrl, curve: Curves.easeOut));
   }
@@ -85,6 +135,7 @@ class _PracticeTestPageState extends State<PracticeTestPage> with TickerProvider
   @override
   void dispose() {
     _countdownTimer?.cancel();
+    _historySub?.cancel();
     _ringCtrl.dispose();
     super.dispose();
   }
@@ -93,9 +144,12 @@ class _PracticeTestPageState extends State<PracticeTestPage> with TickerProvider
     HapticFeedback.selectionClick();
     setState(() => _tab = tab);
     if (tab == _PracticeTab.exam) {
+      // Fresh shuffled draw from the whole course pool each sitting.
+      final pool = TopicQuestionSource.questionsForCourse(_selected.courseKey);
+      _questions = pool.take(_selected.questions).toList();
       _qi = 0;
-      _answers.fillRange(0, 10, null);
-      _flagged.fillRange(0, 10, false);
+      _answers = List<int?>.filled(_questions.length, null);
+      _flagged = List<bool>.filled(_questions.length, false);
       _startTime = DateTime.now();
       _timerSecs = _selected.minutes * 60;
       _countdownTimer?.cancel();
@@ -113,18 +167,32 @@ class _PracticeTestPageState extends State<PracticeTestPage> with TickerProvider
       });
     }
     if (tab == _PracticeTab.results) {
+      _countdownTimer?.cancel();
+      // Snapshot the prior best BEFORE recording this attempt — once the
+      // Firestore write lands, the history stream updates and _history
+      // would already include this sitting, so comparing against it would
+      // be comparing the attempt to itself.
+      _prevBest = _selectedHistory?.bestPercent;
       _elapsed = DateTime.now().difference(_startTime).inSeconds;
       Future.delayed(const Duration(milliseconds: 300), () => _ringCtrl.forward(from: 0));
       UserService.awardXP(_correct * 20, reason: 'practice_test');
       UserService.updateStreak();
       UserService.updateLeaderboard();
+      // Real attempt history — this is what feeds "Best" and "attempts"
+      // on the browse cards, replacing the old hardcoded values.
+      PracticeAttemptService.recordAttempt(
+        courseKey: _selected.courseKey,
+        percent: _pct,
+      );
     }
   }
 
-  int get _correct => _answers.asMap().entries.where((e) => e.value == _questions[e.key].ans).length;
+  int get _correct => _answers.asMap().entries
+      .where((e) => e.value != null && e.value == _questions[e.key].correctIndex)
+      .length;
   int get _wrong => _answers.where((a) => a != null).length - _correct;
   int get _skipped => _answers.where((a) => a == null).length;
-  int get _pct => (_correct / _questions.length * 100).round();
+  int get _pct => _questions.isEmpty ? 0 : (_correct / _questions.length * 100).round();
 
   @override
   Widget build(BuildContext context) {
@@ -162,7 +230,10 @@ class _PracticeTestPageState extends State<PracticeTestPage> with TickerProvider
       ]),
     ),
 
-    // Stats strip
+    // Stats strip — all three now computed from real attempt history.
+    // ("This week" used to sit here as a hardcoded +8%; a genuine weekly
+    // delta needs per-attempt timestamps rather than the per-course
+    // aggregate we store, so it's Best score for now.)
     Container(
       decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
       child: Row(children: [
@@ -170,7 +241,7 @@ class _PracticeTestPageState extends State<PracticeTestPage> with TickerProvider
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(border: Border(right: BorderSide(color: AppColors.border))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('14', style: GoogleFonts.dmSans(fontSize: 20, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+            Text('$_totalAttempts', style: GoogleFonts.dmSans(fontSize: 20, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
             Text('Tests taken', style: GoogleFonts.dmSans(fontSize: 9, color: AppColors.textTertiary)),
           ]),
         )),
@@ -178,70 +249,134 @@ class _PracticeTestPageState extends State<PracticeTestPage> with TickerProvider
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(border: Border(right: BorderSide(color: AppColors.border))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('72%', style: GoogleFonts.dmSans(fontSize: 20, fontWeight: FontWeight.w600, color: AppColors.success)),
+            Text(_totalAttempts == 0 ? '—' : '$_overallAverage%',
+                style: GoogleFonts.dmSans(fontSize: 20, fontWeight: FontWeight.w600, color: _totalAttempts == 0 ? AppColors.textDisabled : AppColors.success)),
             Text('Average score', style: GoogleFonts.dmSans(fontSize: 9, color: AppColors.textTertiary)),
           ]),
         )),
         Expanded(child: Container(
           padding: const EdgeInsets.all(12),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('+8%', style: GoogleFonts.dmSans(fontSize: 20, fontWeight: FontWeight.w600, color: const Color(0xFFE8960F))),
-            Text('This week', style: GoogleFonts.dmSans(fontSize: 9, color: AppColors.textTertiary)),
+            Text(_totalAttempts == 0 ? '—' : '$_overallBest%',
+                style: GoogleFonts.dmSans(fontSize: 20, fontWeight: FontWeight.w600, color: _totalAttempts == 0 ? AppColors.textDisabled : const Color(0xFFE8960F))),
+            Text('Best score', style: GoogleFonts.dmSans(fontSize: 9, color: AppColors.textTertiary)),
           ]),
         )),
       ]),
     ),
 
-    // Test list
-    Expanded(child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    // Test list — split by whether you've sat the paper before, rather
+    // than a hardcoded "recommended" flag.
+    Expanded(child: _tests.isEmpty
+      ? Center(child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text('No practice tests available yet.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textTertiary)),
+        ))
+      : SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      if (_attemptedTests.isNotEmpty) ...[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
+          child: Text('CONTINUE PRACTISING', style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.textTertiary, letterSpacing: 0.6)),
+        ),
+        ..._attemptedTests.map((t) => _testRow(t)),
+      ],
       Padding(
         padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
-        child: Text('RECOMMENDED', style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.textTertiary, letterSpacing: 0.6)),
+        child: Text(_attemptedTests.isEmpty ? 'ALL TESTS' : 'NOT YET ATTEMPTED', style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.textTertiary, letterSpacing: 0.6)),
       ),
-      ..._tests.where((t) => t.recommended).map((t) => _testRow(t)),
-      Padding(
-        padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
-        child: Text('ALL TESTS', style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.textTertiary, letterSpacing: 0.6)),
-      ),
-      ..._tests.where((t) => !t.recommended).map((t) => _testRow(t)),
+      ..._unattemptedTests.map((t) => _testRow(t)),
       const SizedBox(height: 16),
     ]))),
   ]);
 
-  Widget _testRow(_PracticeTest t) => GestureDetector(
-    onTap: () { HapticFeedback.selectionClick(); setState(() => _selected = t); _go(_PracticeTab.setup); },
-    child: Container(
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(width: 40, height: 40,
-          decoration: BoxDecoration(color: t.iconBg, border: Border.all(color: t.iconBorder), borderRadius: BorderRadius.circular(10)),
-          child: Center(child: Text(t.emoji, style: const TextStyle(fontSize: 19)))),
-        const SizedBox(width: 12),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Expanded(child: Text(t.title, style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.textPrimary))),
-            if (t.recommended) Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(color: t.tagBg, borderRadius: BorderRadius.circular(4)),
-              child: Text(t.tag, style: GoogleFonts.dmSans(fontSize: 9, color: t.tagColor))),
-          ]),
-          const SizedBox(height: 2),
-          Text(t.subtitle, style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textTertiary)),
-          const SizedBox(height: 5),
-          Row(children: [
-            _metaChip(Icons.timer_outlined, '${t.minutes} min'),
-            const SizedBox(width: 10),
-            if (t.best != null) _metaChip(Icons.bar_chart_rounded, 'Best: ${t.best}'),
-            if (t.best == null) Text('Not attempted', style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textDisabled)),
-            if (t.attempts > 0) ...[const SizedBox(width: 10), _metaChip(Icons.refresh_rounded, '${t.attempts} attempts')],
-          ]),
-        ])),
-        const SizedBox(width: 8),
-        Icon(Icons.chevron_right_rounded, size: 16, color: AppColors.textDisabled),
-      ]),
-    ),
-  );
+  // ── Derived from real attempt history ──
+  List<_PracticeTest> get _attemptedTests =>
+      _tests.where((t) => (_history[t.courseKey]?.attempts ?? 0) > 0).toList();
+  List<_PracticeTest> get _unattemptedTests =>
+      _tests.where((t) => (_history[t.courseKey]?.attempts ?? 0) == 0).toList();
+  /// Honest, locally-computed summary of the attempt just finished —
+  /// compares against your previous best on this same course when there
+  /// is one, and calls out skipped questions since leaving marks on the
+  /// table is the most actionable thing at this level of detail.
+  String _summaryText() {
+    final parts = <String>[];
+    parts.add('You scored $_pct% on ${_selected.courseKey} — '
+        '$_correct of ${_questions.length} correct.');
+    final prevBest = _prevBest;
+    if (prevBest != null && _pct > prevBest) {
+      parts.add('That beats your previous best of $prevBest%.');
+    } else if (prevBest != null) {
+      parts.add('Your best on this course is $prevBest%.');
+    }
+    if (_skipped > 0) {
+      parts.add('$_skipped question${_skipped == 1 ? ' was' : 's were'} left '
+          'unanswered — worth a second pass next sitting.');
+    }
+    return parts.join(' ');
+  }
+
+  PracticeAttempt? get _selectedHistory {
+    final h = _history[_selected.courseKey];
+    return (h != null && h.attempts > 0) ? h : null;
+  }
+  int get _totalAttempts =>
+      _history.values.fold(0, (sum, a) => sum + a.attempts);
+  int get _overallBest => _history.values.isEmpty
+      ? 0
+      : _history.values.map((a) => a.bestPercent).reduce((a, b) => a > b ? a : b);
+  int get _overallAverage {
+    final attempts = _totalAttempts;
+    if (attempts == 0) return 0;
+    final total = _history.values.fold(0, (sum, a) => sum + a.totalPercent);
+    return (total / attempts).round();
+  }
+
+  Widget _testRow(_PracticeTest t) {
+    final h = _history[t.courseKey];
+    final attempts = h?.attempts ?? 0;
+    return GestureDetector(
+      onTap: () { HapticFeedback.selectionClick(); setState(() => _selected = t); _go(_PracticeTab.setup); },
+      child: Container(
+        padding: const EdgeInsets.all(13),
+        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(width: 40, height: 40,
+            decoration: BoxDecoration(
+              color: t.accent.withValues(alpha: 0.12),
+              border: Border.all(color: t.accent.withValues(alpha: 0.5)),
+              borderRadius: BorderRadius.circular(10)),
+            child: Center(child: Text(t.emoji, style: const TextStyle(fontSize: 19)))),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Expanded(child: Text(t.title, style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.textPrimary))),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(color: t.accent.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(4)),
+                child: Text('${t.questions} MCQ', style: GoogleFonts.dmSans(fontSize: 9, color: t.accent))),
+            ]),
+            const SizedBox(height: 2),
+            Text(t.subtitle, style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textTertiary)),
+            const SizedBox(height: 5),
+            Row(children: [
+              _metaChip(Icons.timer_outlined, '${t.minutes} min'),
+              const SizedBox(width: 10),
+              if (attempts > 0) ...[
+                _metaChip(Icons.bar_chart_rounded, 'Best: ${h!.bestPercent}%'),
+                const SizedBox(width: 10),
+                _metaChip(Icons.refresh_rounded, attempts == 1 ? '1 attempt' : '$attempts attempts'),
+              ] else
+                Text('Not attempted', style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textDisabled)),
+            ]),
+          ])),
+          const SizedBox(width: 8),
+          Icon(Icons.chevron_right_rounded, size: 16, color: AppColors.textDisabled),
+        ]),
+      ),
+    );
+  }
 
   Widget _metaChip(IconData icon, String label) => Row(mainAxisSize: MainAxisSize.min, children: [
     Icon(icon, size: 11, color: AppColors.textDisabled),
@@ -259,7 +394,10 @@ class _PracticeTestPageState extends State<PracticeTestPage> with TickerProvider
       child: Row(children: [
         GestureDetector(onTap: () => _go(_PracticeTab.browse), child: Icon(Icons.arrow_back_rounded, size: 20, color: AppColors.textTertiary)),
         const SizedBox(width: 12),
-        Expanded(child: Text(_selected.title, style: GoogleFonts.dmSans(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary))),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(_selected.title, style: GoogleFonts.dmSans(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+          Text(_selected.subtitle, style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textTertiary)),
+        ])),
       ]),
     ),
     Expanded(child: SingleChildScrollView(padding: const EdgeInsets.all(0), child: Column(children: [
@@ -270,12 +408,15 @@ class _PracticeTestPageState extends State<PracticeTestPage> with TickerProvider
           decoration: BoxDecoration(color: AppColors.surface, border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(12)),
           child: Column(children: [
             Row(children: [
-              Expanded(child: _metaCell('PAPER', _selected.paper, border: Border(right: BorderSide(color: AppColors.border), bottom: BorderSide(color: AppColors.border)))),
+              Expanded(child: _metaCell('COURSE', _selected.courseKey, border: Border(right: BorderSide(color: AppColors.border), bottom: BorderSide(color: AppColors.border)))),
               Expanded(child: _metaCell('QUESTIONS', '${_selected.questions} MCQ', border: Border(bottom: BorderSide(color: AppColors.border)))),
             ]),
             Row(children: [
               Expanded(child: _metaCell('TIME LIMIT', '${_selected.minutes} minutes', border: Border(right: BorderSide(color: AppColors.border)))),
-              Expanded(child: _metaCell('YOUR BEST', _selected.best ?? 'Not yet', valueColor: _selected.best != null ? AppColors.success : AppColors.textDisabled)),
+              Expanded(child: _metaCell(
+                'YOUR BEST',
+                _selectedHistory == null ? 'Not yet' : '${_selectedHistory!.bestPercent}%',
+                valueColor: _selectedHistory == null ? AppColors.textDisabled : AppColors.success)),
             ]),
           ]),
         ),
@@ -429,7 +570,7 @@ class _PracticeTestPageState extends State<PracticeTestPage> with TickerProvider
             Row(children: [
               Container(width: 5, height: 5, decoration: BoxDecoration(color: AppColors.accent, shape: BoxShape.circle)),
               const SizedBox(width: 6),
-              Text('${q.topic} · ${q.diff}', style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textDisabled)),
+              Text(_selected.courseKey, style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textDisabled)),
               const Spacer(),
               GestureDetector(
                 onTap: () { HapticFeedback.selectionClick(); setState(() => _flagged[_qi] = !_flagged[_qi]); },
@@ -437,13 +578,35 @@ class _PracticeTestPageState extends State<PracticeTestPage> with TickerProvider
               ),
             ]),
             const SizedBox(height: 8),
-            Text(q.q, style: GoogleFonts.dmSans(fontSize: 15, fontWeight: FontWeight.w500, color: AppColors.textPrimary, height: 1.65)),
+            // Comprehension passages (GNS 106) and diagram questions
+            // (BIO 102) exist in the banks — render them above the stem,
+            // otherwise those questions are unanswerable.
+            if (q.passage != null && q.passage!.isNotEmpty) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  border: Border.all(color: AppColors.border),
+                  borderRadius: BorderRadius.circular(10)),
+                child: Text(q.passage!, style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.textSecondary, height: 1.6)),
+              ),
+              const SizedBox(height: 10),
+            ],
+            if (q.imageUrl != null && q.imageUrl!.isNotEmpty) ...[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.asset(q.imageUrl!, fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const SizedBox.shrink()),
+              ),
+              const SizedBox(height: 10),
+            ],
+            Text(q.question, style: GoogleFonts.dmSans(fontSize: 15, fontWeight: FontWeight.w500, color: AppColors.textPrimary, height: 1.65)),
           ]),
         ),
         Container(margin: const EdgeInsets.only(top: 14), height: 1, color: AppColors.border),
 
         // Answer options
-        ...List.generate(q.opts.length, (i) {
+        ...List.generate(q.options.length, (i) {
           final selected = _answers[_qi] == i;
           return GestureDetector(
             onTap: answered ? null : () { HapticFeedback.selectionClick(); setState(() => _answers[_qi] = i); },
@@ -462,7 +625,7 @@ class _PracticeTestPageState extends State<PracticeTestPage> with TickerProvider
                   ),
                   child: Center(child: Text(String.fromCharCode(65 + i), style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.w500, color: selected ? Colors.white : AppColors.textTertiary)))),
                 const SizedBox(width: 12),
-                Expanded(child: Text(q.opts[i], style: GoogleFonts.dmSans(fontSize: 13, color: selected ? AppColors.accentLight : AppColors.textSecondary, height: 1.5))),
+                Expanded(child: Text(q.options[i], style: GoogleFonts.dmSans(fontSize: 13, color: selected ? AppColors.accentLight : AppColors.textSecondary, height: 1.5))),
               ]),
             ),
           );
@@ -577,7 +740,11 @@ class _PracticeTestPageState extends State<PracticeTestPage> with TickerProvider
         ),
         const SizedBox(height: 14),
 
-        // Gemini insight
+        // Summary — computed from this attempt. (This slot used to hold a
+        // hardcoded "Gemini insight" about circle geometry that was shown
+        // verbatim after every test regardless of the questions sat.
+        // Real per-topic weakness analysis needs topic tags on bank
+        // questions, which QuizQuestion doesn't carry yet.)
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(color: AppColors.surface, border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(12)),
@@ -585,9 +752,9 @@ class _PracticeTestPageState extends State<PracticeTestPage> with TickerProvider
             Container(width: 6, height: 6, margin: const EdgeInsets.only(top: 5), decoration: BoxDecoration(color: AppColors.accent, shape: BoxShape.circle)),
             const SizedBox(width: 8),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Gemini insight', style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.accentLight)),
+              Text('Summary', style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.accentLight)),
               const SizedBox(height: 4),
-              Text('Circle geometry is your weakest area. Chord-tangent relationships cover 3 questions on this paper — a focused 20-minute session could recover 7+ marks.',
+              Text(_summaryText(),
                   style: GoogleFonts.dmSans(fontSize: 11, color: AppColors.textSecondary, height: 1.65)),
             ])),
           ]),
@@ -669,7 +836,7 @@ class _PracticeTestPageState extends State<PracticeTestPage> with TickerProvider
       itemBuilder: (ctx, i) {
         final q = _questions[i];
         final chosen = _answers[i];
-        final ok = chosen == q.ans;
+        final ok = chosen == q.correctIndex;
         final skipped = chosen == null;
         return Container(
           padding: const EdgeInsets.all(13),
@@ -689,14 +856,14 @@ class _PracticeTestPageState extends State<PracticeTestPage> with TickerProvider
                     style: TextStyle(fontSize: 11, color: skipped ? AppColors.warning : ok ? AppColors.success : AppColors.error)))),
               const SizedBox(width: 9),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Q${i + 1} · ${q.topic} · ${q.diff}', style: GoogleFonts.dmSans(fontSize: 9, color: AppColors.textDisabled)),
+                Text('Q${i + 1}', style: GoogleFonts.dmSans(fontSize: 9, color: AppColors.textDisabled)),
                 const SizedBox(height: 3),
-                Text(q.q, style: GoogleFonts.dmSans(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textPrimary, height: 1.5)),
+                Text(q.question, style: GoogleFonts.dmSans(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textPrimary, height: 1.5)),
               ])),
             ]),
             const SizedBox(height: 8),
-            ...List.generate(q.opts.length, (j) {
-              final isCorrect = j == q.ans;
+            ...List.generate(q.options.length, (j) {
+              final isCorrect = j == q.correctIndex;
               final isChosen = j == chosen;
               Color bg = Colors.transparent;
               Color tc = AppColors.textTertiary;
@@ -713,16 +880,29 @@ class _PracticeTestPageState extends State<PracticeTestPage> with TickerProvider
                   Container(width: 22, height: 22, decoration: BoxDecoration(shape: BoxShape.circle, color: lbg),
                     child: Center(child: Text(String.fromCharCode(65 + j), style: GoogleFonts.dmSans(fontSize: 9, fontWeight: FontWeight.w500, color: ltc)))),
                   const SizedBox(width: 8),
-                  Expanded(child: Text(q.opts[j], style: GoogleFonts.dmSans(fontSize: 11, color: tc))),
+                  Expanded(child: Text(q.options[j], style: GoogleFonts.dmSans(fontSize: 11, color: tc))),
                   if (isChosen && isCorrect) Text('Your answer ✓', style: GoogleFonts.dmSans(fontSize: 9, color: const Color(0xFF6EE7B7))),
                   if (isChosen && !isCorrect) Text('Your answer', style: GoogleFonts.dmSans(fontSize: 9, color: const Color(0xFFFCA5A5))),
                   if (!isChosen && isCorrect) Text('Correct', style: GoogleFonts.dmSans(fontSize: 9, color: const Color(0xFF6EE7B7))),
                 ]),
               );
             }),
-            if (!ok && !skipped) ...[
+            if (!ok) ...[
               const SizedBox(height: 4),
-              Text('The correct answer is ${q.opts[q.ans]}', style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textTertiary)),
+              Text('The correct answer is ${q.options[q.correctIndex]}', style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textTertiary)),
+            ],
+            // Many bank questions carry a worked explanation — the old
+            // hardcoded set had none, so this never used to render.
+            if (q.explanation.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.all(9),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  border: Border.all(color: AppColors.border),
+                  borderRadius: BorderRadius.circular(8)),
+                child: Text(q.explanation, style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textSecondary, height: 1.5)),
+              ),
             ],
           ]),
         );

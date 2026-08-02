@@ -8,6 +8,8 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_routes.dart';
 import '../../../../core/services/streak_service.dart';
 import '../../../../core/services/study_time_service.dart';
+import '../../../../core/services/interstitial_ad_service.dart';
+import '../../../../core/services/lesson_gate_service.dart';
 import '../../data/lessons/mts102_lessons.dart';
 import '../../data/lessons/csc102_lessons.dart';
 import '../../data/lessons/calculus_lessons.dart';
@@ -50,6 +52,7 @@ class _LessonDetailPageState extends State<LessonDetailPage> {
     super.initState();
     StudyTimeService.startSession();
     _loadLessonContent();
+    InterstitialAdService.preload();
   }
 
   @override
@@ -410,6 +413,7 @@ class _LessonDetailPageState extends State<LessonDetailPage> {
                         if (!completedLessons.contains(widget.lessonId)) {
                           completedLessons.add(widget.lessonId);
                           await prefs.setStringList('completed_lessons', completedLessons);
+                          await LessonGateService.recordLessonCompleted();
                         }
                         // Record study task + quiz stats
                         await StudyTimeService.recordTaskCompleted();
@@ -419,6 +423,7 @@ class _LessonDetailPageState extends State<LessonDetailPage> {
                         );
                         // Award streak if qualifying
                         final newStreak = await StreakService.recordLessonPassed();
+                        InterstitialAdService.showIfReady();
                         if (!mounted) return;
                         if (newStreak != null) {
                           context.push(AppRoutes.streakCelebration, extra: {'streakCount': newStreak});

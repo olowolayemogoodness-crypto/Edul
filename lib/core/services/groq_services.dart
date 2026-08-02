@@ -30,7 +30,7 @@ Your role is to:
 - Encourage deeper understanding
 - Be encouraging and supportive
 
-Keep responses concise but comprehensive (2-3 paragraphs max).'''
+Keep responses focused and well-organized, but don't cut an explanation short just to save space — a full worked solution or derivation matters more than brevity.'''
             },
             {
               'role': 'user',
@@ -38,7 +38,7 @@ Keep responses concise but comprehensive (2-3 paragraphs max).'''
             }
           ],
           'temperature': 0.7,
-          'max_tokens': 1024,
+          'max_tokens': 4096,
         }),
       );
 
@@ -77,7 +77,7 @@ Your role is to:
 - Encourage deeper understanding
 - Be encouraging and supportive
 
-Keep responses concise but comprehensive (2-3 paragraphs max).'''
+Keep responses focused and well-organized, but don't cut an explanation short just to save space — a full worked solution or derivation matters more than brevity.'''
         },
         ...history,
         {
@@ -96,7 +96,7 @@ Keep responses concise but comprehensive (2-3 paragraphs max).'''
           'model': isPro ? _modelPro : _model,
           'messages': messages,
           'temperature': 0.7,
-          'max_tokens': 1024,
+          'max_tokens': 4096,
         }),
       );
 

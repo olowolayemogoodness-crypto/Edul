@@ -6,7 +6,6 @@ import '../../../../core/constants/app_text_styles.dart';
 import '../widgets/home_top_bar.dart';
 import '../widgets/daily_goal_card.dart';
 import '../widgets/activity_grid.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import '../widgets/continue_button.dart';
 import '../../../profile/presentation/pages/profile_page.dart';
@@ -19,11 +18,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../auth/presentation/bloc/auth_state.dart';
 import '../../../../core/services/user_service.dart';
-import '../../../../core/services/notifications_service.dart';
-import '../../../../core/services/push_notification_service.dart';
-import '../../../leaderboard/presentation/pages/compete_coming_soon_page.dart';
 import '../widgets/live_rooms_coming_soon_widget.dart';
-import '../widgets/leaderboard_coming_soon_widget.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -35,7 +30,6 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int _activeIndex = 0;
   int _unreadSocial = 0;
-  List<String> _unreadIds = [];
 
   @override
   void initState() {
@@ -48,7 +42,6 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _listenUnread() {
-    PushNotificationService.initialize();
     final uid = UserService.uid;
     if (uid == null) return;
     FirebaseFirestore.instance
@@ -57,12 +50,7 @@ class _HomePageState extends State<HomePage> {
         .where('read', isEqualTo: false)
         .snapshots()
         .listen((snap) {
-      if (mounted) {
-        setState(() {
-          _unreadSocial = snap.docs.length;
-          _unreadIds = snap.docs.map((d) => d.id).toList();
-        });
-      }
+      if (mounted) setState(() => _unreadSocial = snap.docs.length);
     });
   }
 
@@ -80,7 +68,7 @@ class _HomePageState extends State<HomePage> {
                   children: [
                     const _HomeContent(),
                     const StudyRoomsPage(),
-                    const CompeteComingSoonPage(),
+                    const SocialFeedPage(),
                     InsightsFeedPage(isVisible: _activeIndex == 3),
                     const ProfilePage(),
                   ],
@@ -88,32 +76,16 @@ class _HomePageState extends State<HomePage> {
               ),
               _BottomNav(
                 activeIndex: _activeIndex,
-                onTap: (i) => setState(() => _activeIndex = i),
+                unreadSocial: _unreadSocial,
+                onTap: (i) {
+                  setState(() {
+                    _activeIndex = i;
+                    if (i == 2) _unreadSocial = 0; // opened Social, clear badge
+                  });
+                },
               ),
             ],
           ),
-          // Floating social button — hidden on Profile tab
-          if (_activeIndex != 4)
-            Positioned(
-              left: 20,
-              bottom: 80,
-              child: _SocialFAB(
-                unread: _unreadSocial,
-                onTap: () {
-                  final idsToClear = _unreadIds;
-                  setState(() {
-                    _unreadSocial = 0;
-                    _unreadIds = [];
-                  });
-                  if (idsToClear.isNotEmpty) {
-                    NotificationService.markAllAsRead(idsToClear);
-                  }
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const SocialFeedPage()),
-                  );
-                },
-              ),
-            ),
         ],
       ),
     );
@@ -154,9 +126,7 @@ class _HomeContent extends StatelessWidget {
             const SizedBox(height: AppSpacing.md),
             const ActivityGrid(),
             const SizedBox(height: AppSpacing.lg),
-            const LiveRoomsComingSoon(),
-            const SizedBox(height: AppSpacing.lg),
-            const LeaderboardComingSoon(),
+          const LiveRoomsComingSoon(),
             
           ],
         ),
@@ -213,18 +183,19 @@ class _SectionHeader extends StatelessWidget {
 
 class _BottomNav extends StatelessWidget {
   final int activeIndex;
+  final int unreadSocial;
   final ValueChanged<int> onTap;
-  const _BottomNav({required this.activeIndex, required this.onTap});
+  const _BottomNav({required this.activeIndex, required this.unreadSocial, required this.onTap});
 
   static const _icons = [
     Icons.home_rounded,
     Icons.groups_rounded,
-    Icons.emoji_events_rounded,
+    Icons.dynamic_feed_rounded,
     Icons.explore_rounded,
     Icons.person_rounded,
   ];
 
-  static const _labels = ['Home', 'Study', 'Compete', 'Insights', 'Profile'];
+  static const _labels = ['Home', 'Study', 'Social', 'Discover', 'Profile'];
 
   @override
   Widget build(BuildContext context) {
@@ -241,8 +212,22 @@ class _BottomNav extends StatelessWidget {
           return GestureDetector(
             onTap: () => onTap(i),
             child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Icon(_icons[i], size: 22,
-                  color: active ? AppColors.accentLight : AppColors.textTertiary),
+              Stack(clipBehavior: Clip.none, children: [
+                Icon(_icons[i], size: 22,
+                    color: active ? AppColors.accentLight : AppColors.textTertiary),
+                if (i == 2 && unreadSocial > 0)
+                  Positioned(
+                    right: -6, top: -4,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDC2626),
+                        borderRadius: BorderRadius.circular(8)),
+                      child: Text(unreadSocial > 9 ? '9+' : '$unreadSocial',
+                        style: const TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w700)),
+                    ),
+                  ),
+              ]),
               const SizedBox(height: 3),
               Text(_labels[i], style: AppTextStyles.labelSmall.copyWith(
                   color: active ? AppColors.accentLight : AppColors.textTertiary)),
@@ -254,118 +239,6 @@ class _BottomNav extends StatelessWidget {
             ]),
           );
         }),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Floating social button
-// ─────────────────────────────────────────────────────────────────────────────
-class _SocialFAB extends StatefulWidget {
-  final int unread;
-  final VoidCallback onTap;
-  const _SocialFAB({required this.unread, required this.onTap});
-
-  @override
-  State<_SocialFAB> createState() => _SocialFABState();
-}
-
-class _SocialFABState extends State<_SocialFAB>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _pulse;
-  late Animation<double> _scale;
-
-  @override
-  void initState() {
-    super.initState();
-    _pulse = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    );
-    _scale = Tween<double>(begin: 1.0, end: 1.08).animate(
-      CurvedAnimation(parent: _pulse, curve: Curves.easeInOut));
-  }
-
-  @override
-  void didUpdateWidget(_SocialFAB old) {
-    super.didUpdateWidget(old);
-    if (widget.unread > 0 && old.unread == 0) {
-      _pulse.repeat(reverse: true);
-    } else if (widget.unread == 0) {
-      _pulse.stop();
-      _pulse.reset();
-    }
-  }
-
-  @override
-  void dispose() {
-    _pulse.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final hasUnread = widget.unread > 0;
-    return ScaleTransition(
-      scale: _scale,
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: hasUnread
-                    ? AppColors.accent
-                    : AppColors.surfaceVariant,
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: hasUnread
-                      ? AppColors.accentLight.withOpacity(0.5)
-                      : AppColors.border,
-                  width: 1.5,
-                ),
-              ),
-              child: Icon(
-                Icons.chat_bubble_outline_rounded,
-                size: 22,
-                color: hasUnread
-                    ? Colors.white
-                    : AppColors.textTertiary,
-              ),
-            ),
-            if (hasUnread)
-              Positioned(
-                top: -2,
-                right: -2,
-                child: Container(
-                  width: 18,
-                  height: 18,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE24B4A),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: AppColors.background,
-                      width: 1.5,
-                    ),
-                  ),
-                  child: Center(
-                    child: Text(
-                      widget.unread > 9 ? '9+' : '${widget.unread}',
-                      style: GoogleFonts.dmSans(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
       ),
     );
   }

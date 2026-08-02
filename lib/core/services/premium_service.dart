@@ -112,8 +112,8 @@ class PremiumService {
   // ── Init ──────────────────────────────────────────────────────────────────
   static Future<void> initialize() async {
     final apiKey = Platform.isIOS
-        ? 'appl_test_wpFQGsnATmYwLcPqZcSSUpIxgZG'
-        : 'goog_test_wpFQGsnATmYwLcPqZcSSUpIxgZG';
+        ? 'appl_test_wpFQGsnATmYwLcPqZcSSUpIxgZG' // TODO: still a placeholder -- swap when you have a real iOS key
+        : 'goog_HQIERDHTYxErhXQEYQWLtUoNWBl';
 
     await Purchases.setLogLevel(LogLevel.error);
     await Purchases.configure(PurchasesConfiguration(apiKey));
@@ -141,8 +141,11 @@ class PremiumService {
   static Future<Offerings?> getOfferings() async {
     try {
       return await Purchases.getOfferings();
-    } catch (_) {
-      return null;
+    } catch (e) {
+      // Rethrow instead of swallowing -- silently returning null here
+      // meant the paywall's purchase button did visibly nothing on
+      // failure, with no error shown at all.
+      throw Exception('Could not load subscription plans: $e');
     }
   }
 
@@ -156,19 +159,24 @@ class PremiumService {
   static Future<PremiumTier?> _purchase(String productId) async {
     try {
       final offerings = await getOfferings();
-      if (offerings == null) return null;
+      if (offerings == null || offerings.current == null) {
+        throw Exception('No subscription plans are available right now.');
+      }
 
-      final package = offerings.current?.availablePackages.firstWhere(
-        (p) => p.storeProduct.identifier == productId,
-        orElse: () => offerings.current!.availablePackages.first,
-      );
-      if (package == null) return null;
+      final packages = offerings.current!.availablePackages;
+      if (packages.isEmpty) {
+        throw Exception('No subscription plans are configured yet.');
+      }
+      final matching = packages.where((p) => p.storeProduct.identifier == productId);
+      final package = matching.isNotEmpty ? matching.first : packages.first;
 
       final info = (await Purchases.purchasePackage(package)).customerInfo;
       if (info.entitlements.active.containsKey(_proEntitlement)) {
         _cachedTier = PremiumTier.pro;
       } else if (info.entitlements.active.containsKey(_plusEntitlement)) {
         _cachedTier = PremiumTier.plus;
+      } else {
+        throw Exception('Purchase completed, but no matching entitlement was found.');
       }
       return _cachedTier;
     } on PurchasesErrorCode catch (e) {

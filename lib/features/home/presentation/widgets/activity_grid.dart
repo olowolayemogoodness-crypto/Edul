@@ -39,36 +39,6 @@ class ActivityGrid extends StatelessWidget {
       route: '/quiz',
     ),
     _ActivityCard(
-      name: 'Flashcards',
-      sub: '24 due',
-      icon: Icons.style_rounded,
-      iconBg: Color(0xFF2A1F00),
-      iconColor: Color(0xFFEF9F27),
-      borderColor: Color(0xFF854F0B),
-      bg: Color(0xFF1F1800),
-      badge: 'Review',
-      badgeBg: Color(0xFF2A1F00),
-      badgeColor: Color(0xFFEF9F27),
-      progress: 0.4,
-      progressColor: Color(0xFFEF9F27),
-      route: '/flashcards',
-    ),
-    _ActivityCard(
-      name: 'Exam prep',
-      sub: 'WAEC · JAMB',
-      icon: Icons.school_rounded,
-      iconBg: Color(0xFF2E1A0F),
-      iconColor: Color(0xFFD85A30),
-      borderColor: Color(0xFF993C1D),
-      bg: Color(0xFF201108),
-      badge: 'Hot',
-      badgeBg: Color(0xFF2E1A0F),
-      badgeColor: Color(0xFFD85A30),
-      progress: 0.25,
-      progressColor: Color(0xFFD85A30),
-      route: '/exam-prep',
-    ),
-    _ActivityCard(
       name: 'Study Library',
       sub: 'Books · PDFs · Notes',
       icon: Icons.menu_book_rounded,
@@ -104,14 +74,80 @@ class ActivityGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-      child: GridView.count(
-        crossAxisCount: 2,
-        mainAxisSpacing: 10,
-        crossAxisSpacing: 10,
-        childAspectRatio: 1.1,
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        children: _cards.map((c) => _ActivityCardWidget(card: c)).toList(),
+      child: Column(children: [
+        GridView.count(
+          crossAxisCount: 2,
+          mainAxisSpacing: 10,
+          crossAxisSpacing: 10,
+          childAspectRatio: 1.1,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          children: _cards.sublist(0, 2).map((c) => _ActivityCardWidget(card: c)).toList(),
+        ),
+        const SizedBox(height: 10),
+        const _MasterclassCard(),
+        const SizedBox(height: 10),
+        GridView.count(
+          crossAxisCount: 2,
+          mainAxisSpacing: 10,
+          crossAxisSpacing: 10,
+          childAspectRatio: 1.1,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          children: _cards.sublist(2).map((c) => _ActivityCardWidget(card: c)).toList(),
+        ),
+      ]),
+    );
+  }
+}
+
+class _MasterclassCard extends StatelessWidget {
+  const _MasterclassCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => context.push('/masterclass'),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF2D1B69), Color(0xFF1A1A30)],
+            begin: Alignment.topLeft, end: Alignment.bottomRight),
+          border: Border.all(color: const Color(0xFF3C3489), width: 1.5),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(children: [
+          Container(
+            width: 46, height: 46,
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E1D3A),
+              borderRadius: BorderRadius.circular(14)),
+            child: Icon(Icons.play_circle_fill_rounded,
+              color: AppColors.accentLight, size: 24),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Text('Masterclass', style: AppTextStyles.titleSmall),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2D1B69),
+                    borderRadius: BorderRadius.circular(20)),
+                  child: Text('Premium', style: AppTextStyles.caption
+                    .copyWith(color: AppColors.accentLight, fontSize: 9)),
+                ),
+              ]),
+              const SizedBox(height: 2),
+              Text('Crash Courses', style: AppTextStyles.caption.copyWith(fontSize: 11)),
+            ]),
+          ),
+          Icon(Icons.chevron_right_rounded, color: AppColors.textTertiary, size: 22),
+        ]),
       ),
     );
   }

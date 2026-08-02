@@ -1,7 +1,8 @@
 name: edulink
 description: AI-powered learning platform for secondary and university students.
 publish_to: 'none'
-version: 1.0.0+8
+version: 1.0.0+1
+
 environment:
   sdk: '>=3.3.0 <4.0.0'
 
@@ -27,6 +28,21 @@ dependencies:
   firebase_storage: ^13.4.3
   firebase_messaging: ^16.4.1
   cloud_functions: ^6.3.3
+
+  # Scheduled local reminders (study times, streak protection, feed nudges)
+  flutter_local_notifications: ^18.0.1
+  timezone: ^0.9.4
+  flutter_timezone: ^3.0.1
+
+  # Video watermarking (Insights uploads) and voice notes (social posts) --
+  # these were already used in the code but missing from pubspec.yaml,
+  # unrelated to anything built this session.
+  ffmpeg_kit_flutter_new: ^4.5.0
+  gal: ^2.3.1
+  # NOTE: 'record' deliberately left out -- run `flutter pub add record`
+  # directly instead (see instructions below). A guessed version number
+  # here already caused one real sub-package mismatch; letting pub
+  # resolve it live avoids repeating that.
 
   #Authentication Providers
 

@@ -107,7 +107,25 @@ class _TutorPageState extends State<TutorPage> {
     scrollDown();
 
     try {
-      final response = await GroqService.askTutor(text);
+      // Build the conversation so far into the {role, content} shape
+      // Groq expects, EXCLUDING the user message just added above (it's
+      // passed separately as `text`) and excluding any error bubbles,
+      // which aren't real assistant turns and would confuse the model
+      // into thinking it just failed.
+      final history = messages
+          .where((m) => !m.hasError)
+          .take(messages.length - 1) // drop the message just appended
+          .map((m) => {
+                'role': m.isUser ? 'user' : 'assistant',
+                'content': m.content,
+              })
+          .toList();
+
+      final response = await GroqService.askTutorWithHistory(
+        text,
+        history,
+        isPro: PremiumService.isPro,
+      );
 
       if (!mounted) return;
 
@@ -163,7 +181,6 @@ class _TutorPageState extends State<TutorPage> {
     HapticFeedback.lightImpact();
 
     setState(() {
-      messages.clear();
       messages.add(TutorMessage(
         id: DateTime.now().toString(),
         content: '📸 Analyzing image...',

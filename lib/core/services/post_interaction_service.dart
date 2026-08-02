@@ -59,6 +59,42 @@
 //                      == request.resource.data.fromDisplayName + ' replied to your comment'
 //                 && request.resource.data.body is string
 //                 && request.resource.data.body.size() <= 200;
+//
+// COUNTER ARCHITECTURE CHANGE (cost fix) — likeCount/commentCount/
+// repostCount are now denormalized fields on the post doc itself,
+// instead of deriving the count by reading every doc in the likes/
+// comments/reposts subcollection. The subcollections still exist (they're
+// what answers "did I already like/repost this" in O(1), and comments
+// still need their own docs for content) — only the DISPLAYED COUNT
+// moved. Reason: a subcollection-count read bills one Firestore read
+// PER DOCUMENT in that subcollection, every single time the count is
+// displayed — so a video with 5,000 likes cost 5,000 reads just to show
+// "5,000" to one viewer. A denormalized field costs zero extra reads
+// (it's already part of the doc you fetch to show the post at all).
+//
+// New rule required — same pattern as your existing `views` field rule,
+// add these three alongside it inside `match /posts/{docId} { ... }`:
+//
+//   allow update: if request.auth != null
+//                 && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount']);
+//   allow update: if request.auth != null
+//                 && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['commentCount']);
+//   allow update: if request.auth != null
+//                 && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['repostCount']);
+//
+// Like milestone notifications (new type, replaces notifying on every
+// single like) — add this alongside your other notification rules:
+//
+//   allow create: if request.auth != null
+//                 && request.auth.uid == request.resource.data.fromUid
+//                 && request.resource.data.uid != request.auth.uid
+//                 && request.resource.data.type == 'like_milestone'
+//                 && request.resource.data.milestoneCount is int
+//                 && request.resource.data.milestoneCount > 0
+//                 && request.resource.data.title is string
+//                 && request.resource.data.title.size() <= 100
+//                 && request.resource.data.body is string
+//                 && request.resource.data.body.size() <= 200;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'notifications_service.dart';
@@ -80,10 +116,12 @@ class PostInteractionService {
   }
 
   static Stream<int> likeCount(String postId) {
-    return _posts().doc(postId).collection('likes')
-        .snapshots().map((s) => s.docs.length);
+    return _posts().doc(postId).snapshots()
+        .map((d) => (d.data() as Map<String, dynamic>?)?['likeCount'] as int? ?? 0);
   }
 
+  // Milestones at which the post owner gets a "your post hit N likes"
+  // notification, instead of one notification per single like.
   static const List<int> _likeMilestones = [1, 10, 50, 100, 500, 1000, 5000, 10000, 50000];
 
   static Future<void> toggleLike(String postId, String postOwnerUid) async {
@@ -127,6 +165,7 @@ class PostInteractionService {
       }
     }
   }
+
   // ── Reposts ────────────────────────────────────────────────────────────
   static Stream<bool> isRepostedByMe(String postId) {
     final uid = UserService.uid;
@@ -136,8 +175,8 @@ class PostInteractionService {
   }
 
   static Stream<int> repostCount(String postId) {
-    return _posts().doc(postId).collection('reposts')
-        .snapshots().map((s) => s.docs.length);
+    return _posts().doc(postId).snapshots()
+        .map((d) => (d.data() as Map<String, dynamic>?)?['repostCount'] as int? ?? 0);
   }
 
   static Future<void> toggleRepost(String postId, {
@@ -160,6 +199,7 @@ class PostInteractionService {
     if (doc.exists) {
       await ref.delete();
       await pointerRef.delete();
+      await _posts().doc(postId).update({'repostCount': FieldValue.increment(-1)});
     } else {
       await ref.set({'uid': uid, 'createdAt': FieldValue.serverTimestamp()});
       await pointerRef.set({
@@ -172,10 +212,14 @@ class PostInteractionService {
         'verified': false,
         'createdAt': FieldValue.serverTimestamp(),
       });
+      await _posts().doc(postId).update({'repostCount': FieldValue.increment(1)});
       await _notifyPostOwnerOfRepost(postId);
     }
   }
 
+  /// Looks up the original post's owner and fires a repost notification
+  /// to them (no-op if reposting your own post). Best-effort, same as
+  /// [_notifyPostOwner].
   static Future<void> _notifyPostOwnerOfRepost(String postId) async {
     try {
       final postDoc = await _posts().doc(postId).get();
@@ -189,12 +233,10 @@ class PostInteractionService {
     } catch (_) {}
   }
 
-  // ── Comments
-
   // ── Comments ───────────────────────────────────────────────────────────
   static Stream<int> commentCount(String postId) {
-    return _posts().doc(postId).collection('comments')
-        .snapshots().map((s) => s.docs.length);
+    return _posts().doc(postId).snapshots()
+        .map((d) => (d.data() as Map<String, dynamic>?)?['commentCount'] as int? ?? 0);
   }
 
   static Stream<List<Map<String, dynamic>>> comments(String postId) {
@@ -229,6 +271,7 @@ class PostInteractionService {
       'parentCommentId': parentCommentId,
       'createdAt': FieldValue.serverTimestamp(),
     });
+    await _posts().doc(postId).update({'commentCount': FieldValue.increment(1)});
     if (parentCommentId != null) {
       await _notifyParentCommentAuthor(
         postId: postId,
@@ -262,6 +305,7 @@ class PostInteractionService {
       'parentCommentId': parentCommentId,
       'createdAt': FieldValue.serverTimestamp(),
     });
+    await _posts().doc(postId).update({'commentCount': FieldValue.increment(1)});
     if (parentCommentId != null) {
       await _notifyParentCommentAuthor(
         postId: postId,
@@ -281,6 +325,7 @@ class PostInteractionService {
   /// can't delete another user's reply docs under the existing rules.
   static Future<void> deleteComment(String postId, String commentId) async {
     await _posts().doc(postId).collection('comments').doc(commentId).delete();
+    await _posts().doc(postId).update({'commentCount': FieldValue.increment(-1)});
   }
 
   /// Looks up the post's owner and fires a comment notification to them
@@ -296,6 +341,12 @@ class PostInteractionService {
       final ownerUid = postDoc.data() as Map<String, dynamic>?;
       final targetUid = ownerUid?['uid'] as String?;
       if (targetUid == null) return;
+      // Social Score: commenting on someone else's post earns THEM a
+      // point (not the commenter) — guarded the same way likes/follows
+      // are, so commenting on your own post farms nothing.
+      if (targetUid != UserService.uid) {
+        UserTierService.bumpSocialScoreForComment(targetUid);
+      }
       await NotificationService.createCommentNotification(
         targetUid: targetUid,
         postId: postId,

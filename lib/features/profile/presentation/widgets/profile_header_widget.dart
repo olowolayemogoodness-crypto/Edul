@@ -8,6 +8,7 @@ import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../auth/presentation/bloc/auth_state.dart';
 import '../../../../core/services/user_service.dart';
 import '../../../../core/services/user_tier_service.dart';
+import '../../../../core/widgets/user_score_badges.dart';
 
 class ProfileHeaderWidget extends StatefulWidget {
   const ProfileHeaderWidget({super.key});
@@ -84,6 +85,8 @@ class _State extends State<ProfileHeaderWidget> with SingleTickerProviderStateMi
     ]);
   },
 ),
+        const SizedBox(height: 3),
+        UserScoreBadges(uid: UserService.uid ?? ''),
         const SizedBox(height: 2),
         StreamBuilder<Map<String, dynamic>?>(
           stream: UserService.profileStream(),

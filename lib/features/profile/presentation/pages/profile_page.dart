@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/constants/feature_flags.dart';
 import '../widgets/profile_header_widget.dart';
 import '../widgets/profile_stats_row.dart';
 import '../widgets/activity_rings_card.dart';
@@ -117,7 +118,7 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
     ]));
   },
 ),
-                if (!isLoading && !hasError) SliverToBoxAdapter(child: _Section(title: 'This week', child: _ComingSoonOverlay(child: ThisWeekGrid(
+                if (FeatureFlags.showThisWeek && !isLoading && !hasError) SliverToBoxAdapter(child: _Section(title: 'This week', child: _ComingSoonOverlay(child: ThisWeekGrid(
                   xp: (profile?['xp'] as int?) ?? 0,
                   rank: (profile?['rank'] as int?) ?? 0,
                 )))),
@@ -125,15 +126,15 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
                   currentStreak: (profile?['streak'] as int?) ?? 0,
                   longestStreak: (profile?['longestStreak'] as int?) ?? 0,
                 ))),
-                if (!isLoading && !hasError) SliverToBoxAdapter(child: _Section(title: 'Course progress', linkLabel: 'All courses', onLink: () {}, child: const _ComingSoonOverlay(child: CourseProgressWidget()))),
-                if (!isLoading && !hasError) const SliverToBoxAdapter(child: _Section(title: 'Strengths & focus areas', child: _ComingSoonOverlay(child: StrengthsWidget()))),
-                if (!isLoading && !hasError) const SliverToBoxAdapter(child: _Section(title: 'Your learning style', child: _ComingSoonOverlay(child: LearningStyleCard()))),
-                if (!isLoading && !hasError) SliverToBoxAdapter(child: _Section(
+                if (FeatureFlags.showCourseProgress && !isLoading && !hasError) SliverToBoxAdapter(child: _Section(title: 'Course progress', linkLabel: 'All courses', onLink: () {}, child: const _ComingSoonOverlay(child: CourseProgressWidget()))),
+                if (FeatureFlags.showStrengths && !isLoading && !hasError) const SliverToBoxAdapter(child: _Section(title: 'Strengths & focus areas', child: _ComingSoonOverlay(child: StrengthsWidget()))),
+                if (FeatureFlags.showLearningStyle && !isLoading && !hasError) const SliverToBoxAdapter(child: _Section(title: 'Your learning style', child: _ComingSoonOverlay(child: LearningStyleCard()))),
+                if (FeatureFlags.showSuccessPrediction && !isLoading && !hasError) SliverToBoxAdapter(child: _Section(
                   title: 'Success prediction',
                   trailing: Text('AI-powered', style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textTertiary)),
                   child: const _ComingSoonOverlay(child: SuccessPredictionCard()),
                 )),
-                if (!isLoading && !hasError) SliverToBoxAdapter(child: _Section(title: 'Badges', linkLabel: 'See all', onLink: () {}, child: const _ComingSoonOverlay(child: BadgesScrollWidget()))),
+                if (FeatureFlags.showBadges && !isLoading && !hasError) SliverToBoxAdapter(child: _Section(title: 'Badges', linkLabel: 'See all', onLink: () {}, child: const _ComingSoonOverlay(child: BadgesScrollWidget()))),
                 const SliverToBoxAdapter(child: SizedBox(height: 24)),
               ],
             ),

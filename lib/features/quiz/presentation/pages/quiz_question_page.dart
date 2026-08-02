@@ -4,6 +4,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/widgets/lives_badge.dart';
+import '../../../../core/services/hint_service.dart';
+import '../../../../core/services/rewarded_ad_service.dart';
+import '../../../../core/services/premium_service.dart';
 import '../bloc/quiz_bloc.dart';
 import '../../domain/models/quiz_question.dart';
 
@@ -19,9 +22,18 @@ class _QuizQuestionPageState extends State<QuizQuestionPage> with SingleTickerPr
   late AnimationController _fadeCtrl;
   late Animation<double> _fadeAnim;
 
+  // Hint effects are per-question (reset when the question changes),
+  // while the underlying hint BALANCE persists across the whole quiz —
+  // see HintService.
+  Set<int> _eliminatedIndices = {};
+  bool _answerRevealed = false;
+  int _lastQuestionIndex = -1;
+
   @override
   void initState() {
     super.initState();
+    HintService.resetForNewQuiz();
+    RewardedAdService.preload();
     _fadeCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 300));
     _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
     _fadeCtrl.forward();
@@ -54,6 +66,70 @@ class _QuizQuestionPageState extends State<QuizQuestionPage> with SingleTickerPr
     context.read<QuizBloc>().add(QuizNextQuestion());
   }
 
+  void _useRevealHint(QuizInProgress s) {
+    if (s.answered || _answerRevealed) return;
+    if (HintService.useReveal()) {
+      setState(() => _answerRevealed = true);
+      return;
+    }
+    if (HintService.isPremium) {
+      HintService.grantRevealBatch();
+      HintService.useReveal();
+      setState(() => _answerRevealed = true);
+      return;
+    }
+    RewardedAdService.show(
+      onRewarded: () {
+        HintService.grantRevealBatch();
+        HintService.useReveal();
+        if (mounted) setState(() => _answerRevealed = true);
+      },
+      onNotReady: () => _showHintMessage('Ad not ready yet — try again in a moment'),
+      onFailed: () => _showHintMessage('Ad failed to show — try again in a moment'),
+    );
+  }
+
+  void _useEliminateHint(QuizInProgress s) {
+    if (s.answered) return;
+    final wrongIndices = List.generate(s.currentQuestion.options.length, (i) => i)
+        .where((i) => i != s.currentQuestion.correctIndex && !_eliminatedIndices.contains(i))
+        .toList();
+    if (wrongIndices.length < 2) return; // nothing left worth eliminating
+
+    void applyElimination() {
+      wrongIndices.shuffle();
+      setState(() => _eliminatedIndices.addAll(wrongIndices.take(2)));
+    }
+
+    if (HintService.useEliminate()) {
+      applyElimination();
+      return;
+    }
+    if (HintService.isPremium) {
+      HintService.grantEliminateBatch();
+      HintService.useEliminate();
+      applyElimination();
+      return;
+    }
+    RewardedAdService.show(
+      onRewarded: () {
+        HintService.grantEliminateBatch();
+        HintService.useEliminate();
+        if (mounted) applyElimination();
+      },
+      onNotReady: () => _showHintMessage('Ad not ready yet — try again in a moment'),
+      onFailed: () => _showHintMessage('Ad failed to show — try again in a moment'),
+    );
+  }
+
+  void _showHintMessage(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg, style: GoogleFonts.dmSans(fontSize: 13)),
+      backgroundColor: AppColors.surfaceVariant,
+      behavior: SnackBarBehavior.floating,
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<QuizBloc, QuizState>(
@@ -61,6 +137,11 @@ class _QuizQuestionPageState extends State<QuizQuestionPage> with SingleTickerPr
         if (state is! QuizInProgress) return const SizedBox();
         final s = state;
         final isTimed = s.mode == QuizMode.timed;
+        if (s.currentIndex != _lastQuestionIndex) {
+          _lastQuestionIndex = s.currentIndex;
+          _eliminatedIndices = {};
+          _answerRevealed = false;
+        }
         return Scaffold(
           backgroundColor: AppColors.background,
           body: SafeArea(child: Column(children: [
@@ -106,6 +187,26 @@ class _QuizQuestionPageState extends State<QuizQuestionPage> with SingleTickerPr
               padding: EdgeInsets.fromLTRB(16, 0, 16, 10),
               child: _OutOfLivesBanner(),
             ),
+            if (!s.answered) Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+              child: Row(children: [
+                Expanded(child: _HintButton(
+                  icon: Icons.remove_red_eye_rounded,
+                  label: 'Reveal answer',
+                  balance: HintService.revealBalance,
+                  active: _answerRevealed,
+                  onTap: () => _useRevealHint(s),
+                )),
+                const SizedBox(width: 10),
+                Expanded(child: _HintButton(
+                  icon: Icons.filter_alt_off_rounded,
+                  label: 'Eliminate 2',
+                  balance: HintService.eliminateBalance,
+                  active: _eliminatedIndices.isNotEmpty,
+                  onTap: () => _useEliminateHint(s),
+                )),
+              ]),
+            ),
             Expanded(child: FadeTransition(
               opacity: _fadeAnim,
               child: SingleChildScrollView(
@@ -118,6 +219,8 @@ class _QuizQuestionPageState extends State<QuizQuestionPage> with SingleTickerPr
                     selectedIndex: s.selectedIndex,
                     answered: s.answered,
                     onAnswer: _onAnswer,
+                    eliminatedIndices: _eliminatedIndices,
+                    answerRevealed: _answerRevealed,
                   ),
                   if (s.answered) ...[
                     const SizedBox(height: 10),
@@ -148,6 +251,48 @@ class _QuizQuestionPageState extends State<QuizQuestionPage> with SingleTickerPr
           ])),
         );
       },
+    );
+  }
+}
+
+class _HintButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final int balance;
+  final bool active;
+  final VoidCallback onTap;
+  const _HintButton({
+    required this.icon, required this.label, required this.balance,
+    required this.active, required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final premium = !PremiumService.isRealFree;
+    return GestureDetector(
+      onTap: active ? null : onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+        decoration: BoxDecoration(
+          color: active ? AppColors.accentSurface : AppColors.surface,
+          border: Border.all(color: active ? AppColors.accent : AppColors.border),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 15, color: active ? AppColors.accentLight : AppColors.textSecondary),
+          const SizedBox(width: 6),
+          Expanded(child: Text(label, overflow: TextOverflow.ellipsis, style: GoogleFonts.dmSans(
+            fontSize: 11, color: active ? AppColors.accentLight : AppColors.textSecondary))),
+          const SizedBox(width: 4),
+          if (balance > 0)
+            Text('$balance', style: GoogleFonts.dmSans(
+              fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.accentLight))
+          else if (premium)
+            Icon(Icons.workspace_premium_rounded, size: 13, color: AppColors.accentLight)
+          else
+            Icon(Icons.play_circle_outline_rounded, size: 13, color: AppColors.textTertiary),
+        ]),
+      ),
     );
   }
 }
@@ -301,13 +446,20 @@ class _OptionsWidget extends StatelessWidget {
   final int? selectedIndex;
   final bool answered;
   final ValueChanged<int> onAnswer;
-  const _OptionsWidget({required this.question, required this.selectedIndex, required this.answered, required this.onAnswer});
+  final Set<int> eliminatedIndices;
+  final bool answerRevealed;
+  const _OptionsWidget({
+    required this.question, required this.selectedIndex, required this.answered,
+    required this.onAnswer, required this.eliminatedIndices, required this.answerRevealed,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Column(children: List.generate(question.options.length, (i) {
       final isSelected = selectedIndex == i;
       final isCorrect = i == question.correctIndex;
+      final isEliminated = !answered && eliminatedIndices.contains(i);
+      final isHintedCorrect = !answered && answerRevealed && isCorrect;
       Color bg = AppColors.surface;
       Color border = AppColors.border;
       Color textColor = AppColors.textSecondary;
@@ -317,12 +469,17 @@ class _OptionsWidget extends StatelessWidget {
         if (isCorrect) { bg = const Color(0xFF052E1E); border = const Color(0xFF059669); textColor = const Color(0xFF6EE7B7); }
         else if (isSelected) { bg = const Color(0xFF1F0A0A); border = const Color(0xFFDC2626); textColor = const Color(0xFFFCA5A5); }
         else { opacity = 0.3; }
+      } else if (isHintedCorrect) {
+        border = const Color(0xFFE8960F);
+        bg = const Color(0xFF2D1E00);
+      } else if (isEliminated) {
+        opacity = 0.3;
       }
 
       return Padding(
         padding: const EdgeInsets.only(bottom: 10),
         child: GestureDetector(
-          onTap: answered ? null : () => onAnswer(i),
+          onTap: (answered || isEliminated) ? null : () => onAnswer(i),
           child: AnimatedOpacity(
             duration: const Duration(milliseconds: 200),
             opacity: opacity,
@@ -346,6 +503,7 @@ class _OptionsWidget extends StatelessWidget {
                 Expanded(child: Text(question.options[i], style: GoogleFonts.dmSans(fontSize: 13, color: textColor))),
                 if (answered && isCorrect) const Icon(Icons.check_circle_rounded, color: Color(0xFF059669), size: 16),
                 if (answered && isSelected && !isCorrect) const Icon(Icons.cancel_rounded, color: Color(0xFFDC2626), size: 16),
+                if (isHintedCorrect) const Icon(Icons.lightbulb_rounded, color: Color(0xFFE8960F), size: 16),
               ]),
             ),
           ),

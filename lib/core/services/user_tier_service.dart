@@ -75,6 +75,13 @@ class UserTierService {
   /// moment they cross a new threshold for the first time. Uses a
   /// transaction so concurrent likes/follows can't cause a missed or
   /// duplicate crossing detection.
+  ///
+  /// Also bumps the separate `socialScore` field by the same delta — this
+  /// is the user-FACING "Social Score" shown next to usernames app-wide.
+  /// Kept deliberately separate from `score` (which drives badge
+  /// eligibility and should stay exactly as calibrated) so that adding
+  /// comment-received points to socialScore later never accidentally
+  /// shifts who becomes eligible for a tier badge.
   static Future<void> adjustScore(String uid, int delta) async {
     final userRef = _db.collection('users').doc(uid);
     try {
@@ -83,7 +90,10 @@ class UserTierService {
         final oldScore = (snap.data()?['score'] as num?)?.toInt() ?? 0;
         final newScore = oldScore + delta;
         final displayName = snap.data()?['displayName'] as String? ?? 'A user';
-        txn.update(userRef, {'score': newScore});
+        txn.update(userRef, {
+          'score': newScore,
+          'socialScore': FieldValue.increment(delta),
+        });
 
         // Only worth checking on the way up -- losing points (an unlike/
         // unfollow) never newly crosses a threshold.
@@ -121,6 +131,20 @@ class UserTierService {
     } catch (_) {
       // Best-effort -- never let a scoring failure block the like/follow
       // action itself.
+    }
+  }
+
+  /// Adds a comment-received point to socialScore only — deliberately
+  /// does NOT touch `score`/badge eligibility, since a comment is much
+  /// easier to leave than a genuine like and shouldn't move someone
+  /// toward a tier badge the same way engagement does.
+  static Future<void> bumpSocialScoreForComment(String uid) async {
+    try {
+      await _db.collection('users').doc(uid).update({
+        'socialScore': FieldValue.increment(1),
+      });
+    } catch (_) {
+      // Best-effort — never block a comment on this.
     }
   }
 }

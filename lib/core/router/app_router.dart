@@ -15,13 +15,13 @@ import '../../features/auth/presentation/pages/subject_picker_page.dart';
 import '../../features/flashcards/presentation/pages/flashcards_page.dart';
 import '../../features/study_rooms/presentation/pages/study_rooms_page.dart';
 import '../../features/scholarship/presentation/pages/scholarship_page.dart';
+import '../../features/masterclass/presentation/pages/masterclass_page.dart';
 import '../../features/camera_scan/presentation/pages/camera_scan_page.dart';
 import '../../features/practice_test/presentation/pages/practice_test_page.dart';
 import '../../features/profile/presentation/pages/profile_settings_page.dart';
 import '../../features/auth/presentation/pages/student_type_page.dart';
 import '../../features/learning/presentation/pages/learning_map_page.dart';
 import '../../features/learning/presentation/pages/lesson_detail_page.dart';
-import '../../features/leaderboard/presentation/pages/compete_coming_soon_page.dart';
 import '../../features/insights/presentation/pages/insights_feed_page.dart';
 import '../../features/streak/presentation/pages/streak_celebration_page.dart';
 
@@ -50,12 +50,8 @@ class AppRouter {
   name: 'discover',
   builder: (context, state) => const InsightsFeedPage(),
 ),
-      GoRoute(
-  path: AppRoutes.leaderboard,
-  name: 'leaderboard',
-  builder: (c, s) => const CompeteComingSoonPage(),
-),
       GoRoute(path: AppRoutes.scholarship, name: 'scholarship', builder: (c, s) => const ScholarshipPage()),
+      GoRoute(path: '/masterclass', name: 'masterclass', builder: (c, s) => const MasterclassPage()),
       GoRoute(path: AppRoutes.cameraScan,  name: 'cameraScan',  builder: (c, s) => const CameraScanPage()),
       GoRoute(path: AppRoutes.practiceTest, name: 'practiceTest', builder: (c, s) => const PracticeTestPage()),
       GoRoute(path: '/settings', name: 'settings', builder: (c, s) => const ProfileSettingsPage()),
