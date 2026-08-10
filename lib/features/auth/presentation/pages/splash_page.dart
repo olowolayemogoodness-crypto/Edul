@@ -35,14 +35,19 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
       final hasOnboarded = prefs.getBool('has_onboarded') ?? false;
       var user = FirebaseAuth.instance.currentUser;
       if (user != null) {
+        // A failed/timed-out reload() does NOT mean the session is
+        // actually invalid -- it just means we couldn't refresh their
+        // profile data on this launch (network hiccup, slow connection,
+        // etc). Signing them out here was far too aggressive: it turned
+        // any transient reload failure into a real, destructive logout,
+        // every single time it happened. Falling back to the cached
+        // user instead matches the same fail-safe approach already used
+        // in auth_bloc.dart's own startup check.
         try {
           await user.reload().timeout(const Duration(seconds: 5), onTimeout: () {});
           user = FirebaseAuth.instance.currentUser;
         } catch (e) {
-          try {
-            await FirebaseAuth.instance.signOut();
-          } catch (_) {}
-          user = null;
+          // Keep the cached user -- don't sign out over a reload failure.
         }
       }
       if (!hasOnboarded) {

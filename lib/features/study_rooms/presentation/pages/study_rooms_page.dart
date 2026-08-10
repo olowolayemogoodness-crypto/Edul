@@ -10,6 +10,8 @@ import '../widgets/live_study_session_coming_soon_widget.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../../core/services/study_room_service.dart';
+import '../../../../core/services/voice_note_service.dart';
+import 'package:audioplayers/audioplayers.dart';
 
 enum _StudyTab { hub, focusSetup, focusActive, focusDone, rooms, inRoom, createRoom }
 class _Subject {
@@ -64,6 +66,7 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
   StudyRoom? _currentRoom;
   Timer? _roomExpiryWatch;
   bool _sendingAttachment = false;
+  bool _isRecording = false;
   final TextEditingController _roomTitleCtrl = TextEditingController();
   String? _roomCourseTag;
   int _roomMaxParticipants = 4;
@@ -182,6 +185,36 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
     setState(() => _sendingAttachment = true);
     try {
       await StudyRoomService.instance.sendImageMessage(roomId, File(picked.path));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    } finally {
+      if (mounted) setState(() => _sendingAttachment = false);
+    }
+  }
+
+  Future<void> _toggleVoiceRecording() async {
+    final roomId = _currentRoomId;
+    if (roomId == null) return;
+    if (!_isRecording) {
+      try {
+        await VoiceNoteService.startRecording();
+        HapticFeedback.mediumImpact();
+        setState(() => _isRecording = true);
+      } catch (e) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      }
+      return;
+    }
+    setState(() => _isRecording = false);
+    final result = await VoiceNoteService.stopRecording();
+    if (result == null) return; // too short / nothing recorded
+    setState(() => _sendingAttachment = true);
+    try {
+      await StudyRoomService.instance.sendVoiceMessage(
+        roomId, result.file,
+        durationMs: result.durationMs,
+        waveform: result.waveform,
+      );
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
     } finally {
@@ -877,6 +910,19 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
                 ),
               ),
               const SizedBox(width: 8),
+              GestureDetector(
+                onTap: _sendingAttachment ? null : _toggleVoiceRecording,
+                child: Container(
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(
+                    color: _isRecording ? const Color(0xFFDC2626) : AppColors.surface,
+                    border: Border.all(color: _isRecording ? const Color(0xFFDC2626) : AppColors.border),
+                    shape: BoxShape.circle),
+                  child: Icon(_isRecording ? Icons.stop_rounded : Icons.mic_none_rounded,
+                    size: 16, color: _isRecording ? Colors.white : AppColors.textTertiary),
+                ),
+              ),
+              const SizedBox(width: 8),
               Expanded(child: TextField(
                 controller: _chatCtrl,
                 style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textPrimary),
@@ -925,6 +971,14 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
             const SizedBox(width: 6),
             Flexible(child: Text(m.fileName ?? 'PDF file', style: GoogleFonts.dmSans(fontSize: 11, color: AppColors.textSecondary), overflow: TextOverflow.ellipsis)),
           ]),
+        );
+        break;
+      case StudyRoomMessageType.voice:
+        content = _VoiceMessageBubble(
+          audioUrl: m.content,
+          durationMs: m.durationMs ?? 0,
+          waveform: m.waveform ?? const [],
+          isMe: isMe,
         );
         break;
     }
@@ -1098,4 +1152,98 @@ class _RingPainter extends CustomPainter {
     canvas.drawArc(Rect.fromCircle(center: Offset(cx, cy), radius: r), -1.5708, progress * 6.2832, false, fg);
   }
   @override bool shouldRepaint(_RingPainter old) => old.progress != progress;
+}
+class _VoiceMessageBubble extends StatefulWidget {
+  final String audioUrl;
+  final int durationMs;
+  final List<double> waveform;
+  final bool isMe;
+  const _VoiceMessageBubble({
+    required this.audioUrl, required this.durationMs,
+    required this.waveform, required this.isMe,
+  });
+
+  @override
+  State<_VoiceMessageBubble> createState() => _VoiceMessageBubbleState();
+}
+
+class _VoiceMessageBubbleState extends State<_VoiceMessageBubble> {
+  final _player = AudioPlayer();
+  bool _playing = false;
+  Duration _position = Duration.zero;
+  StreamSubscription<Duration>? _posSub;
+  StreamSubscription<void>? _completeSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _posSub = _player.onPositionChanged.listen((p) {
+      if (mounted) setState(() => _position = p);
+    });
+    _completeSub = _player.onPlayerComplete.listen((_) {
+      if (mounted) setState(() { _playing = false; _position = Duration.zero; });
+    });
+  }
+
+  Future<void> _toggle() async {
+    if (_playing) {
+      await _player.pause();
+      setState(() => _playing = false);
+    } else {
+      await _player.play(UrlSource(widget.audioUrl));
+      setState(() => _playing = true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _posSub?.cancel();
+    _completeSub?.cancel();
+    _player.dispose();
+    super.dispose();
+  }
+
+  String _fmt(int ms) {
+    final secs = (ms / 1000).round();
+    final m = secs ~/ 60;
+    final s = secs % 60;
+    return '$m:${s.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = widget.isMe ? AppColors.accentLight : AppColors.textSecondary;
+    final progress = widget.durationMs > 0
+        ? (_position.inMilliseconds / widget.durationMs).clamp(0.0, 1.0) : 0.0;
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      GestureDetector(
+        onTap: _toggle,
+        child: Icon(_playing ? Icons.pause_circle_filled_rounded : Icons.play_circle_fill_rounded,
+          size: 26, color: color),
+      ),
+      const SizedBox(width: 8),
+      SizedBox(
+        width: 90, height: 24,
+        child: Row(children: widget.waveform.isEmpty
+          ? [Expanded(child: Container(height: 2, color: color.withOpacity(0.3)))]
+          : List.generate(widget.waveform.length, (i) {
+              final barActive = (i / widget.waveform.length) <= progress;
+              return Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 0.5),
+                  child: Container(
+                    height: (widget.waveform[i] * 20).clamp(3.0, 20.0),
+                    decoration: BoxDecoration(
+                      color: barActive ? color : color.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(2)),
+                  ),
+                ),
+              );
+            })),
+      ),
+      const SizedBox(width: 6),
+      Text(_playing ? _fmt(_position.inMilliseconds) : _fmt(widget.durationMs),
+        style: GoogleFonts.dmSans(fontSize: 9, color: color)),
+    ]);
+  }
 }

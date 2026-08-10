@@ -89,15 +89,17 @@ class StudyRoomParticipant {
   }
 }
 
-enum StudyRoomMessageType { text, image, pdf }
+enum StudyRoomMessageType { text, image, pdf, voice }
 
 class StudyRoomMessage {
   final String id;
   final String senderId;
   final String senderName;
   final StudyRoomMessageType type;
-  final String content; // text body, or the R2 URL for image/pdf
+  final String content; // text body, or the R2 URL for image/pdf/voice
   final String? fileName;
+  final int? durationMs; // voice notes only
+  final List<double>? waveform; // voice notes only
   final DateTime timestamp;
 
   const StudyRoomMessage({
@@ -107,6 +109,8 @@ class StudyRoomMessage {
     required this.type,
     required this.content,
     required this.fileName,
+    this.durationMs,
+    this.waveform,
     required this.timestamp,
   });
 
@@ -121,6 +125,8 @@ class StudyRoomMessage {
       type: StudyRoomMessageType.values.firstWhere((t) => t.name == d['type']),
       content: d['content'] as String,
       fileName: d['file_name'] as String?,
+      durationMs: d['duration_ms'] as int?,
+      waveform: (d['waveform'] as List<dynamic>?)?.map((e) => (e as num).toDouble()).toList(),
       timestamp: (d['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
@@ -308,6 +314,27 @@ class StudyRoomService {
       'type': 'pdf',
       'content': url,
       'file_name': file.uri.pathSegments.last,
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Voice note recording itself is handled by VoiceNoteService (same
+  /// recorder used for social feed comments) -- this just uploads the
+  /// resulting file through study-chat's own presigned Worker flow
+  /// (instead of the general post-upload Worker) and writes the message.
+  Future<void> sendVoiceMessage(String roomId, File file, {
+    required int durationMs,
+    required List<double> waveform,
+  }) async {
+    final url = await _uploadAttachment(roomId, file, contentType: 'audio/m4a');
+    await _rooms.doc(roomId).collection('messages').add({
+      'sender_id': _uid,
+      'sender_name': _senderDisplayName,
+      'type': 'voice',
+      'content': url,
+      'file_name': null,
+      'duration_ms': durationMs,
+      'waveform': waveform,
       'timestamp': FieldValue.serverTimestamp(),
     });
   }

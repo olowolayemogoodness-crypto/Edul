@@ -8,9 +8,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:video_player/video_player.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/post_image_upload_service.dart';
+import '../../../../core/services/post_video_upload_service.dart';
 import '../../../../core/services/premium_service.dart';
 import '../../../../core/services/user_service.dart';
 import '../../../../core/services/voice_note_service.dart';
@@ -28,6 +30,11 @@ class _PostComposerPageState extends State<PostComposerPage> {
   final _textCtrl = TextEditingController();
   final _picker = ImagePicker();
   final List<File> _images = [];
+  final PageController _imagePreviewController = PageController();
+  int _imagePreviewIndex = 0;
+  File? _video;
+  VideoPlayerController? _videoPreviewController;
+  String _uploadStatus = '';
   String _feedTarget = 'global';
   bool _posting = false;
   double _uploadProgress = 0.0;
@@ -41,7 +48,8 @@ class _PostComposerPageState extends State<PostComposerPage> {
   static const int _maxChars = 500;
   int get _maxImages => PremiumService.isPro ? 5 : 3;
   bool get _canPost =>
-      (_textCtrl.text.trim().isNotEmpty || _voiceNote != null) && !_posting;
+      (_textCtrl.text.trim().isNotEmpty || _voiceNote != null ||
+       _images.isNotEmpty || _video != null) && !_posting;
 
   @override
   void initState() {
@@ -53,6 +61,8 @@ class _PostComposerPageState extends State<PostComposerPage> {
   @override
   void dispose() {
     _textCtrl.dispose();
+    _imagePreviewController.dispose();
+    _videoPreviewController?.dispose();
     _recordTimer?.cancel();
     super.dispose();
   }
@@ -81,8 +91,52 @@ class _PostComposerPageState extends State<PostComposerPage> {
     final picked = await _picker.pickImage(
       source: ImageSource.gallery, imageQuality: 80, maxWidth: 1080);
     if (picked != null && mounted) {
-      setState(() => _images.add(File(picked.path)));
+      setState(() {
+        _images.add(File(picked.path));
+        _clearVideo(); // a post is either photos or a video, not both
+      });
     }
+  }
+
+  void _clearVideo() {
+    _videoPreviewController?.dispose();
+    _videoPreviewController = null;
+    _video = null;
+  }
+
+  Future<void> _pickVideo() async {
+    if (PremiumService.isFree) {
+      showPaywall(context,
+        triggerReason: 'Video posts are available on Plus and Pro.',
+        initialTier: 1);
+      return;
+    }
+    final picked = await _picker.pickVideo(
+      source: ImageSource.gallery,
+      maxDuration: const Duration(seconds: PostVideoUploadService.maxDurationSeconds),
+    );
+    if (picked == null || !mounted) return;
+
+    final controller = VideoPlayerController.file(File(picked.path));
+    try {
+      await controller.initialize();
+    } catch (e) {
+      controller.dispose();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Could not read that video: $e',
+            style: GoogleFonts.dmSans(fontSize: 13)),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating));
+      }
+      return;
+    }
+
+    setState(() {
+      _images.clear(); // a post is either photos or a video, not both
+      _video = File(picked.path);
+      _videoPreviewController = controller..setLooping(true)..play();
+    });
   }
 
   Future<void> _startRecording() async {
@@ -155,6 +209,16 @@ class _PostComposerPageState extends State<PostComposerPage> {
         );
       }
 
+      String? videoUrl;
+      if (_video != null) {
+        videoUrl = await PostVideoUploadService.compressAndUpload(
+          _video!,
+          onStatus: (status) {
+            if (mounted) setState(() => _uploadStatus = status);
+          },
+        );
+      }
+
       String? audioUrl;
       if (_voiceNote != null) {
         audioUrl = await VoiceNoteService.uploadVoiceNote(_voiceNote!.file);
@@ -173,12 +237,13 @@ class _PostComposerPageState extends State<PostComposerPage> {
         'studentType': studentType,
         'content': _textCtrl.text.trim(),
         'imageUrls': imageUrls,
+        if (videoUrl != null) 'videoUrl': videoUrl,
         if (audioUrl != null) 'audioUrl': audioUrl,
         if (audioUrl != null) 'durationMs': _voiceNote!.durationMs,
         if (audioUrl != null) 'waveform': _voiceNote!.waveform,
         if (widget.quotedPost != null) 'quotedPostId': widget.quotedPost!['id'],
         'feedTarget': _feedTarget,
-        'likes': 0, 'comments': 0, 'reposts': 0, 'views': 0,
+        'likeCount': 0, 'commentCount': 0, 'repostCount': 0, 'views': 0,
         'verified': false,
         'createdAt': FieldValue.serverTimestamp(),
       });
@@ -187,7 +252,7 @@ class _PostComposerPageState extends State<PostComposerPage> {
       Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
-      final message = _images.isNotEmpty || _voiceNote != null
+      final message = _images.isNotEmpty || _video != null || _voiceNote != null
           ? 'Failed to upload media: $e'
           : 'Failed to post: $e';
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -305,6 +370,14 @@ class _PostComposerPageState extends State<PostComposerPage> {
                               Text('${(_uploadProgress * 100).toInt()}%',
                                 style: GoogleFonts.dmSans(
                                   fontSize: 11, color: Colors.white70)),
+                            ] else if (_video != null && _uploadStatus.isNotEmpty) ...[
+                              const SizedBox(width: 6),
+                              Flexible(
+                                child: Text(_uploadStatus,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.dmSans(
+                                    fontSize: 11, color: Colors.white70)),
+                              ),
                             ],
                           ])
                         : Text('Post', style: GoogleFonts.dmSans(
@@ -339,35 +412,92 @@ class _PostComposerPageState extends State<PostComposerPage> {
                 ),
               ),
 
-            // Images area (top)
+            // Images area (top) -- single large swipeable preview, matching
+            // the approved mockup, rather than a row of small thumbnails.
             if (_images.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                 child: SizedBox(
-                  height: _images.length == 1 ? 200 : 120,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _images.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 8),
-                    itemBuilder: (_, i) => Stack(children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(14),
-                        child: Image.file(_images[i],
-                          width: _images.length == 1 ? double.infinity : 120,
-                          height: _images.length == 1 ? 200 : 120,
-                          fit: BoxFit.cover)),
-                      Positioned(top: 6, right: 6,
-                        child: GestureDetector(
-                          onTap: () => setState(() => _images.removeAt(i)),
-                          child: Container(
-                            width: 24, height: 24,
-                            decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.7),
-                              shape: BoxShape.circle),
-                            child: const Icon(Icons.close_rounded,
-                              size: 13, color: Colors.white)))),
-                    ]),
-                  ),
+                  height: 200,
+                  child: Stack(children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: PageView.builder(
+                        controller: _imagePreviewController,
+                        onPageChanged: (i) => setState(() => _imagePreviewIndex = i),
+                        itemCount: _images.length,
+                        itemBuilder: (_, i) => Image.file(_images[i],
+                          width: double.infinity, height: 200, fit: BoxFit.cover),
+                      ),
+                    ),
+                    Positioned(top: 8, right: 8,
+                      child: GestureDetector(
+                        onTap: () => setState(() {
+                          _images.removeAt(_imagePreviewIndex);
+                          if (_imagePreviewIndex >= _images.length && _imagePreviewIndex > 0) {
+                            _imagePreviewIndex--;
+                          }
+                        }),
+                        child: Container(
+                          width: 26, height: 26,
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.55),
+                            shape: BoxShape.circle),
+                          child: const Icon(Icons.close_rounded,
+                            size: 14, color: Colors.white)))),
+                    Positioned(bottom: 8, left: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.55),
+                          borderRadius: BorderRadius.circular(12)),
+                        child: Text('${_imagePreviewIndex + 1}/${_images.length}',
+                          style: GoogleFonts.dmSans(fontSize: 11, color: Colors.white)))),
+                  ]),
+                ),
+              ),
+
+            // Video preview -- mutually exclusive with images
+            if (_video != null && _videoPreviewController != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: SizedBox(
+                  height: 200,
+                  child: Stack(children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: SizedBox(
+                        width: double.infinity, height: 200,
+                        child: FittedBox(
+                          fit: BoxFit.cover,
+                          child: SizedBox(
+                            width: _videoPreviewController!.value.size.width,
+                            height: _videoPreviewController!.value.size.height,
+                            child: VideoPlayer(_videoPreviewController!),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(top: 8, right: 8,
+                      child: GestureDetector(
+                        onTap: () => setState(_clearVideo),
+                        child: Container(
+                          width: 26, height: 26,
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.55),
+                            shape: BoxShape.circle),
+                          child: const Icon(Icons.close_rounded,
+                            size: 14, color: Colors.white)))),
+                    Positioned(bottom: 8, left: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.55),
+                          borderRadius: BorderRadius.circular(12)),
+                        child: Text(
+                          '${_videoPreviewController!.value.duration.inSeconds}s',
+                          style: GoogleFonts.dmSans(fontSize: 11, color: Colors.white)))),
+                  ]),
                 ),
               ),
 
@@ -501,6 +631,20 @@ class _PostComposerPageState extends State<PostComposerPage> {
                       padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
                       child: Icon(
                         Icons.camera_alt_outlined,
+                        size: 22,
+                        color: PremiumService.isFree
+                            ? AppColors.accentLight.withOpacity(0.3)
+                            : AppColors.accentLight.withOpacity(0.85)),
+                    ),
+                  ),
+
+                  // Video button
+                  GestureDetector(
+                    onTap: _pickVideo,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(4, 10, 4, 10),
+                      child: Icon(
+                        Icons.videocam_outlined,
                         size: 22,
                         color: PremiumService.isFree
                             ? AppColors.accentLight.withOpacity(0.3)

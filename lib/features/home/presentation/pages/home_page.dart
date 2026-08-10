@@ -18,6 +18,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../auth/presentation/bloc/auth_state.dart';
 import '../../../../core/services/user_service.dart';
+import '../../../../core/services/social_streak_service.dart';
 import '../widgets/live_rooms_coming_soon_widget.dart';
 
 class HomePage extends StatefulWidget {
@@ -27,18 +28,39 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   int _activeIndex = 0;
   int _unreadSocial = 0;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _listenUnread();
     SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.light,
     ));
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    if (_activeIndex == 2) SocialStreakService.pauseTracking();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Pause/resume social-streak time tracking around backgrounding, so
+    // leaving the app open on the Social tab overnight doesn't falsely
+    // accumulate hours of "time spent".
+    if (_activeIndex != 2) return;
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      SocialStreakService.pauseTracking();
+    } else if (state == AppLifecycleState.resumed) {
+      SocialStreakService.startTracking();
+    }
   }
 
   void _listenUnread() {
@@ -78,10 +100,16 @@ class _HomePageState extends State<HomePage> {
                 activeIndex: _activeIndex,
                 unreadSocial: _unreadSocial,
                 onTap: (i) {
+                  final wasSocial = _activeIndex == 2;
                   setState(() {
                     _activeIndex = i;
                     if (i == 2) _unreadSocial = 0; // opened Social, clear badge
                   });
+                  if (wasSocial && i != 2) {
+                    SocialStreakService.pauseTracking();
+                  } else if (!wasSocial && i == 2) {
+                    SocialStreakService.startTracking();
+                  }
                 },
               ),
             ],

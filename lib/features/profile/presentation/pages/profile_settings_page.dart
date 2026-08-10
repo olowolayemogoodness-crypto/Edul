@@ -10,7 +10,6 @@ import '../../../auth/presentation/bloc/auth_event.dart';
 import '../../../auth/presentation/bloc/auth_state.dart';
 import '../../../../core/services/user_service.dart';
 import '../../../../core/services/account_deletion_service.dart';
-import '../../../../core/utils/paywall_helper.dart';
 import '../../../../core/services/theme_override_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -119,7 +118,7 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
       _card([
         _srow(Icons.person_outline_rounded, AppColors.accentSurface, AppColors.accentLight, 'Edit profile', 'Name, bio, school, photo', onTap: () => _go(_SettingsTab.editProfile)),
         _divider(),
-        _srow(Icons.workspace_premium_rounded, const Color(0xFF2D1E00), const Color(0xFFE8960F), 'Subscription', 'Free tier · Upgrade to Premium', onTap: () => showPaywall(context, triggerReason: 'Unlock Plus or Pro for the full Edulink experience.'), trailing: _pill('Upgrade', const Color(0xFF2D1E00), const Color(0xFFE8960F), const Color(0xFFC47D0E))),
+        _srow(Icons.workspace_premium_rounded, const Color(0xFF2D1E00), const Color(0xFFE8960F), 'Subscription', 'Free tier · Upgrade to Premium', onTap: () {}, trailing: _pill('Upgrade', const Color(0xFF2D1E00), const Color(0xFFE8960F), const Color(0xFFC47D0E))),
       ]),
 
       // Preferences

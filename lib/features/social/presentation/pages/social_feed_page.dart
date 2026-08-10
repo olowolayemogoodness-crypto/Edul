@@ -2,6 +2,7 @@
 
 import 'dart:async';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:video_player/video_player.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -14,6 +15,7 @@ import '../../../../core/services/post_interaction_service.dart';
 import '../../../../core/services/user_follow_service.dart';
 import '../../../../core/services/user_tier_service.dart';
 import '../../../../core/services/premium_service.dart';
+import '../../../../core/services/social_streak_service.dart';
 import '../../../../core/services/user_service.dart';
 import '../../../../core/services/voice_note_service.dart';
 import 'post_composer_page.dart';
@@ -107,10 +109,43 @@ class _SocialFeedPageState extends State<SocialFeedPage> {
         // themselves (Firestore rule blocks it on both create and update).
         return all.where((p) => p['verified'] == true).toList();
       } else {
-        // Global: only posts explicitly targeted at Global
-        return all.where((p) => p['feedTarget'] == 'global').toList();
+        // Global: only posts explicitly targeted at Global, but weighted
+        // so posts from people you follow surface more often -- not
+        // exclusively, since a feed that only ever shows followed users
+        // stops being a discovery surface. Roughly 2 followed-user posts
+        // for every 1 from someone else, each side keeping its own
+        // recency order from the underlying query.
+        final globalPosts = all.where((p) => p['feedTarget'] == 'global').toList();
+        return _rankByFollowing(globalPosts, myUid);
       }
     });
+  }
+
+  /// Interleaves posts from followed users ahead of others at roughly a
+  /// 2:1 ratio, preserving each group's original (recency) order rather
+  /// than fully re-sorting -- this keeps the feed feeling chronological
+  /// within each group while still surfacing followed accounts more.
+  List<Map<String, dynamic>> _rankByFollowing(List<Map<String, dynamic>> posts, String myUid) {
+    if (_myFollowing.isEmpty) return posts; // nothing to weight toward yet
+    final followed = <Map<String, dynamic>>[];
+    final others = <Map<String, dynamic>>[];
+    for (final p in posts) {
+      final uid = p['uid'] as String? ?? '';
+      if (uid == myUid || _myFollowing.contains(uid)) {
+        followed.add(p);
+      } else {
+        others.add(p);
+      }
+    }
+    final result = <Map<String, dynamic>>[];
+    int fi = 0, oi = 0;
+    while (fi < followed.length || oi < others.length) {
+      for (var k = 0; k < 2 && fi < followed.length; k++) {
+        result.add(followed[fi++]);
+      }
+      if (oi < others.length) result.add(others[oi++]);
+    }
+    return result;
   }
 
   @override
@@ -129,6 +164,8 @@ class _SocialFeedPageState extends State<SocialFeedPage> {
                 Text('Social', style: GoogleFonts.dmSans(
                   fontSize: 22, fontWeight: FontWeight.w700,
                   color: AppColors.textPrimary)),
+                const SizedBox(width: 8),
+                const _SocialStreakCapsule(),
                 const Spacer(),
                 GestureDetector(
                   onTap: () => Navigator.of(context).push(
@@ -824,8 +861,11 @@ class _PostCardState extends State<_PostCard> {
                   .toList(),
             ),
           ],
-          // Images
-          if (imageUrls.isNotEmpty) ...[
+          // Video or images (mutually exclusive, matching the composer)
+          if (post['videoUrl'] != null) ...[
+            const SizedBox(height: 10),
+            _FeedVideoPlayer(videoUrl: post['videoUrl'] as String),
+          ] else if (imageUrls.isNotEmpty) ...[
             const SizedBox(height: 10),
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
@@ -1724,6 +1764,122 @@ class _SocialSearchPageState extends State<SocialSearchPage> {
               ),
         ),
       ])),
+    );
+  }
+}
+class _FeedVideoPlayer extends StatefulWidget {
+  final String videoUrl;
+  const _FeedVideoPlayer({required this.videoUrl});
+
+  @override
+  State<_FeedVideoPlayer> createState() => _FeedVideoPlayerState();
+}
+
+class _FeedVideoPlayerState extends State<_FeedVideoPlayer> {
+  VideoPlayerController? _controller;
+  bool _loading = false;
+  bool _started = false;
+
+  // Deliberately NOT autoplaying or preloading -- a feed can hold many
+  // video posts at once, and initializing every controller simultaneously
+  // would burn bandwidth and battery for videos the user never actually
+  // watches. Only loads once tapped.
+  Future<void> _start() async {
+    if (_started) return;
+    setState(() { _started = true; _loading = true; });
+    final controller = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl));
+    try {
+      await controller.initialize();
+      if (!mounted) { controller.dispose(); return; }
+      setState(() { _controller = controller; _loading = false; });
+      controller
+        ..setLooping(true)
+        ..play();
+    } catch (_) {
+      if (mounted) setState(() { _loading = false; _started = false; });
+      controller.dispose();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: GestureDetector(
+        onTap: () {
+          if (_controller == null) {
+            _start();
+          } else {
+            setState(() => _controller!.value.isPlaying
+                ? _controller!.pause() : _controller!.play());
+          }
+        },
+        child: Container(
+          width: double.infinity, height: 200,
+          color: AppColors.surfaceVariant,
+          child: Stack(alignment: Alignment.center, children: [
+            if (_controller != null && _controller!.value.isInitialized)
+              SizedBox.expand(
+                child: FittedBox(
+                  fit: BoxFit.cover,
+                  child: SizedBox(
+                    width: _controller!.value.size.width,
+                    height: _controller!.value.size.height,
+                    child: VideoPlayer(_controller!),
+                  ),
+                ),
+              ),
+            if (_loading)
+              CircularProgressIndicator(color: AppColors.accent)
+            else if (_controller == null || !_controller!.value.isPlaying)
+              Container(
+                width: 48, height: 48,
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.5),
+                  shape: BoxShape.circle),
+                child: const Icon(Icons.play_arrow_rounded,
+                  color: Colors.white, size: 28)),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+// Deliberately no animation here, by design -- distinct from the Home
+// screen's streak celebration. Just a static fire-in-a-capsule badge,
+// small and quiet, next to the Social title.
+class _SocialStreakCapsule extends StatelessWidget {
+  const _SocialStreakCapsule();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<int>(
+      stream: SocialStreakService.streamCurrentStreak(),
+      builder: (context, snap) {
+        final streak = snap.data ?? 0;
+        if (streak <= 0) return const SizedBox.shrink();
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: const Color(0xFF2A1200),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            const Text('🔥', style: TextStyle(fontSize: 12)),
+            const SizedBox(width: 4),
+            Text('$streak', style: GoogleFonts.dmSans(
+              fontSize: 12, fontWeight: FontWeight.w600,
+              color: const Color(0xFFFF9F0A))),
+          ]),
+        );
+      },
     );
   }
 }
