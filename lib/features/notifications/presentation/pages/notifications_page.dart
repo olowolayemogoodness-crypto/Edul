@@ -128,6 +128,20 @@ class NotificationsPage extends StatelessWidget {
                         if (isUnread) {
                           NotificationService.markAsRead(n['id'] as String);
                         }
+                        final type = n['type'] as String?;
+                        final postId = n['postId'] as String?;
+                        // These are exactly the types that carry a real
+                        // postId -- comment/reply/like/repost/new_post
+                        // all point at a specific piece of content, so
+                        // "take me to the post" is the only sensible
+                        // destination. Other types (follow, welcome,
+                        // duel_challenge, etc.) don't have a post to go
+                        // to, so they're deliberately left as just
+                        // marking read for now.
+                        if (postId != null &&
+                            ['comment', 'reply', 'like_milestone', 'repost', 'new_post'].contains(type)) {
+                          context.push('/post/$postId');
+                        }
                       },
                       child: Container(
                         padding: const EdgeInsets.all(14),

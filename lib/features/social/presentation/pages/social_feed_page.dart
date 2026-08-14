@@ -18,8 +18,21 @@ import '../../../../core/services/premium_service.dart';
 import '../../../../core/services/social_streak_service.dart';
 import '../../../../core/services/user_service.dart';
 import '../../../../core/services/voice_note_service.dart';
+import '../../../../core/services/aspirants_engagement_service.dart';
+import '../../../../core/services/feed_video_watch_service.dart';
+import 'fullscreen_video_feed_page.dart';
 import 'post_composer_page.dart';
 
+
+// Username is the "active" identity on the feed once someone's claimed
+// one -- shown as @handle. Falls back to displayName for anyone who
+// hasn't set a username yet (it's optional, not everyone will have
+// claimed one immediately), so nothing shows blank.
+String _authorLabel(Map<String, dynamic> data) {
+  final username = data['usernameDisplay'] as String?;
+  if (username != null && username.trim().isNotEmpty) return '@$username';
+  return data['displayName'] as String? ?? 'User';
+}
 
 class SocialFeedPage extends StatefulWidget {
   const SocialFeedPage({super.key});
@@ -30,6 +43,10 @@ class SocialFeedPage extends StatefulWidget {
 
 class _SocialFeedPageState extends State<SocialFeedPage> {
   int _selectedTab = 0;
+  // Deliberately resets every time Aspirants is left and re-entered, not
+  // a one-time "seen it" flag -- the whole point is a clear speed bump
+  // each time, so it never gets mistaken for the main feed.
+  bool _aspirantsEntered = false;
   String _university = 'My Uni';
   String _universityFull = ''; // untruncated — used for the actual query filter
   Set<String> _myFollowing = {}; // who I follow — scopes repost visibility
@@ -73,6 +90,14 @@ class _SocialFeedPageState extends State<SocialFeedPage> {
     }
   }
 
+  // News (tab 2) is locked/verified-only -- nobody composes into it, so
+  // it isn't a real mapping target; falls back to Global if ever hit.
+  String _targetForTab(int tab) => switch (tab) {
+    1 => 'uni',
+    3 => 'aspirant',
+    _ => 'global',
+  };
+
   Stream<List<Map<String, dynamic>>> _postsStream() {
     // Deliberately a single orderBy with no combined where() — combining
     // where + orderBy on different fields requires a Firestore composite
@@ -108,6 +133,13 @@ class _SocialFeedPageState extends State<SocialFeedPage> {
         // News: verified posts only — locked down, no user can set this
         // themselves (Firestore rule blocks it on both create and update).
         return all.where((p) => p['verified'] == true).toList();
+      } else if (_selectedTab == 3) {
+        // Aspirants: deliberately NOT a general/global aspirant feed --
+        // scoped to the viewer's own university, same field the Uni tab
+        // already uses. A UNILAG student only ever sees UNILAG aspirant
+        // posts, not a mixed pool from every school.
+        return all.where((p) =>
+            p['feedTarget'] == 'aspirant' && p['university'] == _universityFull).toList();
       } else {
         // Global: only posts explicitly targeted at Global, but weighted
         // so posts from people you follow surface more often -- not
@@ -185,7 +217,7 @@ class _SocialFeedPageState extends State<SocialFeedPage> {
                   onTap: () async {
                     final result = await Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => const PostComposerPage()),
+                        builder: (_) => PostComposerPage(initialTarget: _targetForTab(_selectedTab))),
                     );
                     if (result == true && mounted) setState(() {});
                   },
@@ -212,13 +244,16 @@ class _SocialFeedPageState extends State<SocialFeedPage> {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 children: [
                   _Pill(label: 'Global', selected: _selectedTab == 0,
-                    onTap: () => setState(() => _selectedTab = 0)),
+                    onTap: () => setState(() { _selectedTab = 0; _aspirantsEntered = false; })),
                   const SizedBox(width: 8),
                   _Pill(label: _university, selected: _selectedTab == 1,
-                    onTap: () => setState(() => _selectedTab = 1)),
+                    onTap: () => setState(() { _selectedTab = 1; _aspirantsEntered = false; })),
                   const SizedBox(width: 8),
                   _Pill(label: 'News', selected: _selectedTab == 2,
-                    onTap: () => setState(() => _selectedTab = 2)),
+                    onTap: () => setState(() { _selectedTab = 2; _aspirantsEntered = false; })),
+                  const SizedBox(width: 8),
+                  _Pill(label: 'Aspirants', selected: _selectedTab == 3,
+                    onTap: () => setState(() => _selectedTab = 3)),
                 ],
               ),
             ),
@@ -227,7 +262,15 @@ class _SocialFeedPageState extends State<SocialFeedPage> {
 
             // Feed
             Expanded(
-              child: StreamBuilder<List<Map<String, dynamic>>>(
+              child: (_selectedTab == 3 && !_aspirantsEntered)
+                  ? _AspirantsGate(
+                      university: _university,
+                      onEnter: () {
+                        AspirantsEngagementService.recordEntry();
+                        setState(() => _aspirantsEntered = true);
+                      },
+                    )
+                  : StreamBuilder<List<Map<String, dynamic>>>(
                 stream: _postsStream(),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
@@ -250,17 +293,20 @@ class _SocialFeedPageState extends State<SocialFeedPage> {
 
                   if (posts.isEmpty) {
                     final isNews = _selectedTab == 2;
+                    final isAspirants = _selectedTab == 3;
                     return Center(
                       child: Column(mainAxisSize: MainAxisSize.min, children: [
-                        Text(isNews ? '📰' : '💬', style: const TextStyle(fontSize: 48)),
+                        Text(isNews ? '📰' : isAspirants ? '🎓' : '💬', style: const TextStyle(fontSize: 48)),
                         const SizedBox(height: 16),
-                        Text(isNews ? 'No news available yet' : 'No posts yet', style: GoogleFonts.dmSans(
+                        Text(isNews ? 'No news available yet' : isAspirants ? 'No questions yet' : 'No posts yet', style: GoogleFonts.dmSans(
                           fontSize: 16, fontWeight: FontWeight.w600,
                           color: AppColors.textPrimary)),
                         const SizedBox(height: 8),
                         Text(isNews
                             ? 'Official updates and announcements will appear here'
-                            : 'Be the first to post something!',
+                            : isAspirants
+                                ? 'Be the first to ask something about $_university'
+                                : 'Be the first to post something!',
                           style: GoogleFonts.dmSans(
                             fontSize: 13, color: AppColors.textTertiary)),
                         if (!isNews) ...[
@@ -268,7 +314,7 @@ class _SocialFeedPageState extends State<SocialFeedPage> {
                           GestureDetector(
                             onTap: () => Navigator.of(context).push(
                               MaterialPageRoute(
-                                builder: (_) => const PostComposerPage())),
+                                builder: (_) => PostComposerPage(initialTarget: _targetForTab(_selectedTab)))),
                             child: Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 20, vertical: 10),
@@ -320,6 +366,54 @@ class _SocialFeedPageState extends State<SocialFeedPage> {
 // ─────────────────────────────────────────────────────────────────────────────
 // Pill tab
 // ─────────────────────────────────────────────────────────────────────────────
+// A deliberate speed bump before entering Aspirants -- distinct enough
+// (different background, its own headline) that nobody mistakes it for
+// the main feed, and it re-appears every time this tab is re-entered,
+// not just the first time ever.
+class _AspirantsGate extends StatelessWidget {
+  final String university;
+  final VoidCallback onEnter;
+  const _AspirantsGate({required this.university, required this.onEnter});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: const Color(0xFF120B1F),
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Text('🎓', style: TextStyle(fontSize: 48)),
+            const SizedBox(height: 18),
+            Text('Aspirants', style: GoogleFonts.dmSans(
+              fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white)),
+            const SizedBox(height: 8),
+            Text(
+              "A space for people hoping to get into $university — ask "
+              "current students what it's really like.",
+              textAlign: TextAlign.center,
+              style: GoogleFonts.dmSans(fontSize: 13, color: Colors.white60, height: 1.5),
+            ),
+            const SizedBox(height: 28),
+            GestureDetector(
+              onTap: onEnter,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF9333EA),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Text('Enter Aspirants', style: GoogleFonts.dmSans(
+                  fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white)),
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
 class _Pill extends StatelessWidget {
   final String label;
   final bool selected;
@@ -483,7 +577,7 @@ class _QuotedPostPreview extends StatelessWidget {
               fontSize: 12, color: AppColors.textTertiary)));
         }
         final data = snap.data!.data() as Map<String, dynamic>;
-        final name = data['displayName'] as String? ?? 'User';
+        final name = _authorLabel(data);
         final content = data['content'] as String? ?? '';
         final imageUrls = (data['imageUrls'] as List<dynamic>?) ?? [];
         return Container(
@@ -728,18 +822,16 @@ class _PostCardState extends State<_PostCard> {
   }
 
   void _openUserProfile(BuildContext context, Map<String, dynamic> post) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _UserProfileSheet(
+    Navigator.push(context, MaterialPageRoute(
+      builder: (_) => _UserProfilePage(
         uid: post['uid'] as String? ?? '',
         displayName: post['displayName'] as String? ?? 'User',
+        usernameDisplay: post['usernameDisplay'] as String?,
         university: post['university'] as String? ?? '',
         course: post['course'] as String? ?? '',
         verified: post['verified'] as bool? ?? false,
       ),
-    );
+    ));
   }
 
   @override
@@ -752,7 +844,7 @@ class _PostCardState extends State<_PostCard> {
     // it, not to this reposter.
     if (post['type'] == 'repost') {
       final originalId = post['originalPostId'] as String?;
-      final reposterName = post['displayName'] as String? ?? 'User';
+      final reposterName = _authorLabel(post);
       if (originalId == null) return const SizedBox.shrink();
       return StreamBuilder<DocumentSnapshot>(
         stream: FirebaseFirestore.instance.collection('posts').doc(originalId).snapshots(),
@@ -777,6 +869,7 @@ class _PostCardState extends State<_PostCard> {
 
     final postId = post['id'] as String;
     final displayName = post['displayName'] as String? ?? 'User';
+    final authorLabel = _authorLabel(post);
     final uid = post['uid'] as String? ?? '';
     final content = post['content'] as String? ?? '';
     final views = post['views'] as int? ?? 0;
@@ -811,7 +904,7 @@ class _PostCardState extends State<_PostCard> {
             Flexible(
               child: GestureDetector(
                 onTap: () => _openUserProfile(context, post),
-                child: Text(displayName, style: GoogleFonts.dmSans(
+                child: Text(authorLabel, style: GoogleFonts.dmSans(
                   fontSize: 14, fontWeight: FontWeight.w600,
                   color: AppColors.textPrimary),
                   overflow: TextOverflow.ellipsis),
@@ -864,7 +957,7 @@ class _PostCardState extends State<_PostCard> {
           // Video or images (mutually exclusive, matching the composer)
           if (post['videoUrl'] != null) ...[
             const SizedBox(height: 10),
-            _FeedVideoPlayer(videoUrl: post['videoUrl'] as String),
+            _FeedVideoPlayer(videoUrl: post['videoUrl'] as String, postId: post['id'] as String),
           ] else if (imageUrls.isNotEmpty) ...[
             const SizedBox(height: 10),
             ClipRRect(
@@ -1115,6 +1208,7 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                     final c = comments[i];
                     final commentId = c['id'] as String;
                     final name = c['displayName'] as String? ?? 'User';
+                    final commentAuthorLabel = _authorLabel(c);
                     final audioUrl = c['audioUrl'] as String?;
                     final isVoice = audioUrl != null && audioUrl.isNotEmpty;
 
@@ -1137,7 +1231,7 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                           Row(children: [
-                            Text(name, style: GoogleFonts.dmSans(
+                            Text(commentAuthorLabel, style: GoogleFonts.dmSans(
                               fontSize: 13, fontWeight: FontWeight.w600,
                               color: AppColors.textPrimary)),
                             _TierBadge(uid: c['uid'] as String? ?? ''),
@@ -1305,16 +1399,18 @@ Future<int> _fetchPostCount(String uid) async {
   }
 }
 
-class _UserProfileSheet extends StatelessWidget {
+class _UserProfilePage extends StatelessWidget {
   final String uid;
   final String displayName;
+  final String? usernameDisplay;
   final String university;
   final String course;
   final bool verified;
 
-  const _UserProfileSheet({
+  const _UserProfilePage({
     required this.uid,
     required this.displayName,
+    this.usernameDisplay,
     required this.university,
     required this.course,
     required this.verified,
@@ -1339,25 +1435,46 @@ class _UserProfileSheet extends StatelessWidget {
     return colors[uid.hashCode.abs() % colors.length];
   }
 
+  void _openPost(BuildContext context, Map<String, dynamic> post) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.85, minChildSize: 0.5, maxChildSize: 0.95,
+        expand: false,
+        builder: (_, scrollController) => Container(
+          decoration: BoxDecoration(
+            color: AppColors.background,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: SingleChildScrollView(
+            controller: scrollController,
+            padding: const EdgeInsets.all(16),
+            child: _PostCard(post: post),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isSelf = UserService.uid != null && UserService.uid == uid;
 
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.5,
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.background,
+        elevation: 0,
+        title: Text(displayName, style: GoogleFonts.dmSans(
+          fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
       ),
-      child: SafeArea(
-        child: Column(children: [
-          const SizedBox(height: 8),
-          Container(width: 36, height: 4,
-            decoration: BoxDecoration(color: AppColors.border,
-              borderRadius: BorderRadius.circular(2))),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+      body: CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
               child: Column(children: [
                 Container(
                   width: 72, height: 72,
@@ -1383,6 +1500,11 @@ class _UserProfileSheet extends StatelessWidget {
                         size: 11, color: Colors.white)),
                   ],
                 ]),
+                if (usernameDisplay != null && usernameDisplay!.trim().isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text('@$usernameDisplay', style: GoogleFonts.dmSans(
+                    fontSize: 13, color: AppColors.accentLight)),
+                ],
                 const SizedBox(height: 4),
                 if (university.isNotEmpty)
                   Text(course.isNotEmpty ? '$university · $course' : university,
@@ -1435,7 +1557,77 @@ class _UserProfileSheet extends StatelessWidget {
               ]),
             ),
           ),
-        ]),
+          SliverToBoxAdapter(
+            child: Container(height: 0.5, color: AppColors.border, margin: const EdgeInsets.only(bottom: 2)),
+          ),
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('posts')
+                .where('uid', isEqualTo: uid)
+                .orderBy('createdAt', descending: true)
+                .snapshots(),
+            builder: (context, snap) {
+              if (snap.connectionState == ConnectionState.waiting) {
+                return const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.all(40),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                );
+              }
+              final docs = snap.data?.docs ?? [];
+              if (docs.isEmpty) {
+                return SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.all(40),
+                    child: Center(child: Text('No posts yet',
+                      style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textTertiary))),
+                  ),
+                );
+              }
+              return SliverPadding(
+                padding: const EdgeInsets.all(2),
+                sliver: SliverGrid(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3, crossAxisSpacing: 2, mainAxisSpacing: 2,
+                  ),
+                  delegate: SliverChildBuilderDelegate(
+                    (context, i) {
+                      final data = docs[i].data() as Map<String, dynamic>;
+                      final post = {...data, 'id': docs[i].id};
+                      final imageUrls = (post['imageUrls'] as List<dynamic>?) ?? [];
+                      final videoUrl = post['videoUrl'] as String?;
+                      final audioUrl = post['audioUrl'] as String?;
+                      final content = post['content'] as String? ?? '';
+
+                      return GestureDetector(
+                        onTap: () => _openPost(context, post),
+                        child: Container(
+                          color: AppColors.surface,
+                          child: imageUrls.isNotEmpty
+                              ? Image.network(imageUrls.first as String, fit: BoxFit.cover)
+                              : videoUrl != null
+                                  ? Center(child: Icon(Icons.play_circle_fill_rounded, color: AppColors.textTertiary, size: 28))
+                                  : audioUrl != null
+                                      ? Center(child: Icon(Icons.graphic_eq_rounded, color: AppColors.textTertiary, size: 24))
+                                      : Padding(
+                                          padding: const EdgeInsets.all(8),
+                                          child: Text(content,
+                                            maxLines: 5,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textSecondary)),
+                                        ),
+                        ),
+                      );
+                    },
+                    childCount: docs.length,
+                  ),
+                ),
+              );
+            },
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 24)),
+        ],
       ),
     );
   }
@@ -1738,16 +1930,15 @@ class _SocialSearchPageState extends State<SocialSearchPage> {
                           fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
                         subtitle: Text(u['university'] as String? ?? '', style: GoogleFonts.dmSans(
                           fontSize: 12, color: AppColors.textTertiary)),
-                        onTap: () => showModalBottomSheet(
-                          context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
-                          builder: (_) => _UserProfileSheet(
+                        onTap: () => Navigator.push(context, MaterialPageRoute(
+                          builder: (_) => _UserProfilePage(
                             uid: u['uid'] as String? ?? '',
                             displayName: u['displayName'] as String? ?? 'User',
                             university: u['university'] as String? ?? '',
                             course: u['course'] as String? ?? '',
                             verified: false,
                           ),
-                        ),
+                        )),
                       )),
                     ],
                     if (posts.isNotEmpty) ...[
@@ -1769,7 +1960,8 @@ class _SocialSearchPageState extends State<SocialSearchPage> {
 }
 class _FeedVideoPlayer extends StatefulWidget {
   final String videoUrl;
-  const _FeedVideoPlayer({required this.videoUrl});
+  final String postId;
+  const _FeedVideoPlayer({required this.videoUrl, required this.postId});
 
   @override
   State<_FeedVideoPlayer> createState() => _FeedVideoPlayerState();
@@ -1795,6 +1987,7 @@ class _FeedVideoPlayerState extends State<_FeedVideoPlayer> {
       controller
         ..setLooping(true)
         ..play();
+      FeedVideoWatchService.recordWatch();
     } catch (_) {
       if (mounted) setState(() { _loading = false; _started = false; });
       controller.dispose();
@@ -1820,6 +2013,9 @@ class _FeedVideoPlayerState extends State<_FeedVideoPlayer> {
                 ? _controller!.pause() : _controller!.play());
           }
         },
+        onDoubleTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => FullscreenVideoFeedPage(initialPostId: widget.postId)),
+        ),
         child: Container(
           width: double.infinity, height: 200,
           color: AppColors.surfaceVariant,

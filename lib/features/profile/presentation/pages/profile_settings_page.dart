@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -9,9 +10,15 @@ import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../auth/presentation/bloc/auth_event.dart';
 import '../../../auth/presentation/bloc/auth_state.dart';
 import '../../../../core/services/user_service.dart';
+import '../../../../core/services/username_service.dart';
 import '../../../../core/services/account_deletion_service.dart';
 import '../../../../core/services/theme_override_service.dart';
+import '../../../../core/services/default_screen_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import '../../../../core/services/post_image_upload_service.dart';
+import '../../../../core/widgets/user_avatar.dart';
 
 enum _SettingsTab { main, editProfile, notifications, privacy }
 
@@ -38,6 +45,63 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
   late final TextEditingController _bioCtrl = TextEditingController();
   late final TextEditingController _schoolCtrl = TextEditingController();
   late final TextEditingController _courseCtrl = TextEditingController();
+  late final TextEditingController _usernameCtrl = TextEditingController();
+  String? _usernameError;
+  bool? _usernameAvailable;
+  bool _checkingUsername = false;
+  Timer? _usernameDebounce;
+
+  String? _photoUrl;
+  bool _uploadingPhoto = false;
+
+  @override
+  void initState() {
+    super.initState();
+    UserService.getProfile().then((profile) {
+      final saved = profile?['usernameDisplay'] as String? ?? profile?['username'] as String?;
+      final photo = profile?['photoUrl'] as String?;
+      if (mounted) setState(() {
+        if (saved != null) _usernameCtrl.text = saved;
+        _photoUrl = photo;
+      });
+    });
+  }
+
+  Future<void> _changePhoto() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85, maxWidth: 1024);
+    if (picked == null || !mounted) return;
+
+    setState(() => _uploadingPhoto = true);
+    try {
+      final urls = await PostImageUploadService.uploadAll([File(picked.path)]);
+      if (urls.isEmpty) throw Exception('Upload returned no URL');
+      await UserService.updateProfile(photoUrl: urls.first);
+      if (mounted) setState(() => _photoUrl = urls.first);
+    } catch (e) {
+      debugPrint('[ProfileSettings] Photo upload failed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: const Text('Could not upload photo'),
+          action: SnackBarAction(label: 'Try again', onPressed: _changePhoto),
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _uploadingPhoto = false);
+    }
+  }
+
+  void _onUsernameChanged(String value) {
+    _usernameDebounce?.cancel();
+    setState(() { _usernameAvailable = null; _usernameError = UsernameService.validationError(value); });
+    if (value.trim().isEmpty || _usernameError != null) return;
+    _usernameDebounce = Timer(const Duration(milliseconds: 500), () async {
+      setState(() => _checkingUsername = true);
+      final available = await UsernameService.isAvailable(value);
+      if (mounted) setState(() { _usernameAvailable = available; _checkingUsername = false; });
+    });
+  }
+
   void _go(_SettingsTab tab) { HapticFeedback.selectionClick(); setState(() => _tab = tab); }
 
   String get _displayName {
@@ -80,6 +144,8 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
     _bioCtrl.dispose();
     _schoolCtrl.dispose();
     _courseCtrl.dispose();
+    _usernameCtrl.dispose();
+    _usernameDebounce?.cancel();
     super.dispose();
   }
 
@@ -129,6 +195,8 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
         _srow(Icons.shield_outlined, AppColors.surfaceVariant, AppColors.textSecondary, 'Privacy', 'Who can see your profile', onTap: () => _go(_SettingsTab.privacy)),
         _divider(),
         _srow(Icons.palette_outlined, AppColors.surfaceVariant, AppColors.textSecondary, 'Appearance', 'Auto follows a 7am\u20133pm schedule', onTap: () => _showThemePicker(context), trailing: Text(ThemeOverrideService.label, style: GoogleFonts.dmSans(fontSize: 11, color: AppColors.textTertiary))),
+        _divider(),
+        _srow(Icons.home_outlined, AppColors.surfaceVariant, AppColors.textSecondary, 'Default screen', 'Which tab opens when you launch the app', onTap: () => _showDefaultScreenPicker(context), trailing: Text(DefaultScreenService.label, style: GoogleFonts.dmSans(fontSize: 11, color: AppColors.textTertiary))),
       ]),
 
       // Study & learning
@@ -169,6 +237,19 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
       _header('Edit profile', onBack: () => _go(_SettingsTab.main), action: GestureDetector(
         onTap: () async {
           HapticFeedback.lightImpact();
+          if (_usernameCtrl.text.trim().isNotEmpty) {
+            if (_usernameError != null || _usernameAvailable == false) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Fix your username before saving')));
+              return;
+            }
+            final result = await UsernameService.claimUsername(_usernameCtrl.text);
+            if (result == UsernameClaimResult.taken && mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('That username was just taken — try another')));
+              return;
+            }
+          }
           await UserService.updateDisplayName(nameCtrl.text.trim());
           await UserService.updateProfile(bio: bioCtrl.text.trim(), school: schoolCtrl.text.trim(), course: courseCtrl.text.trim());
           if (mounted) context.read<AuthBloc>().add(const AuthStarted());
@@ -179,18 +260,58 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
       Expanded(child: SingleChildScrollView(padding: const EdgeInsets.all(14), child: Column(children: [
         // Avatar
         Column(children: [
-          Stack(children: [
-            Container(width: 76, height: 76, decoration: BoxDecoration(color: AppColors.accentSurface, shape: BoxShape.circle, border: Border.all(color: AppColors.accent, width: 3)),
-              child: Center(child: Text(_initials, style: GoogleFonts.dmSans(fontSize: 22, fontWeight: FontWeight.w500, color: AppColors.accentLight)))),
-            Positioned(bottom: 0, right: 0, child: Container(width: 26, height: 26, decoration: BoxDecoration(color: AppColors.accent, shape: BoxShape.circle, border: Border.all(color: AppColors.background, width: 2)),
-              child: const Icon(Icons.camera_alt_rounded, size: 12, color: Colors.white))),
-          ]),
+          GestureDetector(
+            onTap: _uploadingPhoto ? null : _changePhoto,
+            child: Stack(children: [
+              Container(width: 76, height: 76, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: AppColors.accent, width: 3)),
+                padding: const EdgeInsets.all(2),
+                child: _uploadingPhoto
+                    ? const Center(child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2)))
+                    : UserAvatar(photoUrl: _photoUrl, name: _displayName, size: 68)),
+              Positioned(bottom: 0, right: 0, child: Container(width: 26, height: 26, decoration: BoxDecoration(color: AppColors.accent, shape: BoxShape.circle, border: Border.all(color: AppColors.background, width: 2)),
+                child: const Icon(Icons.camera_alt_rounded, size: 12, color: Colors.white))),
+            ]),
+          ),
           const SizedBox(height: 6),
           Text('Change photo', style: GoogleFonts.dmSans(fontSize: 11, color: AppColors.accentLight)),
         ]),
         const SizedBox(height: 20),
 
         _editField('Display name', nameCtrl),
+        const SizedBox(height: 10),
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('USERNAME', style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w500, color: AppColors.textTertiary, letterSpacing: 0.5)),
+          const SizedBox(height: 5),
+          TextField(
+            controller: _usernameCtrl,
+            onChanged: _onUsernameChanged,
+            style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textPrimary),
+            decoration: InputDecoration(
+              prefixText: '@',
+              prefixStyle: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textTertiary),
+              filled: true, fillColor: AppColors.surface,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.border)),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.border)),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.accent)),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+              suffixIcon: _checkingUsername
+                  ? const Padding(padding: EdgeInsets.all(14), child: SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)))
+                  : _usernameAvailable == true
+                      ? Icon(Icons.check_circle_rounded, color: AppColors.success, size: 20)
+                      : _usernameAvailable == false
+                          ? Icon(Icons.cancel_rounded, color: AppColors.error, size: 20)
+                          : null,
+            ),
+          ),
+          if (_usernameError != null) Padding(
+            padding: const EdgeInsets.only(top: 5),
+            child: Text(_usernameError!, style: GoogleFonts.dmSans(fontSize: 11, color: AppColors.error)),
+          )
+          else if (_usernameAvailable == false) Padding(
+            padding: const EdgeInsets.only(top: 5),
+            child: Text('Already taken', style: GoogleFonts.dmSans(fontSize: 11, color: AppColors.error)),
+          ),
+        ]),
         const SizedBox(height: 10),
         _editFieldMultiline('Bio', bioCtrl),
         const SizedBox(height: 10),
@@ -332,6 +453,52 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
     );
   }
 
+  void _showDefaultScreenPicker(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (sheetContext) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const SizedBox(height: 8),
+          Container(width: 36, height: 4,
+            decoration: BoxDecoration(color: AppColors.border,
+              borderRadius: BorderRadius.circular(2))),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+            child: Align(alignment: Alignment.centerLeft,
+              child: Text('Default screen', style: GoogleFonts.dmSans(
+                fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary))),
+          ),
+          for (var i = 0; i < DefaultScreenService.allLabels.length; i++)
+            _defaultScreenOption(sheetContext, i),
+          const SizedBox(height: 8),
+        ]),
+      ),
+    );
+  }
+
+  static const List<IconData> _screenIcons = [
+    Icons.home_rounded, Icons.groups_rounded, Icons.dynamic_feed_rounded,
+    Icons.explore_rounded, Icons.person_rounded,
+  ];
+
+  Widget _defaultScreenOption(BuildContext sheetContext, int index) {
+    final selected = DefaultScreenService.index == index;
+    return ListTile(
+      leading: Icon(_screenIcons[index], color: selected ? AppColors.accent : AppColors.textTertiary),
+      title: Text(DefaultScreenService.allLabels[index], style: GoogleFonts.dmSans(
+        fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
+      trailing: selected ? Icon(Icons.check_circle_rounded, color: AppColors.accent) : null,
+      onTap: () async {
+        await DefaultScreenService.setIndex(index);
+        if (sheetContext.mounted) Navigator.pop(sheetContext);
+        setState(() {});
+      },
+    );
+  }
+
   void _showDeleteAccountDialog(BuildContext context) {
     final passwordCtrl = TextEditingController();
     bool obscure = true;
@@ -469,8 +636,13 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
     decoration: BoxDecoration(color: active ? AppColors.accentSurface : Colors.transparent, borderRadius: BorderRadius.circular(12), border: active ? Border.all(color: const Color(0xFF2D1B6B), width: 0.5) : null),
     child: Row(children: [
-      Container(width: 40, height: 40, decoration: BoxDecoration(color: AppColors.accentSurface, shape: BoxShape.circle, border: Border.all(color: active ? AppColors.accent : AppColors.border, width: 2)),
-        child: Center(child: Text(initials, style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.accentLight)))),
+      Container(
+        width: 40, height: 40,
+        decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: active ? AppColors.accent : AppColors.border, width: 2)),
+        padding: const EdgeInsets.all(1.5),
+        child: UserAvatar(photoUrl: _photoUrl, name: name, size: 33,
+          backgroundColor: AppColors.accentSurface, textColor: AppColors.accentLight),
+      ),
       const SizedBox(width: 10),
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(name, style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),

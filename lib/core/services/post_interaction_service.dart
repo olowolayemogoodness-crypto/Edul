@@ -11,6 +11,21 @@
 //
 // Comments work the same way: posts/{postId}/comments/{commentId}.
 //
+// GROUP POST SUPPORT — likes, comments, and comment interactions now
+// accept an optional `collectionPath` (defaults to 'posts', the exact
+// existing behavior — nothing about the main feed changes unless this
+// is explicitly overridden). Passing 'groups/$groupId/posts' routes
+// every read/write to that group's own posts subcollection instead.
+// Reposts are deliberately NOT extended this way — reposting assumes a
+// Global/Uni/Aspirants feedTarget, which doesn't apply to groups.
+//
+// Notifications for likes/comments are skipped when collectionPath
+// isn't 'posts' -- those notifications deep-link to /post/{id}, which
+// only knows how to render main-feed posts. Firing that link for a
+// group post would point at a broken page (the same class of mistake
+// already caught once tonight for the composer's follower notification).
+// Social-score bumps still fire either way -- no broken link risk there.
+//
 // Firestore rules required — ADD these nested inside your existing
 // `match /posts/{postId} { ... }` block (don't replace what's there,
 // just add these three nested matches alongside it):
@@ -35,6 +50,11 @@
 //       allow create, delete: if request.auth != null && request.auth.uid == uid;
 //     }
 //   }
+//
+// The SAME three nested matches (likes/reposts/comments) also need to
+// exist inside your `match /groups/{groupId} { match /posts/{postId} { ... } }`
+// block for group posts to support likes/comments -- identical rule
+// bodies, just nested one level deeper.
 //
 // Post deletion reuses your EXISTING posts rule (owner-only update/delete)
 // — no rule change needed for that part.
@@ -105,18 +125,18 @@ class PostInteractionService {
   PostInteractionService._();
 
   static final _db = FirebaseFirestore.instance;
-  static CollectionReference _posts() => _db.collection('posts');
+  static CollectionReference _posts([String collectionPath = 'posts']) => _db.collection(collectionPath);
 
   // ── Likes ──────────────────────────────────────────────────────────────
-  static Stream<bool> isLikedByMe(String postId) {
+  static Stream<bool> isLikedByMe(String postId, {String collectionPath = 'posts'}) {
     final uid = UserService.uid;
     if (uid == null) return Stream.value(false);
-    return _posts().doc(postId).collection('likes').doc(uid)
+    return _posts(collectionPath).doc(postId).collection('likes').doc(uid)
         .snapshots().map((d) => d.exists);
   }
 
-  static Stream<int> likeCount(String postId) {
-    return _posts().doc(postId).snapshots()
+  static Stream<int> likeCount(String postId, {String collectionPath = 'posts'}) {
+    return _posts(collectionPath).doc(postId).snapshots()
         .map((d) => (d.data() as Map<String, dynamic>?)?['likeCount'] as int? ?? 0);
   }
 
@@ -124,11 +144,11 @@ class PostInteractionService {
   // notification, instead of one notification per single like.
   static const List<int> _likeMilestones = [1, 10, 50, 100, 500, 1000, 5000, 10000, 50000];
 
-  static Future<void> toggleLike(String postId, String postOwnerUid) async {
+  static Future<void> toggleLike(String postId, String postOwnerUid, {String collectionPath = 'posts'}) async {
     final uid = UserService.uid;
     if (uid == null) return;
-    final likeRef = _posts().doc(postId).collection('likes').doc(uid);
-    final postRef = _posts().doc(postId);
+    final likeRef = _posts(collectionPath).doc(postId).collection('likes').doc(uid);
+    final postRef = _posts(collectionPath).doc(postId);
     final doc = await likeRef.get();
 
     if (doc.exists) {
@@ -156,7 +176,7 @@ class PostInteractionService {
 
     if (uid != postOwnerUid) {
       await UserTierService.adjustScore(postOwnerUid, 2);
-      if (_likeMilestones.contains(newCount)) {
+      if (collectionPath == 'posts' && _likeMilestones.contains(newCount)) {
         await NotificationService.createLikeMilestoneNotification(
           targetUid: postOwnerUid,
           postId: postId,
@@ -166,7 +186,8 @@ class PostInteractionService {
     }
   }
 
-  // ── Reposts ────────────────────────────────────────────────────────────
+  // ── Reposts (main feed only -- reposting assumes a Global/Uni/Aspirants
+  // feedTarget, which doesn't apply to groups) ────────────────────────────
   static Stream<bool> isRepostedByMe(String postId) {
     final uid = UserService.uid;
     if (uid == null) return Stream.value(false);
@@ -186,6 +207,8 @@ class PostInteractionService {
   }) async {
     final uid = UserService.uid;
     if (uid == null) return;
+    final myProfile = await UserService.getProfile();
+    final myUsernameDisplay = myProfile?['usernameDisplay'] as String?;
     final ref = _posts().doc(postId).collection('reposts').doc(uid);
     // Deterministic ID so we can find-and-delete this pointer without an
     // extra query. This pointer is what makes the repost show up in the
@@ -207,6 +230,7 @@ class PostInteractionService {
         'originalPostId': postId,
         'uid': uid,
         'displayName': myDisplayName,
+        'usernameDisplay': myUsernameDisplay,
         'university': myUniversity,
         'feedTarget': feedTarget,
         'verified': false,
@@ -214,6 +238,12 @@ class PostInteractionService {
       });
       await _posts().doc(postId).update({'repostCount': FieldValue.increment(1)});
       await _notifyPostOwnerOfRepost(postId);
+      await NotificationService.notifyFollowersOfNewContent(
+        posterUid: uid,
+        posterName: myDisplayName,
+        postId: postId,
+        title: '$myDisplayName reposted something',
+      );
     }
   }
 
@@ -234,13 +264,13 @@ class PostInteractionService {
   }
 
   // ── Comments ───────────────────────────────────────────────────────────
-  static Stream<int> commentCount(String postId) {
-    return _posts().doc(postId).snapshots()
+  static Stream<int> commentCount(String postId, {String collectionPath = 'posts'}) {
+    return _posts(collectionPath).doc(postId).snapshots()
         .map((d) => (d.data() as Map<String, dynamic>?)?['commentCount'] as int? ?? 0);
   }
 
-  static Stream<List<Map<String, dynamic>>> comments(String postId) {
-    return _posts().doc(postId).collection('comments')
+  static Stream<List<Map<String, dynamic>>> comments(String postId, {String collectionPath = 'posts'}) {
+    return _posts(collectionPath).doc(postId).collection('comments')
         .orderBy('createdAt', descending: false)
         .snapshots()
         .map((s) => s.docs.map((d) {
@@ -258,28 +288,32 @@ class PostInteractionService {
     String postId,
     String text, {
     String? parentCommentId,
+    String collectionPath = 'posts',
   }) async {
     final uid = UserService.uid;
     if (uid == null || text.trim().isEmpty) return;
     final profile = await UserService.getProfile();
     final displayName = profile?['displayName'] as String? ?? 'User';
+    final usernameDisplay = profile?['usernameDisplay'] as String?;
     final trimmed = text.trim();
-    await _posts().doc(postId).collection('comments').add({
+    await _posts(collectionPath).doc(postId).collection('comments').add({
       'uid': uid,
       'displayName': displayName,
+      'usernameDisplay': usernameDisplay,
       'content': trimmed,
       'parentCommentId': parentCommentId,
       'createdAt': FieldValue.serverTimestamp(),
     });
-    await _posts().doc(postId).update({'commentCount': FieldValue.increment(1)});
+    await _posts(collectionPath).doc(postId).update({'commentCount': FieldValue.increment(1)});
     if (parentCommentId != null) {
       await _notifyParentCommentAuthor(
         postId: postId,
         parentCommentId: parentCommentId,
         replyPreview: trimmed,
+        collectionPath: collectionPath,
       );
     }
-    await _notifyPostOwner(postId: postId, commentPreview: trimmed);
+    await _notifyPostOwner(postId: postId, commentPreview: trimmed, collectionPath: collectionPath);
   }
 
   /// Adds a voice-note comment. `content` is left empty — the UI renders
@@ -290,14 +324,17 @@ class PostInteractionService {
     required int durationMs,
     required List<double> waveform,
     String? parentCommentId,
+    String collectionPath = 'posts',
   }) async {
     final uid = UserService.uid;
     if (uid == null) return;
     final profile = await UserService.getProfile();
     final displayName = profile?['displayName'] as String? ?? 'User';
-    await _posts().doc(postId).collection('comments').add({
+    final usernameDisplay = profile?['usernameDisplay'] as String?;
+    await _posts(collectionPath).doc(postId).collection('comments').add({
       'uid': uid,
       'displayName': displayName,
+      'usernameDisplay': usernameDisplay,
       'content': '',
       'audioUrl': audioUrl,
       'durationMs': durationMs,
@@ -305,15 +342,16 @@ class PostInteractionService {
       'parentCommentId': parentCommentId,
       'createdAt': FieldValue.serverTimestamp(),
     });
-    await _posts().doc(postId).update({'commentCount': FieldValue.increment(1)});
+    await _posts(collectionPath).doc(postId).update({'commentCount': FieldValue.increment(1)});
     if (parentCommentId != null) {
       await _notifyParentCommentAuthor(
         postId: postId,
         parentCommentId: parentCommentId,
         replyPreview: '',
+        collectionPath: collectionPath,
       );
     }
-    await _notifyPostOwner(postId: postId, commentPreview: '');
+    await _notifyPostOwner(postId: postId, commentPreview: '', collectionPath: collectionPath);
   }
 
   /// Deletes a comment or reply. Firestore rules already restrict this to
@@ -323,48 +361,78 @@ class PostInteractionService {
   /// author. Replies left pointing at a deleted parent are handled by the
   /// UI (shown ungrouped) rather than cascade-deleted, since a client
   /// can't delete another user's reply docs under the existing rules.
-  static Future<void> deleteComment(String postId, String commentId) async {
-    await _posts().doc(postId).collection('comments').doc(commentId).delete();
-    await _posts().doc(postId).update({'commentCount': FieldValue.increment(-1)});
+  static Future<void> deleteComment(String postId, String commentId, {String collectionPath = 'posts'}) async {
+    await _posts(collectionPath).doc(postId).collection('comments').doc(commentId).delete();
+    await _posts(collectionPath).doc(postId).update({'commentCount': FieldValue.increment(-1)});
   }
 
   /// Looks up the post's owner and fires a comment notification to them
-  /// (no-op if commenting on your own post). Best-effort — a failed
-  /// lookup/notification never blocks the comment itself, since the
-  /// comment write above has already succeeded by the time this runs.
+  /// (no-op if commenting on your own post, or if this isn't a main-feed
+  /// post -- group-post comments don't have a valid /post/{id} page to
+  /// link to yet). Best-effort — a failed lookup/notification never
+  /// blocks the comment itself, since the comment write above has
+  /// already succeeded by the time this runs.
   static Future<void> _notifyPostOwner({
     required String postId,
     required String commentPreview,
+    String collectionPath = 'posts',
   }) async {
     try {
-      final postDoc = await _posts().doc(postId).get();
-      final ownerUid = postDoc.data() as Map<String, dynamic>?;
-      final targetUid = ownerUid?['uid'] as String?;
+      final postDoc = await _posts(collectionPath).doc(postId).get();
+      final data = postDoc.data() as Map<String, dynamic>?;
+      final targetUid = data?['uid'] as String?;
       if (targetUid == null) return;
       // Social Score: commenting on someone else's post earns THEM a
       // point (not the commenter) — guarded the same way likes/follows
-      // are, so commenting on your own post farms nothing.
+      // are, so commenting on your own post farms nothing. This fires
+      // regardless of collectionPath -- no broken-link risk here, it's
+      // just a score bump, not a notification with a deep link.
       if (targetUid != UserService.uid) {
         UserTierService.bumpSocialScoreForComment(targetUid);
       }
-      await NotificationService.createCommentNotification(
-        targetUid: targetUid,
-        postId: postId,
-        commentPreview: commentPreview,
+
+      if (collectionPath == 'posts') {
+        await NotificationService.createCommentNotification(
+          targetUid: targetUid,
+          postId: postId,
+          commentPreview: commentPreview,
+        );
+        return;
+      }
+
+      // Group post -- collectionPath looks like 'groups/{groupId}/posts',
+      // so the group ID is the second path segment. Notify every group
+      // member (not just the post owner), since that's what a group
+      // comment actually means socially -- the whole group sees it.
+      final segments = collectionPath.split('/');
+      if (segments.length < 2) return;
+      final groupId = segments[1];
+      final uid = UserService.uid;
+      if (uid == null) return;
+      final profile = await UserService.getProfile();
+      final displayName = profile?['displayName'] as String? ?? 'Someone';
+      await NotificationService.notifyGroupMembers(
+        groupId: groupId,
+        excludeUid: uid,
+        title: '$displayName commented in your group',
+        body: commentPreview.isEmpty ? '🎤 Sent a voice note' : commentPreview,
+        data: {'type': 'group_comment', 'groupId': groupId, 'postId': postId},
       );
     } catch (_) {}
   }
 
   /// Looks up the parent comment's author and fires a reply notification
-  /// to them (no-op if replying to your own comment). Best-effort, same
-  /// as [_notifyPostOwner].
+  /// to them (no-op if replying to your own comment, or if this isn't a
+  /// main-feed post). Best-effort, same as [_notifyPostOwner].
   static Future<void> _notifyParentCommentAuthor({
     required String postId,
     required String parentCommentId,
     required String replyPreview,
+    String collectionPath = 'posts',
   }) async {
+    if (collectionPath != 'posts') return;
     try {
-      final parentDoc = await _posts()
+      final parentDoc = await _posts(collectionPath)
           .doc(postId).collection('comments').doc(parentCommentId).get();
       final data = parentDoc.data();
       final targetUid = data?['uid'] as String?;
@@ -380,24 +448,24 @@ class PostInteractionService {
   // ── Comment likes ──────────────────────────────────────────────────────
   // Same one-doc-per-user pattern as post likes, one level deeper:
   // posts/{postId}/comments/{commentId}/likes/{uid}
-  static Stream<bool> isCommentLikedByMe(String postId, String commentId) {
+  static Stream<bool> isCommentLikedByMe(String postId, String commentId, {String collectionPath = 'posts'}) {
     final uid = UserService.uid;
     if (uid == null) return Stream.value(false);
-    return _posts().doc(postId).collection('comments').doc(commentId)
+    return _posts(collectionPath).doc(postId).collection('comments').doc(commentId)
         .collection('likes').doc(uid)
         .snapshots().map((d) => d.exists);
   }
 
-  static Stream<int> commentLikeCount(String postId, String commentId) {
-    return _posts().doc(postId).collection('comments').doc(commentId)
+  static Stream<int> commentLikeCount(String postId, String commentId, {String collectionPath = 'posts'}) {
+    return _posts(collectionPath).doc(postId).collection('comments').doc(commentId)
         .collection('likes')
         .snapshots().map((s) => s.docs.length);
   }
 
-  static Future<void> toggleCommentLike(String postId, String commentId) async {
+  static Future<void> toggleCommentLike(String postId, String commentId, {String collectionPath = 'posts'}) async {
     final uid = UserService.uid;
     if (uid == null) return;
-    final ref = _posts().doc(postId).collection('comments').doc(commentId)
+    final ref = _posts(collectionPath).doc(postId).collection('comments').doc(commentId)
         .collection('likes').doc(uid);
     final doc = await ref.get();
     if (doc.exists) {
@@ -408,7 +476,7 @@ class PostInteractionService {
   }
 
   // ── Delete post (owner only — enforced by existing Firestore rule) ────
-  static Future<void> deletePost(String postId) async {
-    await _posts().doc(postId).delete();
+  static Future<void> deletePost(String postId, {String collectionPath = 'posts'}) async {
+    await _posts(collectionPath).doc(postId).delete();
   }
 }

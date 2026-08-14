@@ -10,7 +10,7 @@ import '../widgets/activity_grid.dart';
 import '../widgets/continue_button.dart';
 import '../../../profile/presentation/pages/profile_page.dart';
 import '../../../insights/presentation/pages/insights_feed_page.dart';
-import '../../../social/presentation/pages/social_feed_page.dart';
+import '../../../social/presentation/pages/social_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 //import '../../../leaderboard/presentation/pages/leaderboard_page.dart';
 import '../../../study_rooms/presentation/pages/study_rooms_page.dart';
@@ -19,7 +19,7 @@ import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../auth/presentation/bloc/auth_state.dart';
 import '../../../../core/services/user_service.dart';
 import '../../../../core/services/social_streak_service.dart';
-import '../widgets/live_rooms_coming_soon_widget.dart';
+import '../../../../core/services/default_screen_service.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -29,7 +29,7 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
-  int _activeIndex = 0;
+  int _activeIndex = DefaultScreenService.index;
   int _unreadSocial = 0;
 
   @override
@@ -90,7 +90,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   children: [
                     const _HomeContent(),
                     const StudyRoomsPage(),
-                    const SocialFeedPage(),
+                    const SocialPage(),
                     InsightsFeedPage(isVisible: _activeIndex == 3),
                     const ProfilePage(),
                   ],
@@ -154,7 +154,6 @@ class _HomeContent extends StatelessWidget {
             const SizedBox(height: AppSpacing.md),
             const ActivityGrid(),
             const SizedBox(height: AppSpacing.lg),
-          const LiveRoomsComingSoon(),
             
           ],
         ),

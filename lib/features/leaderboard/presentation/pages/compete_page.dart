@@ -9,11 +9,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/constants/app_colors.dart';
-import '../../../../core/services/duel_service.dart';
 import '../../../../core/services/user_service.dart';
 import '../../../duel/presentation/pages/duel_setup_page.dart';
 import '../../../duel/presentation/pages/duel_play_page.dart';
-import '../../../quiz/domain/models/quiz_question.dart';
 
 class CompetePage extends StatelessWidget {
   const CompetePage({super.key});
@@ -45,8 +43,13 @@ class CompetePage extends StatelessWidget {
           ),
         ],
       ),
+      // NOTE: DuelService.myDuels() no longer exists -- it was specific
+      // to the old async duel model. The new live duel system has no
+      // persisted "duel history" list to show here (you're either in an
+      // active duel or you're not). Stubbed to an empty stream so this
+      // dormant file compiles honestly rather than faking data.
       body: StreamBuilder<List<Map<String, dynamic>>>(
-        stream: DuelService.myDuels(),
+        stream: Stream.value(const <Map<String, dynamic>>[]),
         builder: (context, snapshot) {
           if (!snapshot.hasData) {
             return Center(child: CircularProgressIndicator(color: AppColors.accent));
@@ -163,24 +166,16 @@ class _DuelCard extends StatelessWidget {
     );
   }
 
+  // NOTE: this whole method is stale -- built against the OLD async duel
+  // model (a 'questions' array stored on the duel doc). That model was
+  // replaced by duel_service.dart's live/synchronous version, which has
+  // no such field. Since this whole compete_page.dart file is dormant
+  // and unreachable (deliberately left unwired), this is patched just
+  // enough to compile, not to actually work -- needs a real rewrite
+  // against the new DuelService if/when Compete gets revived.
   void _playResponse(BuildContext context) {
-    final questionsRaw = duel['questions'] as List<dynamic>? ?? [];
-    final questions = questionsRaw.map((q) {
-      final m = q as Map<String, dynamic>;
-      return QuizQuestion(
-        question: m['question'] as String? ?? '',
-        options: (m['options'] as List<dynamic>? ?? []).cast<String>(),
-        correctIndex: m['correctIndex'] as int? ?? 0,
-        explanation: m['explanation'] as String? ?? '',
-      );
-    }).toList();
-
     Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => DuelPlayPage(
-        courseKey: duel['courseKey'] as String? ?? '',
-        questions: questions,
-        duelId: duel['id'] as String,
-      ),
+      builder: (_) => DuelPlayPage(duelId: duel['id'] as String),
     ));
   }
 }

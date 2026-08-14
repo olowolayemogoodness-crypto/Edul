@@ -21,4 +21,7 @@ class AppRoutes {
   static const String library        = '/library';
   static const String subjectPicker  = '/subject-picker';
   static const String streakCelebration = '/streak-celebration';
+  static const String duelInvite = '/duel-invite';
+  static const String roomInvite = '/room-invite';
+  static const String postDetail = '/post';
 }

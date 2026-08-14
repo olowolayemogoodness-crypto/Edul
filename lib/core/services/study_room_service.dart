@@ -22,6 +22,7 @@ class StudyRoom {
   final String title;
   final String hostId;
   final String? courseTag;
+  final String? coverImageUrl;
   final int maxParticipants;
   final int participantCount;
   final int durationMinutes;
@@ -34,6 +35,7 @@ class StudyRoom {
     required this.title,
     required this.hostId,
     required this.courseTag,
+    required this.coverImageUrl,
     required this.maxParticipants,
     required this.participantCount,
     required this.durationMinutes,
@@ -58,6 +60,7 @@ class StudyRoom {
       title: d['title'] as String,
       hostId: d['host_id'] as String,
       courseTag: d['course_tag'] as String?,
+      coverImageUrl: d['cover_image_url'] as String?,
       maxParticipants: d['max_participants'] as int,
       participantCount: d['participant_count'] as int,
       durationMinutes: d['duration_minutes'] as int,
@@ -165,6 +168,7 @@ class StudyRoomService {
   Future<String> createRoom({
     required String title,
     String? courseTag,
+    String? coverImageUrl,
     required int maxParticipants,
     required int durationMinutes,
     required String hostDisplayName,
@@ -177,6 +181,7 @@ class StudyRoomService {
       'title': title,
       'host_id': _uid,
       'course_tag': courseTag,
+      'cover_image_url': coverImageUrl,
       'max_participants': maxParticipants,
       'participant_count': 1,
       'duration_minutes': durationMinutes,

@@ -114,6 +114,48 @@ class NotificationService {
   static final _db = FirebaseFirestore.instance;
   static CollectionReference get _col => _db.collection('notifications');
 
+  /// Notifies every one of [posterUid]'s followers about something new --
+  /// originally built for regular posts, now shared with reposts too, so
+  /// both behave the same way for the people following you. Deliberately
+  /// a single capped client-side batch write (500 followers max, one
+  /// commit), NOT a Cloud Function fan-out -- same reasoning as the rest
+  /// of this file: real but rare abuse surface, accepted for now, no
+  /// Blaze plan set up. Reuses the 'new_post' notification type (the
+  /// Firestore rule for it only checks body length, not exact title
+  /// text), so this needed no rules change to add reposts to it.
+  static Future<void> notifyFollowersOfNewContent({
+    required String posterUid,
+    required String posterName,
+    required String postId,
+    required String title,
+    String body = 'Tap to view it',
+  }) async {
+    try {
+      final followers = await _db
+          .collection('users').doc(posterUid).collection('followers')
+          .limit(500).get();
+      final batch = _db.batch();
+      for (final doc in followers.docs) {
+        final followerUid = doc.id;
+        final notifRef = _col.doc();
+        batch.set(notifRef, {
+          'uid': followerUid,
+          'fromUid': posterUid,
+          'fromDisplayName': posterName,
+          'type': 'new_post',
+          'postId': postId,
+          'title': title,
+          'body': body,
+          'read': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+      if (followers.docs.isNotEmpty) await batch.commit();
+    } catch (_) {
+      // Best-effort — never block the post/repost itself over notifications.
+    }
+  }
+
   // Same Cloudflare account as the R2 upload worker — either a new
   // route on that worker or its own deploy, your call. Update this to
   // wherever you actually deploy pushWorker/push-send-worker.js.
@@ -232,6 +274,105 @@ class NotificationService {
     } catch (_) {
       // Best-effort — a failed notification shouldn't block the follow
       // action itself.
+    }
+  }
+
+  /// Same real in-app-doc + real-push pattern as notifyGroupMembers,
+  /// but for when the audience is already a computed set of UIDs
+  /// (e.g. story followers + past viewers) rather than something
+  /// queryable directly as a subcollection.
+  static Future<void> notifyMultipleUsers({
+    required Set<String> targetUids,
+    required String fromUid,
+    required String title,
+    required String body,
+    Map<String, dynamic>? data,
+  }) async {
+    if (targetUids.isEmpty) return;
+    try {
+      final batch = _db.batch();
+      var hasWrites = false;
+      for (final targetUid in targetUids) {
+        if (targetUid == fromUid) continue;
+        hasWrites = true;
+        final notifRef = _col.doc();
+        batch.set(notifRef, {
+          'uid': targetUid,
+          'fromUid': fromUid,
+          'type': 'new_post',
+          'title': title,
+          'body': body.length > 200 ? body.substring(0, 200) : body,
+          if (data?['postId'] != null) 'postId': data!['postId'],
+          'read': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+      if (hasWrites) await batch.commit();
+
+      for (final targetUid in targetUids) {
+        if (targetUid == fromUid) continue;
+        await _sendPush(targetUid: targetUid, title: title, body: body, data: data);
+      }
+    } catch (_) {
+      // Best-effort — never block the story/post itself over notifications.
+    }
+  }
+
+  /// Notifies every APPROVED member of [groupId] except [excludeUid]
+  /// (the poster/commenter themselves) -- both the in-app notification
+  /// doc AND a real lockscreen push per member, reusing the exact same
+  /// _sendPush mechanism already proven for follow/comment notifications,
+  /// just fanned out to multiple recipients instead of one.
+  ///
+  /// Capped at 200 members per call -- same reasoning as
+  /// notifyFollowersOfNewContent's 500-follower cap: a real but rare
+  /// scale limit, acceptable for now rather than building a queueing
+  /// system for a group size nobody's close to hitting yet.
+  static Future<void> notifyGroupMembers({
+    required String groupId,
+    required String excludeUid,
+    required String title,
+    required String body,
+    Map<String, dynamic>? data,
+  }) async {
+    try {
+      final members = await _db
+          .collection('groups').doc(groupId).collection('members')
+          .where('status', isEqualTo: 'approved')
+          .limit(200)
+          .get();
+
+      final batch = _db.batch();
+      var hasWrites = false;
+      for (final doc in members.docs) {
+        final memberUid = doc.id;
+        if (memberUid == excludeUid) continue;
+        hasWrites = true;
+        final notifRef = _col.doc();
+        batch.set(notifRef, {
+          'uid': memberUid,
+          'fromUid': excludeUid,
+          'type': 'new_post',
+          'title': title,
+          'body': body.length > 200 ? body.substring(0, 200) : body,
+          'groupId': groupId,
+          if (data?['postId'] != null) 'postId': data!['postId'],
+          'read': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+      if (hasWrites) await batch.commit();
+
+      // Real pushes are sent one HTTP call per member -- fine at
+      // current group sizes, but genuinely won't scale to a
+      // thousand-member group without batching the Worker calls too.
+      for (final doc in members.docs) {
+        final memberUid = doc.id;
+        if (memberUid == excludeUid) continue;
+        await _sendPush(targetUid: memberUid, title: title, body: body, data: data);
+      }
+    } catch (_) {
+      // Best-effort — never block the post/comment itself over notifications.
     }
   }
 

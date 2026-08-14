@@ -9,6 +9,7 @@ import '../../../../core/utils/paywall_helper.dart';
 import '../../data/topic_question_source.dart';
 import '../bloc/quiz_bloc.dart';
 import '../../domain/models/quiz_question.dart';
+import '../../../duel/presentation/pages/duel_setup_page.dart';
 
 class QuizSetupPage extends StatefulWidget {
   final String topic;
@@ -484,24 +485,38 @@ class _QuizSetupPageState extends State<QuizSetupPage> {
               _ModeSelector(selected: _mode, onChanged: (m) => setState(() => _mode = m)),
               const SizedBox(height: 28),
               GestureDetector(
-                onTap: _selectedCourseKey == null
+                onTap: (_mode != QuizMode.battle && _selectedCourseKey == null)
                     ? null
-                    : () => context.read<QuizBloc>().add(
+                    : () {
+                        if (_mode == QuizMode.battle) {
+                          Navigator.of(context).push(MaterialPageRoute(
+                            builder: (_) => const DuelSetupPage(),
+                          ));
+                          return;
+                        }
+                        context.read<QuizBloc>().add(
                           QuizStarted(
                             topic: _selectedCourseKey!,
                             topicIds: _selectedTopicIds,
                             difficulty: _difficulty,
                             mode: _mode,
                           ),
-                        ),
+                        );
+                      },
                 child: Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(color: AppColors.accent, borderRadius: BorderRadius.circular(16)),
+                  decoration: BoxDecoration(
+                    color: (_mode != QuizMode.battle && _selectedCourseKey == null)
+                        ? AppColors.accent.withValues(alpha: 0.4)
+                        : AppColors.accent,
+                    borderRadius: BorderRadius.circular(16)),
                   child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 20),
+                    Icon(_mode == QuizMode.battle ? Icons.bolt_rounded : Icons.play_arrow_rounded,
+                      color: Colors.white, size: 20),
                     const SizedBox(width: 8),
-                    Text('Start quiz', style: GoogleFonts.dmSans(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white)),
+                    Text(_mode == QuizMode.battle ? 'Find a battle' : 'Start quiz',
+                      style: GoogleFonts.dmSans(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white)),
                   ]),
                 ),
               ),

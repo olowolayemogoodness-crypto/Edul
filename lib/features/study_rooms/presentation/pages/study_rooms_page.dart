@@ -10,8 +10,15 @@ import '../widgets/live_study_session_coming_soon_widget.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../../core/services/study_room_service.dart';
+import '../../../../core/services/post_image_upload_service.dart';
 import '../../../../core/services/voice_note_service.dart';
+import '../../../../core/services/ai_explain_service.dart';
+import '../../../../core/services/rewarded_ad_service.dart';
+import '../../../../core/services/groq_services.dart';
+import '../../../../core/services/premium_service.dart';
+import 'package:gpt_markdown/gpt_markdown.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:share_plus/share_plus.dart';
 
 enum _StudyTab { hub, focusSetup, focusActive, focusDone, rooms, inRoom, createRoom }
 class _Subject {
@@ -68,6 +75,7 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
   bool _sendingAttachment = false;
   bool _isRecording = false;
   final TextEditingController _roomTitleCtrl = TextEditingController();
+  File? _roomCoverImage;
   String? _roomCourseTag;
   int _roomMaxParticipants = 4;
   int _roomDurationMinutes = 60;
@@ -125,6 +133,152 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
     }
   }
 
+  Future<void> _handleAskRoomAi(String roomTitle) async {
+    final question = await _promptForQuestion();
+    if (question == null || question.trim().isEmpty) return;
+
+    if (!AiExplainService.canUseNow) {
+      _showRoomAiAdPrompt(question);
+      return;
+    }
+    AiExplainService.consumeUse();
+    await _runRoomAiRequest(question);
+  }
+
+  Future<String?> _promptForQuestion() {
+    final ctrl = TextEditingController();
+    return showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (sheetContext) => Padding(
+        padding: EdgeInsets.only(
+          left: 20, right: 20, top: 20,
+          bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 20,
+        ),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(Icons.auto_awesome_rounded, color: AppColors.accentLight, size: 18),
+            const SizedBox(width: 8),
+            Text('Ask AI', style: GoogleFonts.dmSans(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+          ]),
+          const SizedBox(height: 4),
+          Text("Not automatic here -- ask about whatever the room's stuck on", style: GoogleFonts.dmSans(fontSize: 11, color: AppColors.textTertiary)),
+          const SizedBox(height: 14),
+          TextField(
+            controller: ctrl,
+            autofocus: true,
+            maxLines: 3,
+            style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textPrimary),
+            decoration: InputDecoration(
+              hintText: "What's the group stuck on?",
+              hintStyle: GoogleFonts.dmSans(color: AppColors.textTertiary),
+              filled: true, fillColor: AppColors.surfaceVariant,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(width: double.infinity, child: ElevatedButton(
+            onPressed: () => Navigator.pop(sheetContext, ctrl.text),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+            child: Text('Ask', style: GoogleFonts.dmSans(color: Colors.white, fontWeight: FontWeight.w600)),
+          )),
+        ]),
+      ),
+    );
+  }
+
+  void _showRoomAiAdPrompt(String pendingQuestion) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Text('✨', style: TextStyle(fontSize: 40)),
+            const SizedBox(height: 14),
+            Text("You've used your free explanations", style: GoogleFonts.dmSans(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+            const SizedBox(height: 6),
+            Text('Watch a short ad to unlock ${AiExplainService.adBatchSize} more', textAlign: TextAlign.center,
+              style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.textTertiary)),
+            const SizedBox(height: 20),
+            SizedBox(width: double.infinity, child: ElevatedButton(
+              onPressed: () {
+                Navigator.pop(sheetContext);
+                RewardedAdService.show(
+                  onRewarded: () {
+                    AiExplainService.grantAdBatch();
+                    AiExplainService.consumeUse();
+                    _runRoomAiRequest(pendingQuestion);
+                  },
+                  onNotReady: () {
+                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Ad not ready yet — try again in a moment')));
+                  },
+                );
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+              child: Text('Watch ad', style: GoogleFonts.dmSans(color: Colors.white, fontWeight: FontWeight.w600)),
+            )),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _runRoomAiRequest(String question) async {
+    showDialog(context: context, barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()));
+    try {
+      final rawAnswer = await GroqService.askTutor(question, isPro: PremiumService.isPro);
+      if (!mounted) return;
+      Navigator.pop(context); // close the loading dialog
+      _showRoomAiAnswerSheet(_stripThinkingTrace(rawAnswer));
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not get an answer: $e')));
+      }
+    }
+  }
+
+  // Same reasoning-model cleanup as the quiz AI widget -- Qwen/GPT-OSS
+  // can emit internal <think> reasoning that isn't meant to be shown.
+  String _stripThinkingTrace(String text) =>
+      text.replaceAll(RegExp(r'<think>[\s\S]*?</think>', caseSensitive: false), '').trim();
+
+  void _showRoomAiAnswerSheet(String answer) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.6, minChildSize: 0.3, maxChildSize: 0.9, expand: false,
+        builder: (_, scrollController) => Padding(
+          padding: const EdgeInsets.all(20),
+          child: SingleChildScrollView(
+            controller: scrollController,
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Icon(Icons.auto_awesome_rounded, color: AppColors.accentLight, size: 18),
+                const SizedBox(width: 8),
+                Text('AI answer', style: GoogleFonts.dmSans(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+              ]),
+              const SizedBox(height: 14),
+              GptMarkdown(answer, style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textSecondary, height: 1.6)),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _handleJoinRoom(StudyRoom room) async {
     try {
       await StudyRoomService.instance.joinRoom(room.id, displayName: _myDisplayName);
@@ -134,6 +288,20 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
       }
     }
+  }
+
+  // Same domain convention as the duel invite links -- needs the same
+  // Android App Links / iOS Universal Links setup to actually open the
+  // app when tapped by someone without it open already. Ready the
+  // moment that's configured; works today for anyone with the app open
+  // who navigates here manually.
+  // ignore: unused_element
+  void _shareRoomInvite(String roomId, String roomTitle) {
+    final link = 'https://olowolayemogoodness-crypto.github.io/room-invite/$roomId';
+    SharePlus.instance.share(ShareParams(
+      text: 'Join my study room "$roomTitle" on Edulink: $link',
+      sharePositionOrigin: const Rect.fromLTWH(0, 0, 1, 1),
+    ));
   }
 
   Future<void> _handleCreateRoom() async {
@@ -146,15 +314,22 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
     }
     setState(() => _creatingRoom = true);
     try {
+      String? coverUrl;
+      if (_roomCoverImage != null) {
+        final urls = await PostImageUploadService.uploadAll([_roomCoverImage!]);
+        coverUrl = urls.isNotEmpty ? urls.first : null;
+      }
       final roomId = await StudyRoomService.instance.createRoom(
         title: title,
         courseTag: _roomCourseTag,
+        coverImageUrl: coverUrl,
         maxParticipants: _roomMaxParticipants,
         durationMinutes: _roomDurationMinutes,
         hostDisplayName: _myDisplayName,
       );
       final snap = await StudyRoomService.instance.roomStream(roomId).first;
       _roomTitleCtrl.clear();
+      _roomCoverImage = null;
       if (mounted) _openRoom(roomId, snap);
     } catch (e) {
       if (mounted) {
@@ -262,6 +437,7 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
   @override
   void initState() {
     super.initState();
+    AiExplainService.ensureLoaded();
     _breathCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 4))..repeat(reverse: true);
     _breathAnim = Tween(begin: 1.0, end: 1.08).animate(CurvedAnimation(parent: _breathCtrl, curve: Curves.easeInOut));
     _ringCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 4))..repeat(reverse: true);
@@ -812,36 +988,60 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
     final full = r.isFull;
     final mins = r.remaining.inMinutes.clamp(0, 999);
     return Container(
-      padding: const EdgeInsets.all(12),
       margin: const EdgeInsets.only(bottom: 9),
       decoration: BoxDecoration(color: AppColors.surface, border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(16)),
-      child: Column(children: [
-        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(width: 38, height: 38, decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(11)), child: Center(child: Icon(Icons.groups_rounded, size: 18, color: AppColors.textTertiary))),
-          const SizedBox(width: 9),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(r.title, style: GoogleFonts.dmSans(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
-            Text(r.courseTag ?? 'General study', style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textTertiary)),
-          ])),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(color: AppColors.successSurface, border: Border.all(color: AppColors.success.withValues(alpha: 0.5)), borderRadius: BorderRadius.circular(20)),
-            child: Text('$mins min left', style: GoogleFonts.dmSans(fontSize: 9, color: AppColors.success)),
+      clipBehavior: Clip.antiAlias,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // Edge-to-edge cover image, same visual language as Masterclass
+        // lesson cards -- 16:9, dark gradient for legibility, graceful
+        // fallback if the URL ever fails to load. Only shows for rooms
+        // that actually have one; rooms without a cover look exactly as
+        // they did before, no regression there.
+        if (r.coverImageUrl != null)
+          AspectRatio(
+            aspectRatio: 16 / 9,
+            child: Stack(fit: StackFit.expand, children: [
+              Image.network(r.coverImageUrl!, fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(color: AppColors.surfaceVariant)),
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                    colors: [Colors.transparent, Colors.black.withOpacity(0.45)])),
+              ),
+            ]),
           ),
-        ]),
-        const SizedBox(height: 8),
-        Row(children: [
-          Text('${r.participantCount}/${r.maxParticipants} students', style: GoogleFonts.dmSans(fontSize: 9, color: AppColors.textTertiary)),
-          const Spacer(),
-          GestureDetector(
-            onTap: full ? null : () => _handleJoinRoom(r),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(color: full ? AppColors.surfaceVariant : AppColors.accentSurface, borderRadius: BorderRadius.circular(20)),
-              child: Text(full ? 'Full' : 'Join →', style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w500, color: full ? AppColors.textDisabled : AppColors.accentLight)),
-            ),
-          ),
-        ]),
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(children: [
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Container(width: 38, height: 38, decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(11)), child: Center(child: Icon(Icons.groups_rounded, size: 18, color: AppColors.textTertiary))),
+              const SizedBox(width: 9),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(r.title, style: GoogleFonts.dmSans(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
+                Text(r.courseTag ?? 'General study', style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textTertiary)),
+              ])),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(color: AppColors.successSurface, border: Border.all(color: AppColors.success.withValues(alpha: 0.5)), borderRadius: BorderRadius.circular(20)),
+                child: Text('$mins min left', style: GoogleFonts.dmSans(fontSize: 9, color: AppColors.success)),
+              ),
+            ]),
+            const SizedBox(height: 8),
+            Row(children: [
+              Text('${r.participantCount}/${r.maxParticipants} students', style: GoogleFonts.dmSans(fontSize: 9, color: AppColors.textTertiary)),
+              const Spacer(),
+              GestureDetector(
+                onTap: full ? null : () => _handleJoinRoom(r),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(color: full ? AppColors.surfaceVariant : AppColors.accentSurface, borderRadius: BorderRadius.circular(20)),
+                  child: Text(full ? 'Full' : 'Join \u2192', style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w500, color: full ? AppColors.textDisabled : AppColors.accentLight)),
+                ),
+              ),
+            ]),
+          ]),
+        ),
       ]),
     );
   }
@@ -859,7 +1059,8 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
       builder: (context, roomSnap) {
         if (roomSnap.hasData) _currentRoom = roomSnap.data;
         final room = roomSnap.data;
-        return Column(children: [
+        return Stack(children: [
+          Column(children: [
           Container(
             padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
             decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
@@ -875,6 +1076,13 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
                   style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textTertiary),
                 ),
               ])),
+              // Share-via-link is off for now -- the App Links / Universal
+              // Links domain setup isn't done, so tapping the link cold
+              // wouldn't open the app for whoever receives it. The method,
+              // landing page, and route are all still intact; re-enabling
+              // is just uncommenting the line below once that's set up.
+              // _iBtn(Icons.ios_share_rounded, () => _shareRoomInvite(roomId, room?.title ?? 'Study room')),
+              // const SizedBox(width: 6),
               _iBtn(Icons.exit_to_app_rounded, () => _leaveCurrentRoom()),
             ]),
           ),
@@ -943,6 +1151,23 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
                 child: Container(width: 36, height: 36, decoration: BoxDecoration(color: AppColors.accent, shape: BoxShape.circle), child: const Icon(Icons.send_rounded, size: 16, color: Colors.white)),
               ),
             ]),
+          ),
+          ]),
+          Positioned(
+            right: 16,
+            bottom: 78, // sits above the message input bar, not over it
+            child: GestureDetector(
+              onTap: () => _handleAskRoomAi(room?.title ?? 'this room'),
+              child: Container(
+                width: 48, height: 48,
+                decoration: BoxDecoration(
+                  color: AppColors.accent,
+                  shape: BoxShape.circle,
+                  boxShadow: [BoxShadow(color: AppColors.accent.withValues(alpha: 0.4), blurRadius: 12, offset: const Offset(0, 4))],
+                ),
+                child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 22),
+              ),
+            ),
           ),
         ]);
       },
@@ -1043,6 +1268,47 @@ class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStat
                 enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.border)),
                 focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.accentDark)),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+            ),
+          ]),
+        ),
+
+        Container(
+          padding: const EdgeInsets.all(13),
+          margin: const EdgeInsets.only(bottom: 10),
+          decoration: BoxDecoration(color: AppColors.surface, border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(16)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('COVER IMAGE (optional)', style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.textTertiary, letterSpacing: 0.5)),
+            const SizedBox(height: 8),
+            GestureDetector(
+              onTap: () async {
+                final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 85);
+                if (picked != null) setS(() => _roomCoverImage = File(picked.path));
+              },
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: _roomCoverImage != null
+                      ? Stack(fit: StackFit.expand, children: [
+                          Image.file(_roomCoverImage!, fit: BoxFit.cover),
+                          Positioned(top: 8, right: 8, child: GestureDetector(
+                            onTap: () => setS(() => _roomCoverImage = null),
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                              child: const Icon(Icons.close_rounded, size: 16, color: Colors.white)),
+                          )),
+                        ])
+                      : Container(
+                          color: AppColors.surfaceVariant,
+                          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                            Icon(Icons.add_photo_alternate_outlined, size: 28, color: AppColors.textTertiary),
+                            const SizedBox(height: 6),
+                            Text('Add a picture so your room stands out', style: GoogleFonts.dmSans(fontSize: 11, color: AppColors.textTertiary)),
+                          ]),
+                        ),
+                ),
               ),
             ),
           ]),

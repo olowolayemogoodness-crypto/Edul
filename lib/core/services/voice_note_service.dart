@@ -172,6 +172,7 @@ class VoiceNoteService {
     required int durationMs,
     required List<double> waveform,
     String? parentCommentId,
+    String collectionPath = 'posts',
   }) async {
     final publicUrl = await uploadVoiceNote(file);
     await PostInteractionService.addVoiceComment(
@@ -180,6 +181,7 @@ class VoiceNoteService {
       durationMs: durationMs,
       waveform: waveform,
       parentCommentId: parentCommentId,
+      collectionPath: collectionPath,
     );
   }
 }

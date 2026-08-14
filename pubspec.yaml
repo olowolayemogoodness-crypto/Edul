@@ -1,7 +1,7 @@
-name: edulink
+name: dulink
 description: AI-powered learning platform for secondary and university students.
 publish_to: 'none'
-version: 1.0.0+11
+version: 1.0.0+14
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -52,6 +52,7 @@ dependencies:
 
   # Fonts & UI
   google_fonts: ^8.1.0
+  gpt_markdown: ^1.1.8
   cached_network_image: ^3.3.1
   shimmer: ^3.0.0
   lottie: ^3.1.0

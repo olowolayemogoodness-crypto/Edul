@@ -1,6 +1,8 @@
+import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'username_service.dart';
 
 class UserService {
   static final _db = FirebaseFirestore.instance;
@@ -56,7 +58,33 @@ class UserService {
         'read': false,
         'createdAt': FieldValue.serverTimestamp(),
       });
+
+      // Auto-generate a username so every account has one from second
+      // one, no friction added to registration itself. This runs AFTER
+      // the .set() above on purpose -- UsernameService.claimUsername()
+      // uses update() internally, which needs the profile doc to
+      // already exist, not still be mid-creation.
+      await _autoGenerateUsername(displayName);
     }
+  }
+
+  static Future<void> _autoGenerateUsername(String displayName) async {
+    final cleaned = displayName.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+    final base = cleaned.length > 12 ? cleaned.substring(0, 12) : cleaned;
+    final seed = base.isEmpty ? 'student' : base;
+    final random = Random();
+
+    // 4 random digits gives 10,000 combinations per name -- a real
+    // collision on the first try is already unlikely, this loop is
+    // just defensive, not expected to need more than one attempt.
+    for (var attempt = 0; attempt < 5; attempt++) {
+      final candidate = '${seed}_${1000 + random.nextInt(9000)}';
+      final result = await UsernameService.claimUsername(candidate);
+      if (result == UsernameClaimResult.success) return;
+    }
+    // If every attempt somehow collided (astronomically unlikely),
+    // leave the account without a username rather than looping forever
+    // -- they can still claim one manually in Settings any time.
   }
 
   // ── Get profile stream ──
@@ -81,13 +109,14 @@ class UserService {
   }
 
   // ── Update profile fields ──
-  static Future<void> updateProfile({String? bio, String? school, String? course, String? country}) async {
+  static Future<void> updateProfile({String? bio, String? school, String? course, String? country, String? photoUrl}) async {
     if (uid == null) return;
     final data = <String, dynamic>{};
     if (bio != null) data['bio'] = bio;
     if (school != null) data['school'] = school;
     if (course != null) data['course'] = course;
     if (country != null) data['country'] = country;
+    if (photoUrl != null) data['photoUrl'] = photoUrl;
     if (data.isNotEmpty) await _db.collection('users').doc(uid).update(data);
   }
 

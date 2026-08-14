@@ -24,6 +24,9 @@ import '../../features/learning/presentation/pages/learning_map_page.dart';
 import '../../features/learning/presentation/pages/lesson_detail_page.dart';
 import '../../features/insights/presentation/pages/insights_feed_page.dart';
 import '../../features/streak/presentation/pages/streak_celebration_page.dart';
+import '../../features/duel/presentation/pages/duel_invite_link_page.dart';
+import '../../features/study_rooms/presentation/pages/room_invite_link_page.dart';
+import '../../features/social/presentation/pages/post_detail_page.dart';
 
 class AppRouter {
   AppRouter._();
@@ -45,6 +48,21 @@ class AppRouter {
       GoRoute(path: AppRoutes.subjectPicker, name: 'subjectPicker', builder: (c, s) => const SubjectPickerPage()),
       GoRoute(path: AppRoutes.flashcards,  name: 'flashcards',  builder: (c, s) => const FlashcardsPage()),
       GoRoute(path: AppRoutes.studyRoom,   name: 'studyRoom',   builder: (c, s) => const StudyRoomsPage()),
+      GoRoute(
+        path: '${AppRoutes.duelInvite}/:inviteId',
+        name: 'duelInvite',
+        builder: (c, s) => DuelInviteLinkPage(inviteId: s.pathParameters['inviteId']!),
+      ),
+      GoRoute(
+        path: '${AppRoutes.roomInvite}/:roomId',
+        name: 'roomInvite',
+        builder: (c, s) => RoomInviteLinkPage(roomId: s.pathParameters['roomId']!),
+      ),
+      GoRoute(
+        path: '${AppRoutes.postDetail}/:postId',
+        name: 'postDetail',
+        builder: (c, s) => PostDetailPage(postId: s.pathParameters['postId']!),
+      ),
       GoRoute(
   path: '/discover',
   name: 'discover',

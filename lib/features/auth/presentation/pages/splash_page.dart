@@ -83,14 +83,8 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  width: 80, height: 80,
-                  decoration: BoxDecoration(
-                    color: AppColors.accentSurface,
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: AppColors.accent, width: 1.5),
-                  ),
-                  padding: const EdgeInsets.all(14),
+                SizedBox(
+                  width: 54, height: 54,
                   child: Image.asset('assets/images/edulink_logo.png'),
                 ),
                 const SizedBox(height: 20),

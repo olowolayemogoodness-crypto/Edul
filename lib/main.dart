@@ -1,6 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'core/services/premium_service.dart';
 import 'core/services/theme_override_service.dart';
+import 'core/services/default_screen_service.dart';
 import 'core/services/study_reminder_service.dart';
 import 'core/services/rewarded_ad_service.dart';
 import 'package:flutter/material.dart';
@@ -18,6 +19,14 @@ import 'core/constants/app_constants.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Android 15+ (SDK 35) displays edge-to-edge by default -- Play
+  // Console flagged this as unhandled. This tells the system the app
+  // draws behind the status/navigation bars itself; every screen using
+  // SafeArea (which is most of them, built throughout tonight) already
+  // correctly insets its own content, so this is the one missing piece
+  // tying it together at the system level.
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
   // TEMPORARY DIAGNOSTIC — shows the real error in red text instead of
   // Flutter's default silent gray box (which release builds normally show
@@ -61,6 +70,7 @@ void main() async {
   } catch (_) {}
   await PremiumService.initialize();
   await ThemeOverrideService.init();
+  await DefaultScreenService.init();
   await initDependencies();
   await _migrateCompulsoryCourses();
   await _migrateCOS102();

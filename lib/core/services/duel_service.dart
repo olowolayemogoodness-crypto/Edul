@@ -1,272 +1,592 @@
 // lib/core/services/duel_service.dart
 //
-// Async 1v1 quiz duels — "Words With Friends" style, not live/real-time.
-// Deliberately NOT synchronous head-to-head play: that needs shared
-// live state, timing/disconnect handling, and a lot more surface area
-// to get right. This ships today by reusing what already exists:
-//   - questions come from TopicQuestionSource, same as practice tests
-//   - challenge/result notifications reuse NotificationService's
-//     existing push pipeline
-//   - XP reward reuses UserService.awardXP
+// REPLACES the old async "Words With Friends" style duel system. That
+// version was deliberately non-live (challenger plays all questions
+// immediately, opponent plays the same set whenever they get to it,
+// days later if they want) -- explicitly NOT what this is. This is a
+// live, synchronous, turn-based duel: two players matched together,
+// alternating turns on a shared per-round clock, answers revealing to
+// both sides in real time.
 //
-// Flow:
-//   1. Challenger picks an opponent + course, plays the quiz immediately.
-//      Their answers are locked in at creation time — a duel document is
-//      only ever created with the challenger's side already complete.
-//   2. Opponent gets notified, plays the SAME question set (stored
-//      verbatim on the duel doc, not re-drawn — otherwise the two
-//      players could end up answering different questions).
-//   3. The moment the opponent submits, the duel is scored and BOTH
-//      players get a result notification.
+// Architecture mirrors StudyRoomService's proven pattern from this same
+// app: server-authoritative deadlines (a `turnEndsAt` timestamp, not a
+// client-trusted countdown), lazy expiration (any client can flip an
+// expired turn once it notices, guarded by security rules checking
+// request.time), and Firestore transactions for anything with a race
+// condition (matchmaking, answer submission).
 //
-// Firestore rules required — new top-level collection:
+// Two modes, per the agreed spec:
+//   - 'spelling': type the word matching a clue
+//   - 'subject':  standard MCQ, drawn from an existing course's question bank
 //
-//   match /duels/{duelId} {
-//     allow read: if request.auth != null
-//                 && (request.auth.uid == resource.data.challengerUid
-//                     || request.auth.uid == resource.data.opponentUid);
-//     allow create: if request.auth != null
-//                   && request.auth.uid == request.resource.data.challengerUid
-//                   && request.resource.data.status == 'pending';
-//     // Opponent submitting their answers — the ONLY update a client
-//     // may ever make, and only the opponent, and only while still
-//     // pending. Everything else about a duel is immutable once created.
-//     allow update: if request.auth != null
-//                   && request.auth.uid == resource.data.opponentUid
-//                   && resource.data.status == 'pending'
-//                   && request.resource.data.diff(resource.data).affectedKeys()
-//                        .hasOnly(['opponentScore', 'opponentCorrect', 'opponentAnswers',
-//                                  'opponentCompletedAt', 'status', 'winnerUid']);
-//   }
+// 3 rounds, one question exchange per round (host answers, then
+// opponent, then the round resolves). Round time budgets: 180s, 180s,
+// 120s. Each player's clock is fresh per turn -- it does NOT carry
+// over between rounds or between the two players' turns within a
+// round. If both answer correctly, or both incorrectly, that round is
+// a tie (no point). A correct answer beats an incorrect one.
 //
-// Notification rules required — same shape as your other notification
-// types, add alongside them in match /notifications/{docId}:
-//
-//   allow create: if request.auth != null
-//                 && request.auth.uid == request.resource.data.fromUid
-//                 && request.resource.data.uid != request.auth.uid
-//                 && request.resource.data.type == 'duel_challenge'
-//                 && request.resource.data.title is string
-//                 && request.resource.data.title.size() <= 150
-//                 && request.resource.data.body is string
-//                 && request.resource.data.body.size() <= 200;
-//   allow create: if request.auth != null
-//                 && request.auth.uid == request.resource.data.fromUid
-//                 && request.resource.data.uid != request.auth.uid
-//                 && request.resource.data.type == 'duel_result'
-//                 && request.resource.data.title is string
-//                 && request.resource.data.title.size() <= 150
-//                 && request.resource.data.body is string
-//                 && request.resource.data.body.size() <= 200;
+// Firestore rules required -- see the end of this file for the exact
+// rules to add, replacing the OLD duels rules entirely (the old schema
+// is gone, this is a different shape).
 
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'user_service.dart';
-import 'notifications_service.dart';
 import '../../features/quiz/data/topic_question_source.dart';
-import '../../features/quiz/domain/models/quiz_question.dart';
 
-class DuelAnswer {
-  final int? selectedIndex;
-  final bool correct;
-  const DuelAnswer({required this.selectedIndex, required this.correct});
+enum DuelMode { spelling, subject }
+enum DuelRole { host, opponent }
 
-  Map<String, dynamic> toMap() => {'selectedIndex': selectedIndex, 'correct': correct};
-  static DuelAnswer fromMap(Map<String, dynamic> m) => DuelAnswer(
-        selectedIndex: m['selectedIndex'] as int?,
-        correct: m['correct'] as bool? ?? false,
-      );
+class DuelRoundConfig {
+  final String type; // 'mcq' | 'spelling'
+  final String prompt;
+  final List<String>? options; // null for spelling
+  final int? correctIndex; // null for spelling
+  final String? correctText; // null for mcq (normalized lowercase, trimmed)
+  const DuelRoundConfig({
+    required this.type,
+    required this.prompt,
+    this.options,
+    this.correctIndex,
+    this.correctText,
+  });
+
+  Map<String, dynamic> toMap() => {
+        'type': type,
+        'prompt': prompt,
+        if (options != null) 'options': options,
+        if (correctIndex != null) 'correctIndex': correctIndex,
+        if (correctText != null) 'correctText': correctText,
+        'hostAnswer': null,
+        'hostCorrect': null,
+        'opponentAnswer': null,
+        'opponentCorrect': null,
+      };
 }
+
+// Starter spelling word bank -- placeholder content, worth expanding
+// with real WAEC/JAMB-relevant vocabulary later. Clue-based so it's
+// not a bare "spell this word" with zero context.
+const List<Map<String, String>> _spellingBank = [
+  {'clue': 'The process by which plants make food using sunlight', 'word': 'photosynthesis'},
+  {'clue': 'A word that means the opposite of another word', 'word': 'antonym'},
+  {'clue': 'The scientific study of living organisms', 'word': 'biology'},
+  {'clue': 'A number that can only be divided by 1 and itself', 'word': 'prime'},
+  {'clue': 'The force that pulls objects toward the earth', 'word': 'gravity'},
+  {'clue': 'A shape with three sides', 'word': 'triangle'},
+  {'clue': 'The study of the stars and planets', 'word': 'astronomy'},
+  {'clue': 'A word that sounds the same as another but means something different', 'word': 'homophone'},
+  {'clue': 'The branch of science dealing with substances and their reactions', 'word': 'chemistry'},
+  {'clue': 'A government where citizens vote for their leaders', 'word': 'democracy'},
+  {'clue': 'The organ that pumps blood around the body', 'word': 'heart'},
+  {'clue': 'A statement believed to be true without proof, used as a basis for reasoning', 'word': 'axiom'},
+  {'clue': 'The smallest unit of an element that retains its properties', 'word': 'atom'},
+  {'clue': 'A word for a large group of stars, gas, and dust bound by gravity', 'word': 'galaxy'},
+  {'clue': 'The process of breaking down food in the body', 'word': 'digestion'},
+];
 
 class DuelService {
   DuelService._();
 
-  static const int questionCount = 10;
-  static final _db = FirebaseFirestore.instance;
-  static CollectionReference<Map<String, dynamic>> _duels() =>
-      _db.collection('duels');
+  static const int roundCount = 3;
+  static const List<int> roundBudgetsSeconds = [180, 180, 120];
+  static const int mcqQuestionCount = 3; // one per round
 
-  /// Draws a fresh 10-question set for [courseKey] — same source practice
-  /// tests use, so no new content is needed anywhere for this feature.
-  static List<QuizQuestion> drawQuestions(String courseKey) {
-    final pool = TopicQuestionSource.questionsForCourse(courseKey);
-    pool.shuffle();
-    return pool.take(questionCount).toList();
+  static final _db = FirebaseFirestore.instance;
+  static CollectionReference<Map<String, dynamic>> _duels() => _db.collection('duels');
+  static CollectionReference<Map<String, dynamic>> _queue() => _db.collection('duel_queue');
+
+  static DuelRole roleFor(String uid, Map<String, dynamic> duel) =>
+      duel['hostUid'] == uid ? DuelRole.host : DuelRole.opponent;
+
+  // ── Content drawing ─────────────────────────────────────────────────
+
+  static List<DuelRoundConfig> _drawRounds(DuelMode mode, String? courseKey) {
+    if (mode == DuelMode.spelling) {
+      final bank = List<Map<String, String>>.from(_spellingBank)..shuffle();
+      return bank.take(roundCount).map((w) => DuelRoundConfig(
+            type: 'spelling',
+            prompt: w['clue']!,
+            correctText: w['word']!.trim().toLowerCase(),
+          )).toList();
+    }
+    final pool = TopicQuestionSource.questionsForCourse(courseKey ?? '')..shuffle();
+    return pool.take(mcqQuestionCount).map((q) => DuelRoundConfig(
+          type: 'mcq',
+          prompt: q.question,
+          options: q.options,
+          correctIndex: q.correctIndex,
+        )).toList();
   }
 
-  /// Creates a duel with the CHALLENGER's answers already complete —
-  /// a duel is never created half-finished. Notifies the opponent.
-  static Future<String?> createDuel({
-    required String opponentUid,
-    required String opponentName,
-    required String courseKey,
-    required List<QuizQuestion> questions,
-    required List<DuelAnswer> challengerAnswers,
+  // ── Friend challenges (alternative to matchmaking) ───────────────────
+  //
+  // Separate from queueForMatch -- this targets one specific person
+  // (someone you mutually follow) instead of anyone waiting. Since the
+  // challenged friend might not have the app open right now, this is
+  // necessarily a two-step flow: an invite gets created and they get
+  // notified, and the actual live duel (with its shared clock) only
+  // starts once they explicitly accept -- there's no live state to
+  // sync until both people are actually present.
+
+  static CollectionReference<Map<String, dynamic>> _invites() => _db.collection('duel_invites');
+
+  /// Creates a challenge with no specific recipient -- anyone who opens
+  /// the resulting link can accept it. Same underlying doc shape as
+  /// [sendChallenge], just with toUid/toName left null until someone
+  /// actually claims it at accept time. No notification is sent since
+  /// there's no specific person to notify yet.
+  static Future<String?> createLinkChallenge({
+    required DuelMode mode,
+    String? courseKey,
   }) async {
     final uid = UserService.uid;
     if (uid == null) return null;
     final profile = await UserService.getProfile();
-    final challengerName = profile?['displayName'] as String? ?? 'Someone';
+    final myName = profile?['displayName'] as String? ?? 'Someone';
 
-    final correct = challengerAnswers.where((a) => a.correct).length;
-
-    final ref = _duels().doc();
-    await ref.set({
-      'challengerUid': uid,
-      'challengerName': challengerName,
-      'opponentUid': opponentUid,
-      'opponentName': opponentName,
+    final inviteRef = _invites().doc();
+    await inviteRef.set({
+      'fromUid': uid,
+      'fromName': myName,
+      'toUid': null,
+      'toName': null,
+      'mode': mode.name,
       'courseKey': courseKey,
-      'questions': questions.map((q) => {
-            'question': q.question,
-            'options': q.options,
-            'correctIndex': q.correctIndex,
-            'explanation': q.explanation,
-          }).toList(),
-      'challengerScore': correct,
-      'challengerCorrect': correct,
-      'challengerAnswers': challengerAnswers.map((a) => a.toMap()).toList(),
-      'opponentScore': null,
-      'opponentCorrect': null,
-      'opponentAnswers': null,
-      'opponentCompletedAt': null,
       'status': 'pending',
-      'winnerUid': null,
+      'resultDuelId': null,
       'createdAt': FieldValue.serverTimestamp(),
-      // Stale, unplayed challenges stop showing as "pending" after this —
-      // handled client-side by filtering on read, no cleanup job needed.
-      'expiresAt': Timestamp.fromDate(DateTime.now().add(const Duration(days: 7))),
+    });
+    return inviteRef.id;
+  }
+
+  /// Fetches an invite's basic info for display before accepting --
+  /// used by the link-landing screen to show "X challenged you to a
+  /// Y battle" without needing to already be a participant (unlike
+  /// [inviteStream], which is for the sender watching their own sent
+  /// invite and requires participant-level read access).
+  static Future<Map<String, dynamic>?> peekInvite(String inviteId) async {
+    final snap = await _invites().doc(inviteId).get();
+    return snap.data();
+  }
+
+  /// Sends a direct challenge to [toUid]. Reuses the 'duel_challenge'
+  /// notification type already permitted in rules, but with fresh
+  /// content -- the old helper in NotificationService was built for the
+  /// async model (expects a pre-computed score that doesn't exist yet
+  /// here), so this writes the notification directly instead of forcing
+  /// it through that mismatched shape.
+  static Future<String?> sendChallenge({
+    required String toUid,
+    required String toName,
+    required DuelMode mode,
+    String? courseKey,
+  }) async {
+    final uid = UserService.uid;
+    if (uid == null) return null;
+    final profile = await UserService.getProfile();
+    final myName = profile?['displayName'] as String? ?? 'Someone';
+
+    final inviteRef = _invites().doc();
+    await inviteRef.set({
+      'fromUid': uid,
+      'fromName': myName,
+      'toUid': toUid,
+      'toName': toName,
+      'mode': mode.name,
+      'courseKey': courseKey,
+      'status': 'pending',
+      'resultDuelId': null,
+      'createdAt': FieldValue.serverTimestamp(),
     });
 
-    await NotificationService.createDuelChallengeNotification(
-      targetUid: opponentUid,
-      duelId: ref.id,
-      courseKey: courseKey,
-      correctOutOfTotal: '$correct/${questions.length}',
-    );
-
-    return ref.id;
-  }
-
-  /// Submits the OPPONENT's answers, scores the duel, and notifies both
-  /// players of the result. This is the only write a client makes to an
-  /// existing duel doc — everything else is set once at creation.
-  static Future<void> submitOpponentAnswers({
-    required String duelId,
-    required List<DuelAnswer> answers,
-  }) async {
-    final ref = _duels().doc(duelId);
     try {
-      await _db.runTransaction((tx) async {
-        final snap = await tx.get(ref);
-        final data = snap.data();
-        if (data == null || data['status'] != 'pending') return;
-
-        final correct = answers.where((a) => a.correct).length;
-        final challengerCorrect = data['challengerCorrect'] as int? ?? 0;
-
-        String? winnerUid;
-        if (correct > challengerCorrect) {
-          winnerUid = data['opponentUid'] as String?;
-        } else if (challengerCorrect > correct) {
-          winnerUid = data['challengerUid'] as String?;
-        } // else: tie, winnerUid stays null
-
-        tx.update(ref, {
-          'opponentScore': correct,
-          'opponentCorrect': correct,
-          'opponentAnswers': answers.map((a) => a.toMap()).toList(),
-          'opponentCompletedAt': FieldValue.serverTimestamp(),
-          'status': 'completed',
-          'winnerUid': winnerUid,
-        });
+      await _db.collection('notifications').add({
+        'uid': toUid,
+        'fromUid': uid,
+        'fromDisplayName': myName,
+        'type': 'duel_challenge',
+        'title': '$myName challenged you to a battle',
+        'body': mode == DuelMode.spelling
+            ? 'Spelling battle — tap to accept'
+            : '${courseKey ?? 'Quiz'} battle — tap to accept',
+        'inviteId': inviteRef.id,
+        'createdAt': FieldValue.serverTimestamp(),
       });
-
-      // Reward XP for playing, regardless of outcome — small win-bonus on
-      // top. Best-effort, outside the transaction since it touches a
-      // different document (the user doc, not the duel doc).
-      final uid = UserService.uid;
-      if (uid != null) {
-        UserService.awardXP(20, reason: 'duel');
-      }
-
-      await _notifyDuelResult(duelId);
     } catch (_) {
-      // Best-effort — a failed notification/XP step shouldn't undo an
-      // already-recorded result.
+      // Best-effort -- the invite itself still exists even if the push
+      // notification write fails; the incoming-invites stream below is
+      // the real source of truth, not the notification.
     }
+
+    return inviteRef.id;
   }
 
-  static Future<void> _notifyDuelResult(String duelId) async {
-    try {
-      final snap = await _duels().doc(duelId).get();
-      final data = snap.data();
-      if (data == null) return;
-      final challengerUid = data['challengerUid'] as String;
-      final opponentUid = data['opponentUid'] as String;
-      final challengerCorrect = data['challengerCorrect'] as int? ?? 0;
-      final opponentCorrect = data['opponentCorrect'] as int? ?? 0;
-      final courseKey = data['courseKey'] as String? ?? '';
-
-      await NotificationService.createDuelResultNotification(
-        targetUid: challengerUid,
-        duelId: duelId,
-        courseKey: courseKey,
-        myScore: challengerCorrect,
-        opponentScore: opponentCorrect,
-      );
-      await NotificationService.createDuelResultNotification(
-        targetUid: opponentUid,
-        duelId: duelId,
-        courseKey: courseKey,
-        myScore: opponentCorrect,
-        opponentScore: challengerCorrect,
-      );
-    } catch (_) {}
+  /// Live view of your own outgoing invite -- watch for [resultDuelId]
+  /// to appear once your friend accepts.
+  static Stream<Map<String, dynamic>?> inviteStream(String inviteId) {
+    return _invites().doc(inviteId).snapshots().map((d) => d.data());
   }
 
-  /// Live stream of every duel involving the current user — split into
-  /// three buckets client-side (pending-mine-to-play, pending-waiting-on-
-  /// them, completed) since that's a small, bounded list per user and
-  /// doesn't need three separate queries.
-  ///
-  /// Firestore can't OR two different fields in one query, so this reads
-  /// both directions (challenger and opponent) and merges. Manually
-  /// combines the two streams (no rxdart dependency) — re-emits the full
-  /// merged list whenever EITHER side changes, so a fresh incoming
-  /// challenge shows up live, not just changes to duels you started.
-  static Stream<List<Map<String, dynamic>>> myDuels() {
+  /// Every pending challenge sent TO you, newest first.
+  static Stream<List<Map<String, dynamic>>> myIncomingInvites() {
     final uid = UserService.uid;
     if (uid == null) return Stream.value([]);
+    return _invites()
+        .where('toUid', isEqualTo: uid)
+        .where('status', isEqualTo: 'pending')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((s) => s.docs.map((d) => {'id': d.id, ...d.data()}).toList());
+  }
 
-    final controller = StreamController<List<Map<String, dynamic>>>.broadcast();
-    List<Map<String, dynamic>> latestAsChallenger = [];
-    List<Map<String, dynamic>> latestAsOpponent = [];
+  /// Accepts a challenge -- creates the actual live duel (same shape
+  /// matchmaking produces) and marks the invite accepted so the
+  /// challenger's waiting screen picks it up. Works for both a
+  /// targeted friend challenge (invite already has toUid) and an open
+  /// link invite (toUid is null, filled in here with whoever's
+  /// accepting -- first to claim it wins, enforced by the transaction
+  /// re-checking status == 'pending').
+  static Future<String?> acceptChallenge(String inviteId) async {
+    final uid = UserService.uid;
+    if (uid == null) return null;
+    final profile = await UserService.getProfile();
+    final myName = profile?['displayName'] as String? ?? 'Student';
+    final inviteRef = _invites().doc(inviteId);
+    final duelRef = _duels().doc();
 
-    void emit() {
-      final all = [...latestAsChallenger, ...latestAsOpponent];
-      all.sort((a, b) {
-        final at = a['createdAt'] as Timestamp?;
-        final bt = b['createdAt'] as Timestamp?;
-        return (bt ?? Timestamp(0, 0)).compareTo(at ?? Timestamp(0, 0));
+    final accepted = await _db.runTransaction<bool>((tx) async {
+      final snap = await tx.get(inviteRef);
+      final invite = snap.data();
+      if (invite == null || invite['status'] != 'pending') return false;
+      if (invite['fromUid'] == uid) return false; // can't accept your own invite
+      final targetUid = invite['toUid'] as String?;
+      if (targetUid != null && targetUid != uid) return false; // targeted at someone else
+
+      final mode = invite['mode'] == 'spelling' ? DuelMode.spelling : DuelMode.subject;
+      final courseKey = invite['courseKey'] as String?;
+      final rounds = _drawRounds(mode, courseKey);
+      final opponentName = invite['toName'] as String? ?? myName;
+
+      tx.set(duelRef, {
+        'mode': invite['mode'],
+        'courseKey': courseKey,
+        'hostUid': invite['fromUid'], // challenger hosts
+        'hostName': invite['fromName'],
+        'opponentUid': uid,
+        'opponentName': opponentName,
+        'status': 'active',
+        'currentRound': 0,
+        'turn': 'host',
+        'turnEndsAt': Timestamp.fromDate(
+          DateTime.now().add(Duration(seconds: roundBudgetsSeconds[0]))),
+        'hostRoundWins': 0,
+        'opponentRoundWins': 0,
+        'winnerUid': null,
+        'createdAt': FieldValue.serverTimestamp(),
       });
-      controller.add(all);
+      for (var i = 0; i < rounds.length; i++) {
+        tx.set(duelRef.collection('rounds').doc('$i'), rounds[i].toMap());
+      }
+      tx.update(inviteRef, {
+        'status': 'accepted',
+        'resultDuelId': duelRef.id,
+        if (targetUid == null) 'toUid': uid,
+        if (targetUid == null) 'toName': myName,
+      });
+      return true;
+    });
+
+    return accepted ? duelRef.id : null;
+  }
+
+  static Future<void> declineChallenge(String inviteId) async {
+    await _invites().doc(inviteId).update({'status': 'declined'});
+  }
+
+  // ── Matchmaking ──────────────────────────────────────────────────────
+
+  /// Tries to find a waiting opponent for [mode]/[courseKey]. If one
+  /// exists, atomically claims them, creates the live duel, and returns
+  /// the new duelId immediately -- no queue wait for the second player.
+  /// If no one's waiting, adds the caller to the queue and returns null;
+  /// the caller should then listen to [myQueueEntryStream] for a match.
+  static Future<String?> queueForMatch({
+    required DuelMode mode,
+    String? courseKey,
+  }) async {
+    final uid = UserService.uid;
+    if (uid == null) return null;
+    final profile = await UserService.getProfile();
+    final myName = profile?['displayName'] as String? ?? 'Student';
+
+    // Look for an existing, unmatched, compatible queue entry.
+    Query<Map<String, dynamic>> q = _queue()
+        .where('mode', isEqualTo: mode.name)
+        .where('matchedDuelId', isNull: true)
+        .orderBy('queuedAt')
+        .limit(5); // small buffer in case the first candidate is myself/stale
+    if (mode == DuelMode.subject) {
+      q = q.where('courseKey', isEqualTo: courseKey);
+    }
+    final candidates = await q.get();
+    final opponentDocs = candidates.docs.where((d) => d.id != uid).toList();
+    final opponent = opponentDocs.isNotEmpty ? opponentDocs.first : null;
+
+    if (opponent == null) {
+      // Nobody waiting -- become the waiting entry.
+      await _queue().doc(uid).set({
+        'mode': mode.name,
+        'courseKey': courseKey,
+        'displayName': myName,
+        'queuedAt': FieldValue.serverTimestamp(),
+        'matchedDuelId': null,
+      });
+      return null;
     }
 
-    final sub1 = _duels().where('challengerUid', isEqualTo: uid).snapshots().listen((snap) {
-      latestAsChallenger = snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
-      emit();
-    });
-    final sub2 = _duels().where('opponentUid', isEqualTo: uid).snapshots().listen((snap) {
-      latestAsOpponent = snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
-      emit();
+    // Found someone -- claim them and create the duel in one transaction
+    // so two simultaneous second-players can't both claim the same entry.
+    final opponentUid = opponent.id;
+    final opponentData = opponent.data();
+    final duelRef = _duels().doc();
+
+    final claimed = await _db.runTransaction<bool>((tx) async {
+      final freshOpp = await tx.get(_queue().doc(opponentUid));
+      if (!freshOpp.exists || freshOpp.data()?['matchedDuelId'] != null) {
+        return false; // someone else claimed them first
+      }
+      final rounds = _drawRounds(mode, courseKey);
+      tx.set(duelRef, {
+        'mode': mode.name,
+        'courseKey': courseKey,
+        'hostUid': opponentUid, // whoever was already waiting hosts
+        'hostName': opponentData['displayName'] ?? 'Student',
+        'opponentUid': uid,
+        'opponentName': myName,
+        'status': 'active',
+        'currentRound': 0,
+        'turn': 'host',
+        'turnEndsAt': Timestamp.fromDate(
+          DateTime.now().add(Duration(seconds: roundBudgetsSeconds[0]))),
+        'hostRoundWins': 0,
+        'opponentRoundWins': 0,
+        'winnerUid': null,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      for (var i = 0; i < rounds.length; i++) {
+        tx.set(duelRef.collection('rounds').doc('$i'), rounds[i].toMap());
+      }
+      tx.update(_queue().doc(opponentUid), {'matchedDuelId': duelRef.id});
+      return true;
     });
 
-    controller.onCancel = () {
-      sub1.cancel();
-      sub2.cancel();
-    };
+    if (!claimed) {
+      // Race lost -- fall back to queueing ourselves instead.
+      await _queue().doc(uid).set({
+        'mode': mode.name,
+        'courseKey': courseKey,
+        'displayName': myName,
+        'queuedAt': FieldValue.serverTimestamp(),
+        'matchedDuelId': null,
+      });
+      return null;
+    }
+    return duelRef.id;
+  }
 
-    return controller.stream;
+  /// Watch your own queue entry -- when [matchedDuelId] appears, someone
+  /// matched with you. Navigate into the duel, then call [cancelQueue]
+  /// to clean up (harmless no-op if already gone).
+  static Stream<String?> myQueueEntryStream() {
+    final uid = UserService.uid;
+    if (uid == null) return Stream.value(null);
+    return _queue().doc(uid).snapshots().map((d) => d.data()?['matchedDuelId'] as String?);
+  }
+
+  static Future<void> cancelQueue() async {
+    final uid = UserService.uid;
+    if (uid == null) return;
+    await _queue().doc(uid).delete();
+  }
+
+  // ── Live duel state ──────────────────────────────────────────────────
+
+  static Stream<Map<String, dynamic>?> duelStream(String duelId) {
+    return _duels().doc(duelId).snapshots().map((d) => d.data());
+  }
+
+  static Stream<Map<String, dynamic>?> roundStream(String duelId, int roundIndex) {
+    return _duels().doc(duelId).collection('rounds').doc('$roundIndex').snapshots().map((d) => d.data());
+  }
+
+  // ── Answering ────────────────────────────────────────────────────────
+
+  /// Submits an answer for the current round. [selectedIndex] for mcq,
+  /// [spellingText] for spelling -- pass whichever matches the round type.
+  /// Handles turn-passing and round resolution inside one transaction.
+  static Future<void> submitAnswer({
+    required String duelId,
+    required int roundIndex,
+    int? selectedIndex,
+    String? spellingText,
+  }) async {
+    final uid = UserService.uid;
+    if (uid == null) return;
+    final duelRef = _duels().doc(duelId);
+    final roundRef = duelRef.collection('rounds').doc('$roundIndex');
+
+    await _db.runTransaction((tx) async {
+      final duelSnap = await tx.get(duelRef);
+      final roundSnap = await tx.get(roundRef);
+      final duel = duelSnap.data();
+      final round = roundSnap.data();
+      if (duel == null || round == null) return;
+      if (duel['status'] != 'active' || duel['currentRound'] != roundIndex) return;
+
+      final myRole = roleFor(uid, duel);
+      final myTurn = duel['turn'] == myRole.name;
+      if (!myTurn) return; // not your turn -- ignore (client should prevent this anyway)
+
+      final alreadyAnswered = myRole == DuelRole.host
+          ? round['hostAnswer'] != null
+          : round['opponentAnswer'] != null;
+      if (alreadyAnswered) return;
+
+      bool correct;
+      dynamic storedAnswer;
+      if (round['type'] == 'spelling') {
+        final normalized = (spellingText ?? '').trim().toLowerCase();
+        correct = normalized == round['correctText'];
+        storedAnswer = normalized;
+      } else {
+        correct = selectedIndex == round['correctIndex'];
+        storedAnswer = selectedIndex;
+      }
+
+      final roundUpdate = myRole == DuelRole.host
+          ? {'hostAnswer': storedAnswer, 'hostCorrect': correct}
+          : {'opponentAnswer': storedAnswer, 'opponentCorrect': correct};
+      tx.update(roundRef, roundUpdate);
+
+      final otherAnswered = myRole == DuelRole.host
+          ? round['opponentAnswer'] != null
+          : round['hostAnswer'] != null;
+
+      if (!otherAnswered) {
+        // Pass the turn to the other player, fresh clock for their turn.
+        final nextRole = myRole == DuelRole.host ? DuelRole.opponent : DuelRole.host;
+        tx.update(duelRef, {
+          'turn': nextRole.name,
+          'turnEndsAt': Timestamp.fromDate(
+            DateTime.now().add(Duration(seconds: roundBudgetsSeconds[roundIndex]))),
+        });
+        return;
+      }
+
+      // Both sides have now answered this round -- resolve it.
+      final hostCorrect = myRole == DuelRole.host ? correct : round['hostCorrect'] as bool? ?? false;
+      final opponentCorrect = myRole == DuelRole.opponent ? correct : round['opponentCorrect'] as bool? ?? false;
+
+      int hostWins = duel['hostRoundWins'] as int? ?? 0;
+      int opponentWins = duel['opponentRoundWins'] as int? ?? 0;
+      if (hostCorrect && !opponentCorrect) hostWins++;
+      if (opponentCorrect && !hostCorrect) opponentWins++;
+      // Both correct or both wrong -> tie, no point either way.
+
+      final isLastRound = roundIndex == roundCount - 1;
+      if (isLastRound) {
+        String? winnerUid;
+        if (hostWins > opponentWins) winnerUid = duel['hostUid'] as String?;
+        if (opponentWins > hostWins) winnerUid = duel['opponentUid'] as String?;
+        tx.update(duelRef, {
+          'status': 'completed',
+          'hostRoundWins': hostWins,
+          'opponentRoundWins': opponentWins,
+          'winnerUid': winnerUid,
+        });
+      } else {
+        tx.update(duelRef, {
+          'currentRound': roundIndex + 1,
+          'turn': 'host',
+          'hostRoundWins': hostWins,
+          'opponentRoundWins': opponentWins,
+          'turnEndsAt': Timestamp.fromDate(
+            DateTime.now().add(Duration(seconds: roundBudgetsSeconds[roundIndex + 1]))),
+        });
+      }
+    });
+
+    UserService.awardXP(20, reason: 'duel');
+  }
+
+  /// Call when a client notices turnEndsAt has passed with no answer --
+  /// counts as a wrong/no answer for whoever's turn it was. Same lazy-
+  /// expiration pattern as Study Rooms: any client can call this, rules
+  /// guard it server-side by checking request.time against turnEndsAt.
+  static Future<void> submitTimeout({required String duelId, required int roundIndex}) async {
+    final duelSnap = await _duels().doc(duelId).get();
+    final duel = duelSnap.data();
+    if (duel == null || duel['status'] != 'active') return;
+    if (duel['currentRound'] != roundIndex) return;
+    final turn = duel['turn'] as String?;
+    if (turn == null) return;
+    // Submitting an "impossible" answer (-1 / a sentinel string) as
+    // whoever's turn it is guarantees it's scored wrong, reusing the
+    // same resolution path as a real answer -- no separate timeout
+    // logic to keep in sync with the scoring rules above.
+    final asHost = turn == 'host';
+    await submitAnswer(
+      duelId: duelId,
+      roundIndex: roundIndex,
+      selectedIndex: asHost ? -1 : null,
+      spellingText: asHost ? null : '\u0000timeout\u0000',
+    );
   }
 }
+
+/*
+Firestore rules -- REPLACE the old `match /duels/{duelId} { ... }` block
+entirely (old async schema is gone) with:
+
+  match /duel_queue/{uid} {
+    allow read: if request.auth != null;
+    allow create: if request.auth != null && request.auth.uid == uid
+                  && request.resource.data.matchedDuelId == null;
+    allow delete: if request.auth != null && request.auth.uid == uid;
+    // The matching transaction runs from the SECOND player's client and
+    // needs to set matchedDuelId on the FIRST player's (someone else's)
+    // queue doc -- that's the whole point of matchmaking. Scope it
+    // tightly to only that one field so nothing else about someone
+    // else's entry can be touched.
+    allow update: if request.auth != null
+                  && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['matchedDuelId']);
+  }
+
+  match /duels/{duelId} {
+    allow read: if request.auth != null
+                && (request.auth.uid == resource.data.hostUid
+                    || request.auth.uid == resource.data.opponentUid);
+    allow create: if request.auth != null
+                  && (request.auth.uid == request.resource.data.hostUid
+                      || request.auth.uid == request.resource.data.opponentUid)
+                  && request.resource.data.status == 'active'
+                  && request.resource.data.currentRound == 0;
+    allow update: if request.auth != null
+                  && (request.auth.uid == resource.data.hostUid
+                      || request.auth.uid == resource.data.opponentUid);
+
+    match /rounds/{roundIndex} {
+      allow read: if request.auth != null
+                  && (request.auth.uid == get(/databases/$(database)/documents/duels/$(duelId)).data.hostUid
+                      || request.auth.uid == get(/databases/$(database)/documents/duels/$(duelId)).data.opponentUid);
+      allow create: if request.auth != null
+                    && (request.auth.uid == get(/databases/$(database)/documents/duels/$(duelId)).data.hostUid
+                        || request.auth.uid == get(/databases/$(database)/documents/duels/$(duelId)).data.opponentUid);
+      allow update: if request.auth != null
+                    && (request.auth.uid == get(/databases/$(database)/documents/duels/$(duelId)).data.hostUid
+                        || request.auth.uid == get(/databases/$(database)/documents/duels/$(duelId)).data.opponentUid);
+    }
+  }
+*/

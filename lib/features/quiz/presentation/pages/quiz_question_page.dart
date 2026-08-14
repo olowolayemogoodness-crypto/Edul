@@ -1,12 +1,19 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:gpt_markdown/gpt_markdown.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/widgets/lives_badge.dart';
 import '../../../../core/services/hint_service.dart';
 import '../../../../core/services/rewarded_ad_service.dart';
 import '../../../../core/services/premium_service.dart';
+import '../../../../core/services/vision_service.dart';
+import '../../../../core/services/ai_explain_service.dart';
 import '../bloc/quiz_bloc.dart';
 import '../../domain/models/quiz_question.dart';
 
@@ -29,10 +36,14 @@ class _QuizQuestionPageState extends State<QuizQuestionPage> with SingleTickerPr
   bool _answerRevealed = false;
   int _lastQuestionIndex = -1;
 
+  final GlobalKey _screenshotBoundaryKey = GlobalKey();
+  bool _aiLoading = false;
+
   @override
   void initState() {
     super.initState();
-    HintService.resetForNewQuiz();
+    HintService.ensureLoaded().then((_) { if (mounted) setState(() {}); });
+    AiExplainService.ensureLoaded();
     RewardedAdService.preload();
     _fadeCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 300));
     _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
@@ -40,14 +51,150 @@ class _QuizQuestionPageState extends State<QuizQuestionPage> with SingleTickerPr
     _startTimer();
   }
 
-  void _startTimer() {
+  Future<void> _handleAiExplainTap() async {
+    if (_aiLoading) return;
+    if (!AiExplainService.canUseNow) {
+      _showAdPromptThenExplain();
+      return;
+    }
+    AiExplainService.consumeUse();
+    await _captureAndExplain();
+  }
+
+  void _showAdPromptThenExplain() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Text('✨', style: TextStyle(fontSize: 40)),
+            const SizedBox(height: 14),
+            Text("You've used your free explanations", style: GoogleFonts.dmSans(
+              fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+            const SizedBox(height: 6),
+            Text('Watch a short ad to unlock ${AiExplainService.adBatchSize} more', textAlign: TextAlign.center,
+              style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.textTertiary)),
+            const SizedBox(height: 20),
+            SizedBox(width: double.infinity, child: ElevatedButton(
+              onPressed: () {
+                Navigator.pop(sheetContext);
+                RewardedAdService.show(
+                  onRewarded: () {
+                    AiExplainService.grantAdBatch();
+                    AiExplainService.consumeUse();
+                    _captureAndExplain();
+                  },
+                  onNotReady: () {
+                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Ad not ready yet — try again in a moment')));
+                  },
+                );
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+              child: Text('Watch ad', style: GoogleFonts.dmSans(color: Colors.white, fontWeight: FontWeight.w600)),
+            )),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _captureAndExplain() async {
+    setState(() => _aiLoading = true);
+    try {
+      final boundary = _screenshotBoundaryKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null) throw Exception('Could not capture the screen');
+      final image = await boundary.toImage(pixelRatio: 2.0);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      final bytes = byteData!.buffer.asUint8List();
+
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/quiz_explain_${DateTime.now().millisecondsSinceEpoch}.png');
+      await file.writeAsBytes(bytes);
+
+      final rawExplanation = await VisionService.analyzeImage(file);
+      if (!mounted) return;
+      _showExplanationSheet(_stripThinkingTrace(rawExplanation));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not get an explanation: $e')));
+    } finally {
+      if (mounted) setState(() => _aiLoading = false);
+    }
+  }
+
+  // Qwen3.6 is a reasoning model -- it can emit its internal chain-of-
+  // thought wrapped in <think>...</think> before the actual answer.
+  // That's meant to stay internal, not be shown to the user as if it
+  // were the explanation itself.
+  String _stripThinkingTrace(String text) {
+    return text.replaceAll(RegExp(r'<think>[\s\S]*?</think>', caseSensitive: false), '').trim();
+  }
+
+  void _showExplanationSheet(String explanation) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.6, minChildSize: 0.3, maxChildSize: 0.9, expand: false,
+        builder: (_, scrollController) => Padding(
+          padding: const EdgeInsets.all(20),
+          child: SingleChildScrollView(
+            controller: scrollController,
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Icon(Icons.auto_awesome_rounded, color: AppColors.accentLight, size: 18),
+                const SizedBox(width: 8),
+                Text('AI explanation', style: GoogleFonts.dmSans(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+              ]),
+              const SizedBox(height: 14),
+              GptMarkdown(explanation, style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textSecondary, height: 1.6)),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _startTimer([QuizMode? mode, QuizDifficulty? difficulty]) {
     _timer?.cancel();
-    setState(() => _timerSecs = 30);
+    // Free mode has no time limit at all -- don't just hide the badge,
+    // don't run the countdown or schedule the auto-timeout either.
+    final effectiveMode = mode ?? _currentQuizMode();
+    if (effectiveMode == QuizMode.free) return;
+    final effectiveDifficulty = difficulty ?? _currentQuizDifficulty();
+    setState(() => _timerSecs = _durationFor(effectiveDifficulty));
     _timer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) return;
       setState(() => _timerSecs--);
       if (_timerSecs <= 0) { t.cancel(); context.read<QuizBloc>().add(QuizTimedOut()); }
     });
+  }
+
+  // Easy gets the most thinking time, Hard the least -- same spirit as
+  // Battle's round budgets, just per-question instead of per-round since
+  // the solo quiz times each question individually, not a shared clock.
+  int _durationFor(QuizDifficulty? d) => switch (d) {
+    QuizDifficulty.easy => 45,
+    QuizDifficulty.medium => 30,
+    QuizDifficulty.hard => 15,
+    null => 30,
+  };
+
+  QuizMode? _currentQuizMode() {
+    final state = context.read<QuizBloc>().state;
+    return state is QuizInProgress ? state.mode : null;
+  }
+
+  QuizDifficulty? _currentQuizDifficulty() {
+    final state = context.read<QuizBloc>().state;
+    return state is QuizInProgress ? state.difficulty : null;
   }
 
   void _stopTimer() => _timer?.cancel();
@@ -62,7 +209,7 @@ class _QuizQuestionPageState extends State<QuizQuestionPage> with SingleTickerPr
   }
 
   void _onNext(QuizInProgress s) {
-    if (!s.isLastQuestion) { _fadeCtrl.reset(); _startTimer(); _fadeCtrl.forward(); }
+    if (!s.isLastQuestion) { _fadeCtrl.reset(); _startTimer(s.mode, s.difficulty); _fadeCtrl.forward(); }
     context.read<QuizBloc>().add(QuizNextQuestion());
   }
 
@@ -136,7 +283,7 @@ class _QuizQuestionPageState extends State<QuizQuestionPage> with SingleTickerPr
       builder: (context, state) {
         if (state is! QuizInProgress) return const SizedBox();
         final s = state;
-        final isTimed = s.mode == QuizMode.timed;
+        final showTimer = s.mode == QuizMode.timed || s.mode == QuizMode.battle;
         if (s.currentIndex != _lastQuestionIndex) {
           _lastQuestionIndex = s.currentIndex;
           _eliminatedIndices = {};
@@ -144,7 +291,10 @@ class _QuizQuestionPageState extends State<QuizQuestionPage> with SingleTickerPr
         }
         return Scaffold(
           backgroundColor: AppColors.background,
-          body: SafeArea(child: Column(children: [
+          body: Stack(children: [
+            RepaintBoundary(
+              key: _screenshotBoundaryKey,
+              child: SafeArea(child: Column(children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
               child: Row(children: [
@@ -168,7 +318,7 @@ class _QuizQuestionPageState extends State<QuizQuestionPage> with SingleTickerPr
                       valueColor: AlwaysStoppedAnimation(AppColors.accent),
                     )),
                 ])),
-                if (isTimed) ...[const SizedBox(width: 10), _TimerBadge(secs: _timerSecs)],
+                if (showTimer) ...[const SizedBox(width: 10), _TimerBadge(secs: _timerSecs)],
               ]),
             ),
             Padding(
@@ -249,6 +399,30 @@ class _QuizQuestionPageState extends State<QuizQuestionPage> with SingleTickerPr
               ),
             )),
           ])),
+            ),
+            // Only appears after answering -- letting this fire before an
+            // answer is submitted would just hand the answer to whoever
+            // taps it, defeating the whole point of a quiz.
+            if (s.answered)
+            Positioned(
+              right: 16,
+              bottom: 24,
+              child: GestureDetector(
+                onTap: _handleAiExplainTap,
+                child: Container(
+                  width: 52, height: 52,
+                  decoration: BoxDecoration(
+                    color: AppColors.accent,
+                    shape: BoxShape.circle,
+                    boxShadow: [BoxShadow(color: AppColors.accent.withValues(alpha: 0.4), blurRadius: 12, offset: const Offset(0, 4))],
+                  ),
+                  child: _aiLoading
+                      ? const Padding(padding: EdgeInsets.all(14), child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
+                      : const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 24),
+                ),
+              ),
+            ),
+          ]),
         );
       },
     );
@@ -455,7 +629,8 @@ class _OptionsWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(children: List.generate(question.options.length, (i) {
+    return Column(children: [
+      ...List.generate(question.options.length, (i) {
       final isSelected = selectedIndex == i;
       final isCorrect = i == question.correctIndex;
       final isEliminated = !answered && eliminatedIndices.contains(i);
@@ -509,7 +684,33 @@ class _OptionsWidget extends StatelessWidget {
           ),
         ),
       );
-    }));
+      }),
+      // Short solution -- only shows once the question is answered AND
+      // this specific question actually has explanation content. Most
+      // question banks don't have this authored yet (checked directly:
+      // zero explanation text across the PHY102/GNS106/etc banks), so
+      // this stays invisible rather than showing an empty box for
+      // virtually every question until that content exists.
+      if (answered && question.explanation.trim().isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceVariant,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Icon(Icons.info_outline_rounded, size: 15, color: AppColors.accentLight),
+              const SizedBox(width: 8),
+              Expanded(child: Text(question.explanation.trim(),
+                style: GoogleFonts.dmSans(fontSize: 12.5, color: AppColors.textSecondary, height: 1.5))),
+            ]),
+          ),
+        ),
+    ]);
   }
 }
 

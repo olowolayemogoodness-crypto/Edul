@@ -15,12 +15,17 @@ import '../../../../core/services/post_image_upload_service.dart';
 import '../../../../core/services/post_video_upload_service.dart';
 import '../../../../core/services/premium_service.dart';
 import '../../../../core/services/user_service.dart';
+import '../../../../core/services/notifications_service.dart';
+import '../../../../core/services/hashtag_service.dart';
 import '../../../../core/services/voice_note_service.dart';
 import '../../../../core/utils/paywall_helper.dart';
 
 class PostComposerPage extends StatefulWidget {
   final Map<String, dynamic>? quotedPost;
-  const PostComposerPage({super.key, this.quotedPost});
+  final String? initialTarget;
+  final String? groupId;
+  final String? groupName;
+  const PostComposerPage({super.key, this.quotedPost, this.initialTarget, this.groupId, this.groupName});
 
   @override
   State<PostComposerPage> createState() => _PostComposerPageState();
@@ -54,6 +59,7 @@ class _PostComposerPageState extends State<PostComposerPage> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialTarget != null) _feedTarget = widget.initialTarget!;
     _loadUniversity();
     _textCtrl.addListener(() => setState(() {}));
   }
@@ -226,40 +232,73 @@ class _PostComposerPageState extends State<PostComposerPage> {
 
       final profile = await UserService.getProfile();
       final displayName = profile?['displayName'] as String? ?? 'User';
+      final usernameDisplay = profile?['usernameDisplay'] as String?;
       final uni = profile?['university'] as String? ?? _university;
       final course = profile?['course'] as String? ?? '';
       final studentType = profile?['studentType'] as String? ?? 'university';
-      final postRef = await FirebaseFirestore.instance.collection('posts').add({
+      final postText = _textCtrl.text.trim();
+      final hashtags = HashtagService.extractHashtags(postText);
+      final isGroupPost = widget.groupId != null;
+      final collectionRef = isGroupPost
+          ? FirebaseFirestore.instance.collection('groups').doc(widget.groupId).collection('posts')
+          : FirebaseFirestore.instance.collection('posts');
+      final postRef = await collectionRef.add({
         'uid': uid,
         'displayName': displayName,
+        'usernameDisplay': usernameDisplay,
         'university': uni,
         'course': course,
         'studentType': studentType,
-        'content': _textCtrl.text.trim(),
+        'content': postText,
+        'hashtags': hashtags,
         'imageUrls': imageUrls,
         if (videoUrl != null) 'videoUrl': videoUrl,
         if (audioUrl != null) 'audioUrl': audioUrl,
         if (audioUrl != null) 'durationMs': _voiceNote!.durationMs,
         if (audioUrl != null) 'waveform': _voiceNote!.waveform,
         if (widget.quotedPost != null) 'quotedPostId': widget.quotedPost!['id'],
-        'feedTarget': _feedTarget,
+        // Group posts don't use feedTarget -- that field only makes
+        // sense for the main feed's Global/Uni/News scoping.
+        if (!isGroupPost) 'feedTarget': _feedTarget,
         'likeCount': 0, 'commentCount': 0, 'repostCount': 0, 'views': 0,
         'verified': false,
         'createdAt': FieldValue.serverTimestamp(),
       });
-      _notifyFollowers(uid, displayName, postRef.id);
+      if (!isGroupPost) {
+        _notifyFollowers(uid, displayName, postRef.id);
+      } else {
+        NotificationService.notifyGroupMembers(
+          groupId: widget.groupId!,
+          excludeUid: uid,
+          title: '$displayName posted in ${widget.groupName ?? "your group"}',
+          body: postText.isEmpty ? 'Shared something new' : postText,
+          data: {'type': 'group_post', 'groupId': widget.groupId, 'postId': postRef.id},
+        );
+      }
       if (!mounted) return;
       Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
+      debugPrint('[PostComposer] Post failed: $e');
       final message = _images.isNotEmpty || _video != null || _voiceNote != null
-          ? 'Failed to upload media: $e'
-          : 'Failed to post: $e';
+          ? 'Failed to upload media'
+          : 'Failed to post';
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(message,
           style: GoogleFonts.dmSans(fontSize: 13)),
         backgroundColor: AppColors.error,
-        behavior: SnackBarBehavior.floating));
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 6),
+        action: SnackBarAction(
+          label: 'Try again',
+          textColor: Colors.white,
+          // Everything typed/selected is still sitting in state at this
+          // point -- the failure happened during upload, not before it,
+          // so a retry just re-runs the exact same submission rather
+          // than needing the person to redo anything.
+          onPressed: _post,
+        ),
+      ));
     } finally {
       if (mounted) setState(() {
         _posting = false;
@@ -274,30 +313,12 @@ class _PostComposerPageState extends State<PostComposerPage> {
   /// average follower count grows well past this, move this fan-out to a
   /// Cloud Function triggered on post creation instead.
   Future<void> _notifyFollowers(String posterUid, String posterName, String postId) async {
-    try {
-      final followers = await FirebaseFirestore.instance
-          .collection('users').doc(posterUid).collection('followers')
-          .limit(500).get();
-      final batch = FirebaseFirestore.instance.batch();
-      for (final doc in followers.docs) {
-        final followerUid = doc.id;
-        final notifRef = FirebaseFirestore.instance.collection('notifications').doc();
-        batch.set(notifRef, {
-          'uid': followerUid,
-          'fromUid': posterUid,
-          'fromDisplayName': posterName,
-          'type': 'new_post',
-          'postId': postId,
-          'title': '$posterName shared a new post',
-          'body': 'Tap to view it',
-          'read': false,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-      }
-      if (followers.docs.isNotEmpty) await batch.commit();
-    } catch (_) {
-      // Best-effort — never block or fail the post itself over notifications.
-    }
+    await NotificationService.notifyFollowersOfNewContent(
+      posterUid: posterUid,
+      posterName: posterName,
+      postId: postId,
+      title: '$posterName shared a new post',
+    );
   }
 
   @override
@@ -317,9 +338,12 @@ class _PostComposerPageState extends State<PostComposerPage> {
         // ── Content ───────────────────────────────────────────────────────
         SafeArea(
           child: Column(children: [
-            // Top bar
+            // Top bar -- close + post button only. Pills used to live in
+            // this same Row between two Spacers, which is exactly what
+            // overflowed once a third pill (Aspirants) was added: fixed
+            // elements plus growing content in one un-scrollable Row.
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
               child: Row(children: [
                 GestureDetector(
                   onTap: () => Navigator.pop(context),
@@ -332,17 +356,6 @@ class _PostComposerPageState extends State<PostComposerPage> {
                     child: const Icon(Icons.close_rounded,
                       color: Colors.white70, size: 18)),
                 ),
-                const Spacer(),
-                // Feed target pills
-                _TargetPill(
-                  label: '🌍 Global',
-                  selected: _feedTarget == 'global',
-                  onTap: () => setState(() => _feedTarget = 'global')),
-                const SizedBox(width: 6),
-                _TargetPill(
-                  label: '🏛 ${_university.length > 6 ? _university.substring(0, 6) : _university}',
-                  selected: _feedTarget == 'uni',
-                  onTap: () => setState(() => _feedTarget = 'uni')),
                 const Spacer(),
                 // Post button
                 GestureDetector(
@@ -389,7 +402,62 @@ class _PostComposerPageState extends State<PostComposerPage> {
               ]),
             ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
+
+            // Feed target -- a fixed "Posting to" label, then the pills
+            // scrolling beside it in the SAME row. Deliberately merged
+            // into one row instead of two (a label row above a pills
+            // row) -- that split was most of what pushed this screen
+            // into overflow after Aspirants added a third pill.
+            //
+            // Group posts skip this entirely -- there's no feed target
+            // to choose, you're already posting into one specific,
+            // already-known group.
+            if (widget.groupId != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(children: [
+                  Text('Posting to', style: GoogleFonts.dmSans(
+                    fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white54)),
+                  const SizedBox(width: 6),
+                  Text(widget.groupName ?? 'group', style: GoogleFonts.dmSans(
+                    fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
+                ]),
+              )
+            else
+              SizedBox(
+                height: 34,
+                child: Row(children: [
+                  const SizedBox(width: 16),
+                  Text('Posting to', style: GoogleFonts.dmSans(
+                    fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white54)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.only(right: 16),
+                      children: [
+                        _TargetPill(
+                          label: '🌍 Global',
+                          selected: _feedTarget == 'global',
+                          onTap: () => setState(() => _feedTarget = 'global')),
+                        const SizedBox(width: 6),
+                        _TargetPill(
+                          label: '🏛 ${_university.length > 6 ? _university.substring(0, 6) : _university}',
+                          selected: _feedTarget == 'uni',
+                          onTap: () => setState(() => _feedTarget = 'uni')),
+                        const SizedBox(width: 6),
+                        _TargetPill(
+                          label: '🎓 Aspirants',
+                          selected: _feedTarget == 'aspirant',
+                          onTap: () => setState(() => _feedTarget = 'aspirant')),
+                      ],
+                    ),
+                  ),
+                ]),
+              ),
+
+            const SizedBox(height: 8),
 
             // Quoted post preview, if this is a quote post
             if (widget.quotedPost != null)
@@ -553,8 +621,14 @@ class _PostComposerPageState extends State<PostComposerPage> {
             // Spacer pushes input to bottom
             const Spacer(),
 
-            // Hint text when empty
-            if (_textCtrl.text.isEmpty && _images.isEmpty && _voiceNote == null)
+            // Hint text -- only when the field is genuinely empty AND the
+            // keyboard isn't up yet. Showing this decorative block while
+            // the keyboard is open was eating exactly the vertical room
+            // the two Spacers need to push the toolbar down to track the
+            // keyboard -- hiding it here fixes both the toolbar-not-
+            // tracking-the-keyboard bug and most of the residual overflow
+            // in one change, not just another round of padding trims.
+            if (bottomInset == 0 && _textCtrl.text.isEmpty && _images.isEmpty && _voiceNote == null)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Column(children: [
@@ -573,11 +647,12 @@ class _PostComposerPageState extends State<PostComposerPage> {
 
             const Spacer(),
 
-            // Bottom composer bar
-            AnimatedPadding(
-              duration: const Duration(milliseconds: 200),
-              padding: EdgeInsets.only(bottom: bottomInset),
-              child: Container(
+            // Bottom composer bar -- no extra bottom padding here. The
+            // Scaffold's resizeToAvoidBottomInset already shrinks the
+            // whole body to sit right above the keyboard; adding
+            // bottomInset again on top of that was double-compensating,
+            // pushing this a full keyboard-height too far up.
+            Container(
                 margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                 decoration: BoxDecoration(
                   color: AppColors.card,
@@ -709,7 +784,6 @@ class _PostComposerPageState extends State<PostComposerPage> {
                   ),
                 ]),
               ),
-            ),
           ]),
         ),
       ]),

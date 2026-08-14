@@ -13,10 +13,13 @@ import '../widgets/course_progress_widget.dart';
 import '../widgets/strengths_widget.dart';
 import '../widgets/learning_style_card.dart';
 import '../widgets/success_prediction_card.dart';
+import '../../../../core/services/notifications_service.dart';
+import '../../../notifications/presentation/pages/notifications_page.dart';
 import '../widgets/badges_scroll_widget.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/services/user_service.dart';
 import '../../../../core/services/study_time_service.dart';
+import '../../../../core/services/user_follow_service.dart';
 
 
 class ProfilePage extends StatefulWidget {
@@ -77,6 +80,31 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
                           Text('Profile', style: GoogleFonts.dmSans(
                               fontSize: 22, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
                           Row(mainAxisSize: MainAxisSize.min, children: [
+                            StreamBuilder<List<Map<String, dynamic>>>(
+                              stream: NotificationService.stream(),
+                              builder: (context, snapshot) {
+                                final hasUnread = (snapshot.data ?? []).any((n) => n['read'] != true);
+                                return Stack(clipBehavior: Clip.none, children: [
+                                  IconButton(
+                                    onPressed: () => Navigator.of(context).push(
+                                      MaterialPageRoute(builder: (_) => const NotificationsPage())),
+                                    icon: Icon(Icons.notifications_none_rounded, color: AppColors.textTertiary, size: 22),
+                                    padding: EdgeInsets.zero, constraints: const BoxConstraints(),
+                                  ),
+                                  if (hasUnread)
+                                    Positioned(
+                                      top: 2, right: 2,
+                                      child: Container(
+                                        width: 8, height: 8,
+                                        decoration: BoxDecoration(
+                                          color: AppColors.error, shape: BoxShape.circle,
+                                          border: Border.all(color: AppColors.background, width: 1.5)),
+                                      ),
+                                    ),
+                                ]);
+                              },
+                            ),
+                            const SizedBox(width: 12),
                             IconButton(onPressed: () => context.push('/settings'),
                                 icon: Icon(Icons.settings_outlined, color: AppColors.textTertiary, size: 22),
                                 padding: EdgeInsets.zero, constraints: const BoxConstraints()),
@@ -93,10 +121,13 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
   stream: StudyTimeService.todayStatsStream(),
   builder: (context, statsSnap) {
     final stats = statsSnap.data ?? {};
-    return SliverToBoxAdapter(child: Column(children: [
+    return SliverToBoxAdapter(child: StreamBuilder<int>(
+      stream: UserFollowService.myFriendCount(),
+      builder: (context, friendSnap) {
+        return Column(children: [
       if (!isLoading && !hasError) ProfileStatsRow(
         streak: (profile?['streak'] as int?) ?? 0,
-        friends: (profile?['friends'] as int?) ?? 0,
+        friends: friendSnap.data ?? 0,
         tasksDone: (stats['tasksCompleted'] as int?) ?? 0,
       ),
       if (isLoading) Padding(
@@ -115,7 +146,9 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
           peakHour: (stats['peakHour'] as int?) ?? 0,
         ),
       ),
-    ]));
+    ]);
+      },
+    ));
   },
 ),
                 if (FeatureFlags.showThisWeek && !isLoading && !hasError) SliverToBoxAdapter(child: _Section(title: 'This week', child: _ComingSoonOverlay(child: ThisWeekGrid(

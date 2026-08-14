@@ -6,7 +6,12 @@ import '../constants/api_keys.dart';
 
 class VisionService {
   static const String _apiUrl = 'https://api.groq.com/openai/v1/chat/completions';
-  static const String _model = 'llama-3.1-70b-versatile';
+  // Was 'llama-3.1-70b-versatile' -- not a currently valid Groq model id
+  // at all (Groq deprecated its Llama vision route entirely and
+  // explicitly recommends 'the multimodal qwen/qwen3.6-27b' as the
+  // replacement). This call was very likely failing outright before
+  // this fix, not just using a stale-but-working model.
+  static const String _model = 'qwen/qwen3.6-27b';
 
   /// Analyze an image file using LLaVA
   static Future<String> analyzeImage(File imageFile) async {

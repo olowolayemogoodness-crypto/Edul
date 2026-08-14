@@ -1,5 +1,6 @@
 // lib/features/tutor/domain/models/message_model.dart
 import 'package:equatable/equatable.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class TutorMessage extends Equatable {
   final String id;
@@ -40,4 +41,19 @@ class TutorMessage extends Equatable {
   }
 
   bool get hasError => error != null && error!.isNotEmpty;
+
+  Map<String, dynamic> toMap() => {
+    'content': content,
+    'isUser': isUser,
+    'timestamp': Timestamp.fromDate(timestamp),
+    if (xpEarned != null) 'xpEarned': xpEarned,
+  };
+
+  factory TutorMessage.fromMap(String id, Map<String, dynamic> map) => TutorMessage(
+    id: id,
+    content: map['content'] as String? ?? '',
+    isUser: map['isUser'] as bool? ?? false,
+    timestamp: (map['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
+    xpEarned: map['xpEarned'] as int?,
+  );
 }
