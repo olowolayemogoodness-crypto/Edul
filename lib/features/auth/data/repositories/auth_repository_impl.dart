@@ -18,6 +18,13 @@ class AuthRepositoryImpl implements AuthRepository {
     } on AuthFailure catch (e) { return Left(e); } catch (_) { return const Left(ServerFailure()); }
   }
   @override
+  Future<Either<Failure, AppUser>> signInWithGoogle() async {
+    try { return Right(await remoteDataSource.signInWithGoogle());
+    } on AuthFailure catch (e) { return Left(e);
+    } catch (e) { return Left(ServerFailure('Google sign-in failed: $e')); }
+  }
+
+  @override
   Future<Either<Failure, void>> signOut() async {
     try { await remoteDataSource.signOut(); return const Right(null);
     } catch (_) { return const Left(ServerFailure()); }

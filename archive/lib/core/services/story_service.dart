@@ -53,6 +53,8 @@ class StoryService {
       'backgroundColor': backgroundColor,
       'createdAt': Timestamp.fromDate(now),
       'expiresAt': Timestamp.fromDate(now.add(const Duration(hours: 24))),
+      'likeCount': 0,
+      'commentCount': 0,
     });
 
     final audience = await notificationAudienceFor(uid);

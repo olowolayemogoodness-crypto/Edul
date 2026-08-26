@@ -111,7 +111,7 @@ class _LoginPageState extends State<LoginPage> {
           const SizedBox(height: 18),
           Text('Welcome back', style: GoogleFonts.dmSans(fontSize: 22, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
           const SizedBox(height: 4),
-          Text('Sign in to continue learning', style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textTertiary)),
+          Text('Sign in to your campus', style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textTertiary)),
           const SizedBox(height: 24),
 
           _label('Email'),
@@ -137,6 +137,28 @@ class _LoginPageState extends State<LoginPage> {
               ),
             );
           }),
+          const SizedBox(height: 20),
+          Row(children: [
+            Expanded(child: Divider(color: AppColors.border)),
+            Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: Text('or', style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.textTertiary))),
+            Expanded(child: Divider(color: AppColors.border)),
+          ]),
+          const SizedBox(height: 16),
+          GestureDetector(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              context.read<AuthBloc>().add(const AuthSignInWithGoogle());
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(color: AppColors.surface, border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(12)),
+              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Container(width: 18, height: 18, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle), child: Center(child: Text('G', style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w700, color: const Color(0xFF4285F4))))),
+                const SizedBox(width: 8),
+                Text('Continue with Google', style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textSecondary)),
+              ]),
+            ),
+          ),
           const SizedBox(height: 20),
 
           Center(child: GestureDetector(

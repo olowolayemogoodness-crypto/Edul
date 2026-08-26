@@ -23,7 +23,10 @@ class NewsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+    return Column(children: [
+     
+      Expanded(
+        child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance.collection('posts')
           .orderBy('createdAt', descending: true).limit(50).snapshots(),
       builder: (context, snapshot) {
@@ -73,6 +76,8 @@ class NewsTab extends StatelessWidget {
           },
         );
       },
-    );
+        ),
+      ),
+    ]);
   }
 }

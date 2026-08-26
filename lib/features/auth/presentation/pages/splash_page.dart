@@ -90,7 +90,7 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
                 const SizedBox(height: 20),
                 Text('EduLink', style: AppTextStyles.displayMedium),
                 const SizedBox(height: 8),
-                Text('AI-powered learning', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary)),
+                Text('Your campus, connected', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary)),
                 const SizedBox(height: 40),
                 SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accentLight)),
               ],

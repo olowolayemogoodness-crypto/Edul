@@ -1,45 +1,29 @@
 // lib/features/social/presentation/pages/social_page.dart
 //
-// The bottom-nav Social destination. Three tabs (Groups/Stories/News),
-// with the story row sitting ABOVE the tab bar rather than duplicated
-// per-tab -- a judgment call, not explicitly specified: matches how
-// Instagram keeps its story row visible regardless of which feed tab
-// is active, and avoids building the same row three times.
-//
-// The "Add Story" FAB only shows on the Stories tab -- tracked via a
-// TabController listener, since the Scaffold (and its FAB) is shared
-// across all three tabs.
+// The new Social screen: no more separate News/Groups tabs. A single,
+// unified scrolling feed IS the default view -- announcements surface
+// naturally as you scroll, no capsule needed to "raise them up"
+// separately. A horizontal groups row sits above it; tapping a group
+// opens its own dedicated screen, which is itself a real, personalized
+// feed for that group specifically, not just a flat announcement list.
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../../core/constants/app_colors.dart';
-import '../../../../core/services/story_service.dart';
-import '../../../../core/widgets/voice_note_bubble.dart';
-import 'groups_page.dart';
-import 'stories_tab.dart';
-import 'news_tab.dart';
+import '../../../../core/services/group_service.dart';
+import '../../../../core/widgets/voice_note_bubble.dart'; // voiceNoteColor -- same per-user color law
+import 'group_detail_page.dart';
 import 'group_search_page.dart';
-import 'story_viewer_page.dart';
+import 'post_detail_page.dart';
 
-class SocialPage extends StatefulWidget {
+class SocialPage extends StatelessWidget {
   const SocialPage({super.key});
 
-  @override
-  State<SocialPage> createState() => _SocialPageState();
-}
-
-class _SocialPageState extends State<SocialPage> with SingleTickerProviderStateMixin {
-  late final TabController _tabController = TabController(length: 3, vsync: this)
-    ..addListener(() {
-      // Only rebuild on a genuine settled tab change, not every frame
-      // of the swipe animation between tabs.
-      if (!_tabController.indexIsChanging) setState(() {});
-    });
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
+  String _authorLabel(Map<String, dynamic> data) {
+    final username = data['usernameDisplay'] as String?;
+    if (username != null && username.trim().isNotEmpty) return '@$username';
+    return data['displayName'] as String? ?? 'User';
   }
 
   @override
@@ -60,104 +44,104 @@ class _SocialPageState extends State<SocialPage> with SingleTickerProviderStateM
           ),
           const SizedBox(width: 8),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: AppColors.accent,
-          unselectedLabelColor: AppColors.textTertiary,
-          indicatorColor: AppColors.accent,
-          labelStyle: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w600),
-          unselectedLabelStyle: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w500),
-          tabs: const [Tab(text: 'Groups'), Tab(text: 'Stories'), Tab(text: 'News')],
-        ),
       ),
       body: Column(children: [
-        const _StoryRow(),
+        const _GroupsRow(),
         Expanded(
-          child: TabBarView(
-            controller: _tabController,
-            children: const [GroupsPage(), StoriesTab(), NewsTab()],
+          child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: FirebaseFirestore.instance.collection('posts')
+                .orderBy('createdAt', descending: true).limit(50).snapshots(),
+            builder: (context, snapshot) {
+              final all = (snapshot.data?.docs ?? [])
+                  .map((d) => {'id': d.id, ...d.data()})
+                  .where((p) => p['verified'] == true)
+                  .toList();
+
+              if (all.isEmpty) {
+                return Center(child: Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.campaign_outlined, color: AppColors.textTertiary, size: 40),
+                    const SizedBox(height: 12),
+                    Text('No announcements yet', style: GoogleFonts.dmSans(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                    const SizedBox(height: 4),
+                    Text('Official updates and group broadcasts will show up here.',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.textTertiary)),
+                  ]),
+                ));
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                itemCount: all.length,
+                itemBuilder: (context, i) {
+                  final p = all[i];
+                  return ListTile(
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => PostDetailPage(postId: p['id'] as String))),
+                    title: Text(_authorLabel(p), style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                    subtitle: Text(p['content'] as String? ?? '', style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textSecondary),
+                      maxLines: 3, overflow: TextOverflow.ellipsis),
+                  );
+                },
+              );
+            },
           ),
         ),
       ]),
-      floatingActionButton: _tabController.index == 1
-          ? FloatingActionButton(
-              backgroundColor: AppColors.accent,
-              onPressed: () => showAddStorySheet(context),
-              child: const Icon(Icons.add_rounded, color: Colors.white),
-            )
-          : null,
     );
   }
 }
 
-class _StoryRow extends StatelessWidget {
-  const _StoryRow();
+class _GroupsRow extends StatelessWidget {
+  const _GroupsRow();
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: StoryService.activeStoriesByUser(),
+      stream: GroupService.myGroups(),
       builder: (context, snapshot) {
-        final stories = snapshot.data ?? [];
-        if (stories.isEmpty) return const SizedBox.shrink();
+        final groups = snapshot.data ?? [];
+        if (groups.isEmpty) return const SizedBox.shrink();
 
         return Container(
-          height: 104,
+          height: 92,
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: stories.length,
+            itemCount: groups.length,
             itemBuilder: (context, i) {
-              final s = stories[i];
-              final watched = s['watched'] as bool? ?? false;
-              final isMe = s['isMe'] as bool? ?? false;
-              final uid = s['uid'] as String;
-              final name = isMe
-                  ? 'Your story'
-                  : ((s['usernameDisplay'] as String?)?.isNotEmpty == true
-                      ? '@${s['usernameDisplay']}' : (s['displayName'] as String? ?? 'User'));
-              final photoUrl = s['photoUrl'] as String?;
-              final ringColor = voiceNoteColor(uid); // same per-user color law as voice notes -- not one fixed gradient for everyone
+              final g = groups[i];
+              final groupId = g['id'] as String;
+              final name = g['name'] as String? ?? 'Group';
+              final iconUrl = g['iconUrl'] as String?;
+              final isAdmin = g['role'] == 'admin';
+              final color = voiceNoteColor(groupId); // same per-entity color law used for stories/voice notes
+
               return Padding(
                 padding: const EdgeInsets.only(right: 14),
                 child: GestureDetector(
-                  // Tapping the avatar itself always opens the viewer
-                  // (yours included, to watch what you posted) -- the
-                  // small + badge below is the separate, dedicated way
-                  // to add new content.
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => StoryViewerPage(uid: uid))),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => GroupDetailPage(groupId: groupId, groupName: name, isAdmin: isAdmin))),
                   child: Column(children: [
-                    Stack(children: [
-                      Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: watched ? null : LinearGradient(colors: [ringColor, ringColor.withOpacity(0.6)]),
-                          border: watched ? Border.all(color: AppColors.border, width: 2) : null,
-                        ),
-                        child: CircleAvatar(
-                          radius: 26,
-                          backgroundColor: AppColors.accentSurface,
-                          backgroundImage: (photoUrl != null && photoUrl.isNotEmpty) ? NetworkImage(photoUrl) : null,
-                          child: (photoUrl == null || photoUrl.isEmpty)
-                              ? Text(name.replaceAll('@', '').isNotEmpty ? name.replaceAll('@', '')[0].toUpperCase() : 'U',
-                                  style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.accent))
-                              : null,
-                        ),
+                    Container(
+                      width: 52, height: 52,
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(14), // rounded-square, not circular -- matches how group icons are shown elsewhere
                       ),
-                      if (isMe)
-                        Positioned(bottom: 0, right: 0, child: GestureDetector(
-                          onTap: () => showAddStorySheet(context),
-                          child: Container(
-                            width: 18, height: 18,
-                            decoration: BoxDecoration(color: AppColors.accent, shape: BoxShape.circle, border: Border.all(color: AppColors.background, width: 2)),
-                            child: const Icon(Icons.add_rounded, color: Colors.white, size: 11)))),
-                    ]),
+                      child: (iconUrl != null && iconUrl.isNotEmpty)
+                          ? ClipRRect(borderRadius: BorderRadius.circular(14),
+                              child: Image.network(iconUrl, width: 52, height: 52, fit: BoxFit.cover))
+                          : Center(child: Text(name.isNotEmpty ? name[0].toUpperCase() : 'G',
+                              style: GoogleFonts.dmSans(fontSize: 18, fontWeight: FontWeight.w700, color: color))),
+                    ),
                     const SizedBox(height: 4),
                     SizedBox(width: 56, child: Text(name, textAlign: TextAlign.center,
-                      style: GoogleFonts.dmSans(fontSize: 10.5, color: watched ? AppColors.textTertiary : AppColors.textSecondary),
+                      style: GoogleFonts.dmSans(fontSize: 10.5, color: AppColors.textSecondary),
                       overflow: TextOverflow.ellipsis, maxLines: 1)),
                   ]),
                 ),

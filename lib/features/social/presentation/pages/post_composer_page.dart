@@ -18,7 +18,6 @@ import '../../../../core/services/user_service.dart';
 import '../../../../core/services/notifications_service.dart';
 import '../../../../core/services/hashtag_service.dart';
 import '../../../../core/services/voice_note_service.dart';
-import '../../../../core/utils/paywall_helper.dart';
 
 class PostComposerPage extends StatefulWidget {
   final Map<String, dynamic>? quotedPost;
@@ -80,12 +79,6 @@ class _PostComposerPageState extends State<PostComposerPage> {
   }
 
   Future<void> _pickImage() async {
-    if (PremiumService.isFree) {
-      showPaywall(context,
-        triggerReason: 'Image posts are available on Plus and Pro.',
-        initialTier: 1);
-      return;
-    }
     if (_images.length >= _maxImages) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Maximum $_maxImages images on your plan',
@@ -111,12 +104,6 @@ class _PostComposerPageState extends State<PostComposerPage> {
   }
 
   Future<void> _pickVideo() async {
-    if (PremiumService.isFree) {
-      showPaywall(context,
-        triggerReason: 'Video posts are available on Plus and Pro.',
-        initialTier: 1);
-      return;
-    }
     final picked = await _picker.pickVideo(
       source: ImageSource.gallery,
       maxDuration: const Duration(seconds: PostVideoUploadService.maxDurationSeconds),
@@ -146,12 +133,6 @@ class _PostComposerPageState extends State<PostComposerPage> {
   }
 
   Future<void> _startRecording() async {
-    if (PremiumService.isFree) {
-      showPaywall(context,
-        triggerReason: 'Voice note posts are available on Plus and Pro.',
-        initialTier: 1);
-      return;
-    }
     try {
       await VoiceNoteService.startRecording();
       if (!mounted) return;
@@ -707,9 +688,7 @@ class _PostComposerPageState extends State<PostComposerPage> {
                       child: Icon(
                         Icons.camera_alt_outlined,
                         size: 22,
-                        color: PremiumService.isFree
-                            ? AppColors.accentLight.withOpacity(0.3)
-                            : AppColors.accentLight.withOpacity(0.85)),
+                        color: AppColors.accentLight.withOpacity(0.85)),
                     ),
                   ),
 
@@ -721,9 +700,7 @@ class _PostComposerPageState extends State<PostComposerPage> {
                       child: Icon(
                         Icons.videocam_outlined,
                         size: 22,
-                        color: PremiumService.isFree
-                            ? AppColors.accentLight.withOpacity(0.3)
-                            : AppColors.accentLight.withOpacity(0.85)),
+                        color: AppColors.accentLight.withOpacity(0.85)),
                     ),
                   ),
 
@@ -737,9 +714,7 @@ class _PostComposerPageState extends State<PostComposerPage> {
                         size: 22,
                         color: _voiceNote != null
                             ? AppColors.accentLight.withOpacity(0.2)
-                            : PremiumService.isFree
-                                ? AppColors.accentLight.withOpacity(0.3)
-                                : AppColors.accentLight.withOpacity(0.85)),
+                            : AppColors.accentLight.withOpacity(0.85)),
                     ),
                   ),
 
@@ -774,7 +749,7 @@ class _PostComposerPageState extends State<PostComposerPage> {
                       Text('$charCount/$_maxChars',
                         style: GoogleFonts.dmSans(
                           fontSize: 10, color: charColor)),
-                      if (!PremiumService.isFree && _images.isNotEmpty) ...[
+                      if (_images.isNotEmpty) ...[
                         const SizedBox(height: 2),
                         Text('${_images.length}/$_maxImages 📷',
                           style: GoogleFonts.dmSans(

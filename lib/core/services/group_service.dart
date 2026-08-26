@@ -157,4 +157,80 @@ class GroupService {
         .snapshots()
         .map((s) => s.docs.map((d) => {'id': d.id, ...d.data()}).toList());
   }
+
+  // ── SET30 / official group auto-assignment ──────────────────────
+  // These groups were bulk-created via set30_import.js, not through
+  // the regular createGroup() flow -- creatorUid is the same "system"
+  // uid already used elsewhere for official/automated writes.
+  //
+  // IMPORTANT: "set" is a cohort-by-admission-year identifier, not
+  // tied to level directly -- it shifts as a cohort progresses.
+  // Confirmed mapping: 100L=Set30, 200L=Set29, 300L=Set28, 400L=Set27,
+  // 500L=Set26. Only Set30 (100L) groups exist right now -- other
+  // levels will find no matching groups until those sets are also
+  // bulk-imported.
+
+  static int? setForLevel(String level) {
+    switch (level) {
+      case '100': return 30;
+      case '200': return 29;
+      case '300': return 28;
+      case '400': return 27;
+      case '500': return 26;
+      default: return null;
+    }
+  }
+
+  /// Every official department group for the given [set], live from
+  /// Firestore rather than a hardcoded list in the app -- so adding
+  /// new departments or sets later doesn't need an app update.
+  static Future<List<Map<String, dynamic>>> officialGroups({required int set}) async {
+    final snap = await _groups()
+        .where('isOfficial', isEqualTo: true)
+        .where('set', isEqualTo: set)
+        .get();
+    final groups = snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
+    groups.sort((a, b) => (a['department'] as String? ?? '').compareTo(b['department'] as String? ?? ''));
+    return groups;
+  }
+
+  /// Places the current user directly into the official group matching
+  /// [department] AND [set] -- both are required, since the same
+  /// department name exists once per set (e.g. "Software Engineering"
+  /// has a separate group for Set30, Set29, etc.), so department alone
+  /// is no longer enough to find the right one. Skips the normal
+  /// pending-request step entirely -- this is automatic assignment at
+  /// signup, not a manual join, so there's no approval to wait on.
+  /// Matches approveMember()'s exact write shape (member doc +
+  /// memberCount + myGroups mirror) so an auto-assigned membership
+  /// looks identical to an approved one everywhere else in the app.
+  static Future<void> autoJoinOfficialDepartment(String department, {required int set}) async {
+    final uid = UserService.uid;
+    if (uid == null) return;
+
+    final snap = await _groups()
+        .where('isOfficial', isEqualTo: true)
+        .where('department', isEqualTo: department)
+        .where('set', isEqualTo: set)
+        .limit(1)
+        .get();
+    if (snap.docs.isEmpty) return; // no matching official group -- fail quietly, don't block registration over it
+    final groupDoc = snap.docs.first;
+    final groupId = groupDoc.id;
+    final groupName = groupDoc.data()['name'] as String? ?? department;
+
+    await _groups().doc(groupId).collection('members').doc(uid).set({
+      'status': 'approved',
+      'role': 'member',
+      'requestedAt': FieldValue.serverTimestamp(),
+      'approvedAt': FieldValue.serverTimestamp(),
+    });
+    await _groups().doc(groupId).update({'memberCount': FieldValue.increment(1)});
+    await _db.collection('users').doc(uid).collection('myGroups').doc(groupId).set({
+      'name': groupName,
+      'role': 'member',
+      'isOfficial': true,
+      'joinedAt': FieldValue.serverTimestamp(),
+    });
+  }
 }

@@ -20,6 +20,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthStarted>(_onStarted);
     on<AuthSignInWithEmail>(_onSignInWithEmail);
     on<AuthRegister>(_onRegister);
+    on<AuthSignInWithGoogle>(_onSignInWithGoogle);
     on<AuthSignOut>(_onSignOut);
     on<AuthSendPasswordReset>(_onPasswordReset);
   }
@@ -62,6 +63,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     final result = await _registerWithEmail(RegisterParams(name: event.name, email: event.email, password: event.password));
     result.fold((f) => emit(AuthError(f.message)), (u) => emit(AuthAuthenticated(u)));
   }
+  Future<void> _onSignInWithGoogle(AuthSignInWithGoogle event, Emitter<AuthState> emit) async {
+    emit(const AuthLoading());
+    final result = await _repository.signInWithGoogle();
+    result.fold((f) => emit(AuthError(f.message)), (u) => emit(AuthAuthenticated(u)));
+  }
+
   Future<void> _onSignOut(AuthSignOut event, Emitter<AuthState> emit) async {
     await PushNotificationService.clearToken();
     await _signOut(const NoParams()); emit(const AuthUnauthenticated());

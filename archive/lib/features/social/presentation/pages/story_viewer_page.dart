@@ -5,7 +5,7 @@
 // (image, video, text) in one sequence for a given user, Instagram-
 // style segmented progress bar at top, tap-right/tap-left to
 // advance/go back, marks each story watched as it's viewed, and fires
-// an interstitial every 2nd story -- a plain session counter (resets
+// an interstitial every 5th story -- a plain session counter (resets
 // every time this screen opens fresh), not the persisted kind used
 // for the main video feed.
 
@@ -15,7 +15,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:video_player/video_player.dart';
 import '../../../../core/services/story_service.dart';
 import '../../../../core/services/interstitial_ad_service.dart';
+import '../../../../core/services/post_interaction_service.dart';
+import '../../../../core/services/campaign_service.dart';
+import '../../../../core/constants/app_colors.dart';
 import '../../../../core/widgets/voice_note_bubble.dart'; // voiceNoteColor -- same per-user color law
+import '../widgets/comments_popup.dart';
 
 class StoryViewerPage extends StatefulWidget {
   final String uid;
@@ -36,6 +40,10 @@ class _StoryViewerPageState extends State<StoryViewerPage> with SingleTickerProv
   // Session-only counter -- resets every time this screen opens fresh,
   // per the explicit decision made earlier (not the persisted kind).
   int _watchedThisSession = 0;
+
+  // Tracks who's been voted for this session -- red button turns blue
+  // once cast, same pattern already proven in the competition grid.
+  final Set<String> _votedForUids = {};
 
   static const _imageDuration = Duration(seconds: 5);
 
@@ -72,7 +80,7 @@ class _StoryViewerPageState extends State<StoryViewerPage> with SingleTickerProv
 
     await StoryService.markWatched(story['id'] as String, widget.uid);
     _watchedThisSession++;
-    if (_watchedThisSession % 2 == 0) {
+    if (_watchedThisSession % 5 == 0) {
       InterstitialAdService.showIfReady();
     }
 
@@ -196,6 +204,105 @@ class _StoryViewerPageState extends State<StoryViewerPage> with SingleTickerProv
                 child: const Icon(Icons.close_rounded, color: Colors.white, size: 18)),
             ),
           ),
+        ),
+
+        // Like + comment row -- placed after the tap zones above so it
+        // receives taps first, not swallowed by tap-to-advance. Sits
+        // mid-lower on the screen with real clearance from the bottom
+        // edge, not right against it -- avoids the system gesture-nav
+        // area intercepting taps before they reach these buttons.
+        Positioned(
+          bottom: 110, right: 16,
+          child: Column(children: [
+              StreamBuilder<bool>(
+                stream: PostInteractionService.isLikedByMe(story['id'] as String, collectionPath: 'stories'),
+                builder: (context, likedSnap) {
+                  final liked = likedSnap.data ?? false;
+                  return GestureDetector(
+                    onTap: () => PostInteractionService.toggleLike(story['id'] as String, story['uid'] as String, collectionPath: 'stories'),
+                    child: Icon(liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                      color: liked ? AppColors.error : Colors.white, size: 30),
+                  );
+                },
+              ),
+              StreamBuilder<int>(
+                stream: PostInteractionService.likeCount(story['id'] as String, collectionPath: 'stories'),
+                builder: (context, s) => Text('${s.data ?? 0}',
+                  style: GoogleFonts.dmSans(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white)),
+              ),
+              const SizedBox(height: 18),
+              GestureDetector(
+                onTap: () => showModalBottomSheet(
+                  context: context, isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  builder: (_) => CommentsPopup(postId: story['id'] as String, collectionPath: 'stories'),
+                ),
+                child: const Icon(Icons.chat_bubble_outline_rounded, color: Colors.white, size: 28),
+              ),
+              StreamBuilder<int>(
+                stream: PostInteractionService.commentCount(story['id'] as String, collectionPath: 'stories'),
+                builder: (context, s) => Text('${s.data ?? 0}',
+                  style: GoogleFonts.dmSans(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white)),
+              ),
+              const SizedBox(height: 18),
+              // Dormant until a real, currently-voting campaign exists
+              // AND this story's owner is an active contestant in it --
+              // pure data-gated, same pattern as the News banner. Once
+              // that data exists, this appears for everyone with zero
+              // app update needed.
+              StreamBuilder<Map<String, dynamic>?>(
+                stream: CampaignService.activeCampaign(),
+                builder: (context, campaignSnap) {
+                  final campaign = campaignSnap.data;
+                  if (campaign == null || campaign['status'] != 'active') return const SizedBox.shrink();
+                  final campaignId = campaign['id'] as String;
+                  final round = campaign['currentRound'] as int? ?? 1;
+
+                  return FutureBuilder<bool>(
+                    future: CampaignService.isUidActiveContestant(campaignId, story['uid'] as String),
+                    builder: (context, contestantSnap) {
+                      if (contestantSnap.data != true) return const SizedBox.shrink();
+                      final storyOwnerUid = story['uid'] as String;
+                      final votedForThisPerson = _votedForUids.contains(storyOwnerUid);
+                      return GestureDetector(
+                        onTap: votedForThisPerson ? null : () async {
+                          try {
+                            final result = await CampaignService.castVote(
+                              campaignId: campaignId, round: round, votedForUid: storyOwnerUid);
+                            if (!context.mounted) return;
+                            final message = switch (result) {
+                              VoteResult.success => 'Vote cast',
+                              VoteResult.alreadyVoted => 'You\'ve already voted this round',
+                              VoteResult.accountTooNew => 'Your account isn\'t eligible to vote this round',
+                              VoteResult.notActive => 'This creator isn\'t active this round',
+                              VoteResult.notSignedIn => 'Sign in to vote',
+                              VoteResult.contestantNotFound => 'Could not find that creator',
+                            };
+                            if (result == VoteResult.success) {
+                              setState(() => _votedForUids.add(storyOwnerUid));
+                            }
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+                          } catch (e) {
+                            debugPrint('[StoryViewer] Vote failed: $e');
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Could not cast vote')));
+                            }
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: votedForThisPerson ? const Color(0xFF2563EB) : AppColors.error,
+                            shape: BoxShape.circle),
+                          child: const Icon(Icons.how_to_vote_rounded, color: Colors.white, size: 22),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ]),
         ),
       ]),
     );

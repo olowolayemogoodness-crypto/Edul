@@ -16,9 +16,9 @@ class _OnboardingPageState extends State<OnboardingPage> {
   int _page = 0;
 
   static final _slides = [
-    _Slide(icon: Icons.auto_awesome_rounded, iconBg: AppColors.accentSurface, iconColor: AppColors.accentLight, title: 'AI tutor,\nalways ready', body: 'Ask anything about WAEC, JAMB, IELTS or TOEFL. Gemini AI explains concepts and quizzes you step by step.'),
-    _Slide(icon: Icons.emoji_events_rounded, iconBg: AppColors.successSurface, iconColor: AppColors.success, title: 'Compete &\nwin prizes', body: 'Climb the leaderboard, challenge friends in duels and enter scholarship competitions for exciting prizes.'),
-    _Slide(icon: Icons.groups_rounded, iconBg: AppColors.accentSurface, iconColor: AppColors.accentLight, title: 'Live study\nrooms', body: 'Join real-time study sessions with peers. Solve Gemini quiz widgets together and learn faster as a group.'),
+    _Slide(icon: Icons.dynamic_feed_rounded, iconBg: AppColors.accentSurface, iconColor: AppColors.accentLight, title: 'Your campus,\norganized', body: 'One official group for your class, real announcements that matter, none of the noise of a hundred WhatsApp groups.'),
+    _Slide(icon: Icons.photo_library_rounded, iconBg: AppColors.successSurface, iconColor: AppColors.success, title: 'Share the\nmoments', body: 'Orientation week, class dinners, campus life — post it, tag it, find it again later.'),
+    _Slide(icon: Icons.calendar_month_rounded, iconBg: AppColors.accentSurface, iconColor: AppColors.accentLight, title: 'Never miss\na class', body: 'Your schedule, exam countdowns, and class alerts, all in one place.'),
   ];
 
   @override
