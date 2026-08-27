@@ -108,7 +108,14 @@ class _AddTimetableEntryPageState extends State<AddTimetableEntryPage> {
             GestureDetector(
               onTap: () async {
                 final picked = await showDatePicker(context: context, initialDate: _dueAt,
-                  firstDate: DateTime.now(), lastDate: DateTime.now().add(const Duration(days: 365)));
+                  firstDate: DateTime.now(), lastDate: DateTime.now().add(const Duration(days: 365)),
+                  builder: (context, child) => Theme(
+                    data: Theme.of(context).copyWith(
+                      colorScheme: ColorScheme.dark(primary: _isClassMode ? _amber : _red, onPrimary: Colors.black,
+                        surface: _cardBg, onSurface: _textPrimary),
+                    ),
+                    child: child!,
+                  ));
                 if (picked != null) setState(() => _dueAt = DateTime(picked.year, picked.month, picked.day, _dueAt.hour, _dueAt.minute));
               },
               child: Container(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
@@ -120,7 +127,7 @@ class _AddTimetableEntryPageState extends State<AddTimetableEntryPage> {
           const SizedBox(height: 28),
           SizedBox(width: double.infinity, child: ElevatedButton(
             onPressed: _submitting ? null : _submit,
-            style: ElevatedButton.styleFrom(backgroundColor: _amber, padding: const EdgeInsets.symmetric(vertical: 14),
+            style: ElevatedButton.styleFrom(backgroundColor: _isClassMode ? _amber : _red, padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
             child: _submitting
                 ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
@@ -143,7 +150,14 @@ class _AddTimetableEntryPageState extends State<AddTimetableEntryPage> {
 
   Widget _timeField(String label, TimeOfDay time, ValueChanged<TimeOfDay> onPick) => GestureDetector(
     onTap: () async {
-      final picked = await showTimePicker(context: context, initialTime: time);
+      final picked = await showTimePicker(context: context, initialTime: time,
+        builder: (context, child) => Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.dark(primary: _isClassMode ? _amber : _red, onPrimary: Colors.black,
+              surface: _cardBg, onSurface: _textPrimary),
+          ),
+          child: child!,
+        ));
       if (picked != null) onPick(picked);
     },
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

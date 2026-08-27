@@ -7,7 +7,6 @@
 // design specifically for this screen.
 
 import 'dart:async';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/services/timetable_service.dart';
@@ -143,24 +142,17 @@ class _Header extends StatelessWidget {
       builder: (context, snap) {
         final displayName = snap.data?['displayName'] as String? ?? 'there';
         final name = displayName.split(' ').first;
-        final initial = displayName.isNotEmpty ? displayName[0].toUpperCase() : 'A';
-        final photoUrl = snap.data?['photoUrl'] as String?;
 
-        return Row(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              // No comma between weekday and date -- matches the confirmed reference exactly.
-              Text('${_weekday(now.weekday)} ${now.day} ${_month(now.month)}',
-                style: GoogleFonts.dmSans(fontSize: 12, color: _textTertiary)),
-              const SizedBox(height: 2),
-              RichText(text: TextSpan(children: [
-                TextSpan(text: '$greeting, ', style: GoogleFonts.dmSans(fontSize: 24, fontWeight: FontWeight.w700, color: _textPrimary)),
-                TextSpan(text: name, style: GoogleFonts.dmSans(fontSize: 24, fontWeight: FontWeight.w700, color: const Color(0xFFED93B1))),
-                const TextSpan(text: ' ✦', style: TextStyle(fontSize: 20, color: _textPrimary)),
-              ])),
-            ]),
-          ),
-          _NotificationAvatar(initial: initial, photoUrl: photoUrl),
+        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // No comma between weekday and date -- matches the confirmed reference exactly.
+          Text('${_weekday(now.weekday)} ${now.day} ${_month(now.month)}',
+            style: GoogleFonts.dmSans(fontSize: 12, color: _textTertiary)),
+          const SizedBox(height: 2),
+          RichText(text: TextSpan(children: [
+            TextSpan(text: '$greeting, ', style: GoogleFonts.dmSans(fontSize: 24, fontWeight: FontWeight.w700, color: _textPrimary)),
+            TextSpan(text: name, style: GoogleFonts.dmSans(fontSize: 24, fontWeight: FontWeight.w700, color: const Color(0xFFED93B1))),
+            const TextSpan(text: ' ✦', style: TextStyle(fontSize: 20, color: _textPrimary)),
+          ])),
         ]);
       },
     );
@@ -168,47 +160,6 @@ class _Header extends StatelessWidget {
 
   static String _weekday(int d) => const ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'][d - 1];
   static String _month(int m) => const ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m - 1];
-}
-
-class _NotificationAvatar extends StatelessWidget {
-  final String initial;
-  final String? photoUrl;
-  const _NotificationAvatar({required this.initial, this.photoUrl});
-
-  @override
-  Widget build(BuildContext context) {
-    final uid = UserService.uid;
-    return Stack(clipBehavior: Clip.none, children: [
-      Container(
-        width: 44, height: 44,
-        decoration: BoxDecoration(shape: BoxShape.circle,
-          gradient: const LinearGradient(colors: [Color(0xFFED93B1), Color(0xFF7F77DD)])),
-        clipBehavior: Clip.antiAlias,
-        child: (photoUrl != null && photoUrl!.isNotEmpty)
-            ? Image.network(photoUrl!, fit: BoxFit.cover)
-            : Center(child: Text(initial, style: GoogleFonts.dmSans(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white))),
-      ),
-      if (uid != null)
-        StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: FirebaseFirestore.instance.collection('notifications')
-              .where('uid', isEqualTo: uid).where('read', isEqualTo: false).snapshots(),
-          builder: (context, snap) {
-            final count = snap.data?.docs.length ?? 0;
-            if (count == 0) return const SizedBox.shrink();
-            return Positioned(
-              right: -2, top: -2,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                decoration: BoxDecoration(color: const Color(0xFFE24B4A), shape: BoxShape.circle, border: Border.all(color: _bg, width: 2)),
-                constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-                child: Center(child: Text(count > 9 ? '9+' : '$count',
-                  style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white))),
-              ),
-            );
-          },
-        ),
-    ]);
-  }
 }
 
 class _SectionLabel extends StatelessWidget {
@@ -483,6 +434,7 @@ class _TodayList extends StatelessWidget {
           return Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: Container(
+              width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
               decoration: BoxDecoration(
                 color: Color(int.parse(color['bg']!.substring(1), radix: 16) + 0xFF000000),
