@@ -144,11 +144,11 @@ class _LibrarySubjectSelectorPageState extends State<LibrarySubjectSelectorPage>
     final profile = await UserService.getProfile();
     print('🔍 DEBUG Profile: $profile');
     
-    final course = profile?['course'] as String? ?? '';
-    print('🔍 DEBUG Course: "$course"');
-    print('🔍 DEBUG Course isEmpty: ${course.isEmpty}');
+    final subjectsRaw = profile?['examSubjects'] as String? ?? '';
+    print('🔍 DEBUG Subjects raw: "$subjectsRaw"');
+    print('🔍 DEBUG Subjects raw isEmpty: ${subjectsRaw.isEmpty}');
     
-    final subjects = course.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+    final subjects = subjectsRaw.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
     print('🔍 DEBUG Subjects parsed: $subjects');
     
     setState(() {

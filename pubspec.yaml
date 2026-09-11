@@ -1,7 +1,7 @@
 name: edulink
 description: AI-powered learning platform for secondary and university students.
 publish_to: 'none'
-version: 1.0.0+11
+version: 1.0.0+19
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -108,7 +108,8 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/edulink_logo.png
-    - assets/icons/ 
+    - assets/icons/
     - assets/animations/
     - assets/fonts/
     - assets/sounds/
+    - shorebird.yaml

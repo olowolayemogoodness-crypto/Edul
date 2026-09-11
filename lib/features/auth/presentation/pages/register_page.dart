@@ -8,7 +8,7 @@ import '../bloc/auth_bloc.dart';
 import '../bloc/auth_event.dart';
 import '../bloc/auth_state.dart';
 import '../../../../core/services/user_service.dart';
-import '../../../../models/courses_model.dart';
+import '../../../../core/services/group_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class RegisterPage extends StatefulWidget {
@@ -24,10 +24,27 @@ class _RegisterPageState extends State<RegisterPage> {
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   final _confirmCtrl = TextEditingController();
-  String? _selectedFaculty;
-  String? _selectedCourse;
+  List<Map<String, dynamic>> _officialGroups = [];
+  Map<String, dynamic>? _selectedDepartmentGroup;
+  int? _mySet;
   bool _obscure = true, _obscureConfirm = true;
   int _strength = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDepartments();
+  }
+
+  Future<void> _loadDepartments() async {
+    final prefs = await SharedPreferences.getInstance();
+    final level = prefs.getString('user_level');
+    final set = level != null ? GroupService.setForLevel(level) : null;
+    if (set == null) return; // no level saved, or a level with no matching set (postgrad) -- picker just stays empty
+    _mySet = set;
+    final groups = await GroupService.officialGroups(set: set);
+    if (mounted) setState(() => _officialGroups = groups);
+  }
 
   @override
   void dispose() {
@@ -45,6 +62,17 @@ class _RegisterPageState extends State<RegisterPage> {
     setState(() => _strength = s);
   }
 
+  Future<void> _pickDepartment() async {
+    final result = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      backgroundColor: AppColors.background,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => _DepartmentPickerSheet(groups: _officialGroups),
+    );
+    if (result != null) setState(() => _selectedDepartmentGroup = result);
+  }
+
   Future<void> _register() async {
     final first = _firstCtrl.text.trim();
     final last = _lastCtrl.text.trim();
@@ -56,10 +84,11 @@ class _RegisterPageState extends State<RegisterPage> {
     if (email.isEmpty) { _showError('Please enter your email.'); return; }
     if (pass.length < 6) { _showError('Password must be at least 6 characters.'); return; }
     if (pass != confirm) { _showError('Passwords do not match.'); return; }
-    if (_selectedFaculty == null || _selectedCourse == null) { _showError('Please select a faculty and course.'); return; }
+    if (_selectedDepartmentGroup == null) { _showError('Please select your course.'); return; }
 
+    final department = _selectedDepartmentGroup!['department'] as String;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('user_course', _selectedCourse!);
+    await prefs.setString('user_course', department);
 
     HapticFeedback.lightImpact();
     context.read<AuthBloc>().add(AuthRegister(
@@ -87,12 +116,14 @@ class _RegisterPageState extends State<RegisterPage> {
   @override
   Widget build(BuildContext context) {
     return BlocListener<AuthBloc, AuthState>(
-      listener: (ctx, state) {
+      listener: (ctx, state) async {
         if (state is AuthAuthenticated) {
-          if (_selectedCourse != null && _selectedCourse!.isNotEmpty) {
-            UserService.updateProfile(course: _selectedCourse!);
+          final department = _selectedDepartmentGroup?['department'] as String?;
+          if (department != null && _mySet != null) {
+            await UserService.updateProfile(course: department, set: _mySet!);
+            await GroupService.autoJoinOfficialDepartment(department, set: _mySet!);
           }
-          ctx.go('/subject-picker');
+          if (ctx.mounted) ctx.go('/subject-picker');
         }
         if (state is AuthError) _showError(state.message);
       },
@@ -121,46 +152,21 @@ class _RegisterPageState extends State<RegisterPage> {
           _label('Email'),
           _field(ctrl: _emailCtrl, hint: 'you@example.com', type: TextInputType.emailAddress),
           const SizedBox(height: 12),
-          _label('Faculty'),
-          DropdownButtonFormField<String>(
-            value: _selectedFaculty,
-            hint: Text('Select Faculty', style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textDisabled)),
-            items: CoursesData.getFaculties().map((faculty) =>
-              DropdownMenuItem(value: faculty, child: Text(faculty, style: GoogleFonts.dmSans(fontSize: 13)))
-            ).toList(),
-            onChanged: (value) {
-              setState(() {
-                _selectedFaculty = value;
-                _selectedCourse = null;
-              });
-            },
-            decoration: InputDecoration(
-              filled: true, fillColor: AppColors.surface,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.border)),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.border)),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.accent)),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            ),
-          ),
-          const SizedBox(height: 12),
           _label('Course'),
-          DropdownButtonFormField<String>(
-            value: _selectedCourse,
-            hint: Text('Select Course', style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textDisabled)),
-            items: _selectedFaculty != null
-              ? CoursesData.getCourses(_selectedFaculty!).map((course) =>
-                  DropdownMenuItem(value: course, child: Text(course, style: GoogleFonts.dmSans(fontSize: 13)))
-                ).toList()
-              : [],
-            onChanged: _selectedFaculty != null
-              ? (value) => setState(() => _selectedCourse = value)
-              : null,
-            decoration: InputDecoration(
-              filled: true, fillColor: AppColors.surface,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.border)),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.border)),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.accent)),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          GestureDetector(
+            onTap: _pickDepartment,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              decoration: BoxDecoration(
+                color: AppColors.surface, borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.border)),
+              child: Row(children: [
+                Expanded(child: Text(
+                  _selectedDepartmentGroup?['department'] as String? ?? 'Select your course',
+                  style: GoogleFonts.dmSans(fontSize: 13,
+                    color: _selectedDepartmentGroup != null ? AppColors.textPrimary : AppColors.textDisabled))),
+                Icon(Icons.expand_more_rounded, color: AppColors.textTertiary, size: 20),
+              ]),
             ),
           ),
           const SizedBox(height: 12),
@@ -252,4 +258,68 @@ class _RegisterPageState extends State<RegisterPage> {
     Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: Text('or', style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.textTertiary))),
     Expanded(child: Divider(color: AppColors.border)),
   ]);
+}
+
+class _DepartmentPickerSheet extends StatefulWidget {
+  final List<Map<String, dynamic>> groups;
+  const _DepartmentPickerSheet({required this.groups});
+
+  @override
+  State<_DepartmentPickerSheet> createState() => _DepartmentPickerSheetState();
+}
+
+class _DepartmentPickerSheetState extends State<_DepartmentPickerSheet> {
+  String _query = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = widget.groups.where((g) {
+      final dept = (g['department'] as String? ?? '').toLowerCase();
+      return dept.contains(_query.toLowerCase());
+    }).toList();
+
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Select your course', style: GoogleFonts.dmSans(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+              const SizedBox(height: 12),
+              TextField(
+                onChanged: (v) => setState(() => _query = v),
+                style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textPrimary),
+                decoration: InputDecoration(
+                  hintText: 'Search…', hintStyle: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textDisabled),
+                  prefixIcon: Icon(Icons.search_rounded, color: AppColors.textTertiary, size: 18),
+                  filled: true, fillColor: AppColors.surface,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.border)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.border)),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.accent)),
+                ),
+              ),
+            ]),
+          ),
+          Flexible(
+            child: widget.groups.isEmpty
+                ? Padding(padding: const EdgeInsets.all(32),
+                    child: Text('No courses available yet', style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textTertiary)))
+                : ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: filtered.length,
+                    itemBuilder: (context, i) {
+                      final g = filtered[i];
+                      return ListTile(
+                        title: Text(g['department'] as String? ?? '', style: GoogleFonts.dmSans(fontSize: 14, color: AppColors.textPrimary)),
+                        onTap: () => Navigator.of(context).pop(g),
+                      );
+                    },
+                  ),
+          ),
+          const SizedBox(height: 12),
+        ]),
+      ),
+    );
+  }
 }

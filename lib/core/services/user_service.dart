@@ -81,13 +81,23 @@ class UserService {
   }
 
   // ── Update profile fields ──
-  static Future<void> updateProfile({String? bio, String? school, String? course, String? country}) async {
+  static Future<void> updateProfile({String? bio, String? school, String? course, String? country, String? examSubjects, int? set}) async {
     if (uid == null) return;
     final data = <String, dynamic>{};
     if (bio != null) data['bio'] = bio;
     if (school != null) data['school'] = school;
     if (course != null) data['course'] = course;
     if (country != null) data['country'] = country;
+    // Deliberately its own field, not reusing 'course' -- that field
+    // is the user's department (set at registration, used to scope
+    // the Social feed's department tab and stamp new posts). Exam-prep
+    // subject picks are a completely different concept that used to
+    // silently overwrite the department value by sharing the same field.
+    if (examSubjects != null) data['examSubjects'] = examSubjects;
+    // The cohort number (e.g. 30 for 100L) -- needed separately from
+    // course/department, since the "Class 30" tab spans every
+    // department at once, filtered by set alone.
+    if (set != null) data['set'] = set;
     if (data.isNotEmpty) await _db.collection('users').doc(uid).update(data);
   }
 

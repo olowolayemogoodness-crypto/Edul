@@ -1,6 +1,7 @@
 // lib/features/social/presentation/pages/social_feed_page.dart
 
 import 'dart:async';
+import 'dart:ui' show ImageFilter;
 import 'package:audioplayers/audioplayers.dart';
 import 'package:video_player/video_player.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -9,7 +10,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/post_interaction_service.dart';
 import '../../../../core/services/user_follow_service.dart';
@@ -30,47 +30,51 @@ class SocialFeedPage extends StatefulWidget {
 
 class _SocialFeedPageState extends State<SocialFeedPage> {
   int _selectedTab = 0;
-  String _university = 'My Uni';
-  String _universityFull = ''; // untruncated — used for the actual query filter
+  int? _mySet; // the user's own cohort number, e.g. 30 for 100L — powers the "Class 30" tab across every department
+  String _department = ''; // the user's own department, e.g. "Software Engineering" — from profile.course
   Set<String> _myFollowing = {}; // who I follow — scopes repost visibility
+  // Genuinely loading, not just "empty" -- _mySet/_department start as
+  // null/empty either way, so without this flag the tabs would briefly
+  // render fallback labels ("My Class"/"My Group") and an empty feed
+  // on every single launch before the real profile data arrives a
+  // moment later -- that flash was the actual bug.
+  bool _loadingContext = true;
 
   @override
   void initState() {
     super.initState();
-    _loadUniversity();
+    _loadDepartmentAndSet();
     _loadFollowing();
+  }
+
+  Future<void> _loadDepartmentAndSet() async {
+    // Profile first, since that's what post_composer_page.dart also
+    // reads from when it stamps a new post's `course`/`set` fields —
+    // keeping this filter and that stamp in agreement is what makes
+    // both tabs actually work.
+    try {
+      final profile = await UserService.getProfile();
+      final course = profile?['course'] as String?;
+      final set = profile?['set'] as int?;
+      if (mounted) {
+        setState(() {
+          if (course != null && course.isNotEmpty) _department = course;
+          if (set != null) _mySet = set;
+          _loadingContext = false;
+        });
+      }
+    } catch (_) {
+      // Offline or read failed — stop showing the loading state either
+      // way, rather than spin forever; the tabs will show their
+      // fallback labels ("My Class"/"My Group") in this specific case,
+      // which is honest since the real data genuinely couldn't load.
+      if (mounted) setState(() => _loadingContext = false);
+    }
   }
 
   Future<void> _loadFollowing() async {
     final following = await UserFollowService.myFollowingUids();
     if (mounted) setState(() => _myFollowing = following);
-  }
-
-  Future<void> _loadUniversity() async {
-    // Must match the composer's own source-of-truth priority exactly
-    // (Firestore profile first) — otherwise a post's stored `university`
-    // field and this page's filter value can silently disagree if the
-    // local SharedPreferences cache is stale, empty, or from a different
-    // device than the one that registered.
-    String? uni;
-    try {
-      final profile = await UserService.getProfile();
-      uni = profile?['university'] as String?;
-    } catch (_) {
-      // offline or read failed — fall through to the local cache below
-    }
-    if (uni == null || uni.isEmpty) {
-      final prefs = await SharedPreferences.getInstance();
-      uni = prefs.getString('user_university') ?? '';
-    }
-    final safeUni = uni;
-    if (mounted && safeUni.isNotEmpty) {
-      setState(() {
-        _universityFull = safeUni; // full value, for filtering
-        _university = safeUni.length > 10
-            ? safeUni.substring(0, 10).trim() : safeUni; // truncated, for the pill label only
-      });
-    }
   }
 
   Stream<List<Map<String, dynamic>>> _postsStream() {
@@ -102,50 +106,17 @@ class _SocialFeedPageState extends State<SocialFeedPage> {
           })
           .toList();
       if (_selectedTab == 1) {
-        // My Uni: every post from this university, regardless of feedTarget
-        return all.where((p) => p['university'] == _universityFull).toList();
-      } else if (_selectedTab == 2) {
-        // News: verified posts only — locked down, no user can set this
-        // themselves (Firestore rule blocks it on both create and update).
-        return all.where((p) => p['verified'] == true).toList();
+        // My department: every post whose course field matches this
+        // user's own department -- stamped automatically at post time
+        // from the same profile.course value set at registration.
+        return all.where((p) => p['course'] == _department).toList();
       } else {
-        // Global: only posts explicitly targeted at Global, but weighted
-        // so posts from people you follow surface more often -- not
-        // exclusively, since a feed that only ever shows followed users
-        // stops being a discovery surface. Roughly 2 followed-user posts
-        // for every 1 from someone else, each side keeping its own
-        // recency order from the underlying query.
-        final globalPosts = all.where((p) => p['feedTarget'] == 'global').toList();
-        return _rankByFollowing(globalPosts, myUid);
+        // Class {set}: every post from someone in the same cohort,
+        // regardless of department -- e.g. every 100L student at FUTA,
+        // whether they're in Software Engineering or Data Science.
+        return all.where((p) => p['set'] == _mySet).toList();
       }
     });
-  }
-
-  /// Interleaves posts from followed users ahead of others at roughly a
-  /// 2:1 ratio, preserving each group's original (recency) order rather
-  /// than fully re-sorting -- this keeps the feed feeling chronological
-  /// within each group while still surfacing followed accounts more.
-  List<Map<String, dynamic>> _rankByFollowing(List<Map<String, dynamic>> posts, String myUid) {
-    if (_myFollowing.isEmpty) return posts; // nothing to weight toward yet
-    final followed = <Map<String, dynamic>>[];
-    final others = <Map<String, dynamic>>[];
-    for (final p in posts) {
-      final uid = p['uid'] as String? ?? '';
-      if (uid == myUid || _myFollowing.contains(uid)) {
-        followed.add(p);
-      } else {
-        others.add(p);
-      }
-    }
-    final result = <Map<String, dynamic>>[];
-    int fi = 0, oi = 0;
-    while (fi < followed.length || oi < others.length) {
-      for (var k = 0; k < 2 && fi < followed.length; k++) {
-        result.add(followed[fi++]);
-      }
-      if (oi < others.length) result.add(others[oi++]);
-    }
-    return result;
   }
 
   @override
@@ -183,9 +154,8 @@ class _SocialFeedPageState extends State<SocialFeedPage> {
                 const SizedBox(width: 10),
                 GestureDetector(
                   onTap: () async {
-                    final result = await Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const PostComposerPage()),
+                    final result = await Navigator.of(context).push<bool>(
+                      MaterialPageRoute(builder: (_) => const PostComposerPage()),
                     );
                     if (result == true && mounted) setState(() {});
                   },
@@ -207,18 +177,26 @@ class _SocialFeedPageState extends State<SocialFeedPage> {
             // Tab pills
             SizedBox(
               height: 36,
-              child: ListView(
+              child: _loadingContext
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Row(children: [
+                        Container(width: 90, height: 36,
+                          decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(18))),
+                        const SizedBox(width: 8),
+                        Container(width: 110, height: 36,
+                          decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(18))),
+                      ]),
+                    )
+                  : ListView(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 children: [
-                  _Pill(label: 'Global', selected: _selectedTab == 0,
+                  _Pill(label: _mySet != null ? 'Class $_mySet' : 'My Class', selected: _selectedTab == 0,
                     onTap: () => setState(() => _selectedTab = 0)),
                   const SizedBox(width: 8),
-                  _Pill(label: _university, selected: _selectedTab == 1,
+                  _Pill(label: _department.isNotEmpty ? _department : 'My Group', selected: _selectedTab == 1,
                     onTap: () => setState(() => _selectedTab = 1)),
-                  const SizedBox(width: 8),
-                  _Pill(label: 'News', selected: _selectedTab == 2,
-                    onTap: () => setState(() => _selectedTab = 2)),
                 ],
               ),
             ),
@@ -227,7 +205,9 @@ class _SocialFeedPageState extends State<SocialFeedPage> {
 
             // Feed
             Expanded(
-              child: StreamBuilder<List<Map<String, dynamic>>>(
+              child: _loadingContext
+                  ? Center(child: CircularProgressIndicator(color: AppColors.accent))
+                  : StreamBuilder<List<Map<String, dynamic>>>(
                 stream: _postsStream(),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
@@ -249,26 +229,28 @@ class _SocialFeedPageState extends State<SocialFeedPage> {
                   final posts = snapshot.data ?? [];
 
                   if (posts.isEmpty) {
-                    final isNews = _selectedTab == 2;
+                    final isDepartment = _selectedTab == 1;
                     return Center(
                       child: Column(mainAxisSize: MainAxisSize.min, children: [
-                        Text(isNews ? '📰' : '💬', style: const TextStyle(fontSize: 48)),
+                        Text(isDepartment ? '🎓' : '💬', style: const TextStyle(fontSize: 48)),
                         const SizedBox(height: 16),
-                        Text(isNews ? 'No news available yet' : 'No posts yet', style: GoogleFonts.dmSans(
+                        Text(isDepartment ? 'No posts in your group yet' : 'No posts yet', style: GoogleFonts.dmSans(
                           fontSize: 16, fontWeight: FontWeight.w600,
                           color: AppColors.textPrimary)),
                         const SizedBox(height: 8),
-                        Text(isNews
-                            ? 'Official updates and announcements will appear here'
+                        Text(isDepartment
+                            ? 'Be the first to post in your group!'
                             : 'Be the first to post something!',
                           style: GoogleFonts.dmSans(
                             fontSize: 13, color: AppColors.textTertiary)),
-                        if (!isNews) ...[
-                          const SizedBox(height: 20),
+                        // Both remaining tabs (My Uni, Department) allow
+                        // posting -- unlike the old News tab, which was
+                        // verified-only and locked, this CTA now always
+                        // shows.
+                        const SizedBox(height: 20),
                           GestureDetector(
                             onTap: () => Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => const PostComposerPage())),
+                              MaterialPageRoute(builder: (_) => const PostComposerPage())),
                             child: Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 20, vertical: 10),
@@ -281,7 +263,6 @@ class _SocialFeedPageState extends State<SocialFeedPage> {
                                   color: Colors.white)),
                             ),
                           ),
-                        ],
                       ]),
                     );
                   }
@@ -533,6 +514,12 @@ class _PostCardState extends State<_PostCard> {
   // the view count every time this widget remounts.
   static final Set<String> _countedPostIds = {};
 
+  // Captures this exact card's on-screen position/size on long-press,
+  // so the blur overlay can position a sharp copy in the exact same
+  // spot rather than centering it -- the "stays in place while
+  // everything around it blurs" effect, not a popup dialog.
+  final GlobalKey _cardKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -601,6 +588,82 @@ class _PostCardState extends State<_PostCard> {
             },
           ),
           const SizedBox(height: 8),
+        ]),
+      ),
+    );
+  }
+
+  /// videoUrls is the current field (a list); older posts made before
+  /// multi-video support only ever had a single videoUrl string. This
+  /// reads either shape and always returns a list, so the rest of the
+  /// UI doesn't need to know which one a given post actually has.
+  List<String> _videoUrlsFor(Map<String, dynamic> post) {
+    final urls = post['videoUrls'] as List<dynamic>?;
+    if (urls != null) return urls.cast<String>();
+    final legacy = post['videoUrl'] as String?;
+    return legacy != null ? [legacy] : [];
+  }
+
+  void _showReactionPicker(BuildContext context, String postId, String postOwnerUid) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: PostInteractionService.reactionOptions.map((emoji) => GestureDetector(
+              onTap: () {
+                Navigator.pop(sheetContext);
+                PostInteractionService.setReaction(postId, postOwnerUid, emoji);
+              },
+              child: Text(emoji, style: const TextStyle(fontSize: 32)),
+            )).toList(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showInPlaceBlur(BuildContext context, Map<String, dynamic> post) {
+    final renderBox = _cardKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null) return; // widget not mounted/measurable — skip rather than show something misplaced
+    final position = renderBox.localToGlobal(Offset.zero);
+    final size = renderBox.size;
+
+    HapticFeedback.mediumImpact();
+    showGeneralDialog(
+      context: context,
+      barrierColor: Colors.transparent, // the BackdropFilter below provides the dimming, not a flat barrier color
+      barrierDismissible: true,
+      barrierLabel: 'Dismiss',
+      transitionDuration: const Duration(milliseconds: 200),
+      pageBuilder: (dialogContext, _, __) => GestureDetector(
+        onTap: () => Navigator.pop(dialogContext),
+        child: Stack(children: [
+          // Blurs everything behind this route -- the actual feed
+          // screen underneath -- while this overlay itself stays
+          // unblurred, since BackdropFilter only affects what's
+          // painted below it, not its own children.
+          Positioned.fill(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+              child: Container(color: Colors.black.withOpacity(0.25)),
+            ),
+          ),
+          // The sharp post, positioned at the exact same spot it sits
+          // in the real feed -- not centered, not a separate card
+          // design, matching "stays in place while everything around
+          // it blurs" rather than a popup.
+          Positioned(
+            left: position.dx,
+            top: position.dy,
+            width: size.width,
+            child: _InPlacePostSnapshot(post: post),
+          ),
         ]),
       ),
     );
@@ -787,7 +850,10 @@ class _PostCardState extends State<_PostCard> {
     final timeAgo = _timeAgo(post['createdAt']);
     final isOwner = UserService.uid != null && UserService.uid == uid;
 
-    return Padding(
+    return GestureDetector(
+      onLongPress: () => _showInPlaceBlur(context, post),
+      child: Padding(
+      key: _cardKey,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         // Avatar
@@ -861,18 +927,20 @@ class _PostCardState extends State<_PostCard> {
                   .toList(),
             ),
           ],
-          // Video or images (mutually exclusive, matching the composer)
-          if (post['videoUrl'] != null) ...[
+          // Video or images (mutually exclusive, matching the composer).
+          // videoUrls (list) is the current field; older posts may only
+          // have the original single videoUrl, so that's read as a
+          // one-item fallback rather than silently dropping old videos.
+          if (_videoUrlsFor(post).isNotEmpty) ...[
             const SizedBox(height: 10),
-            _FeedVideoPlayer(videoUrl: post['videoUrl'] as String),
+            _FeedMediaCarousel(videoUrls: _videoUrlsFor(post)),
           ] else if (imageUrls.isNotEmpty) ...[
             const SizedBox(height: 10),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.network(imageUrls[0] as String,
-                width: double.infinity, height: 200,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => const SizedBox())),
+            _FeedMediaCarousel(imageUrls: imageUrls.cast<String>()),
+          ],
+          if ((post['pollOptions'] as List?)?.isNotEmpty == true) ...[
+            const SizedBox(height: 12),
+            _PollDisplay(postId: postId, options: List<String>.from(post['pollOptions'] as List)),
           ],
           const SizedBox(height: 12),
           // Actions
@@ -919,6 +987,27 @@ class _PostCardState extends State<_PostCard> {
               },
             ),
             const SizedBox(width: 20),
+            StreamBuilder<String?>(
+              stream: PostInteractionService.myReaction(postId),
+              builder: (context, myReactionSnap) {
+                final myReaction = myReactionSnap.data;
+                return StreamBuilder<Map<String, int>>(
+                  stream: PostInteractionService.reactionCounts(postId),
+                  builder: (context, countsSnap) {
+                    final counts = countsSnap.data ?? {};
+                    final total = counts.values.fold(0, (a, b) => a + b);
+                    return _ActionBtn(
+                      icon: null,
+                      emoji: myReaction ?? '🙂',
+                      label: _fmt(total),
+                      color: myReaction != null ? AppColors.accentLight : AppColors.textTertiary,
+                      onTap: () => _showReactionPicker(context, postId, uid),
+                    );
+                  },
+                );
+              },
+            ),
+            const SizedBox(width: 20),
             _ActionBtn(
               icon: Icons.bar_chart_rounded,
               label: _fmt(views),
@@ -933,13 +1022,142 @@ class _PostCardState extends State<_PostCard> {
           ]),
         ])),
       ]),
+      ),
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Comments sheet
+// Shareable card — clean, screenshot-friendly rendering of a single post,
+// stripped of actions/comments/nav chrome. Long-press a post to trigger.
 // ─────────────────────────────────────────────────────────────────────────────
+class _InPlacePostSnapshot extends StatelessWidget {
+  final Map<String, dynamic> post;
+  const _InPlacePostSnapshot({required this.post});
+
+  // Same palette/logic as _PostCardState._avatarColor -- duplicated
+  // here as a top-level function since this widget lives outside that
+  // class and can't call its instance method directly.
+  static Color _avatarColorFor(String uid) {
+    final colors = [
+      const Color(0xFF7C3AED), const Color(0xFF0891B2),
+      const Color(0xFF16A34A), const Color(0xFFD97706),
+      const Color(0xFFBE185D), const Color(0xFF9333EA),
+    ];
+    return colors[uid.hashCode.abs() % colors.length];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final postId = post['id'] as String? ?? '';
+    final displayName = post['displayName'] as String? ?? 'User';
+    final content = post['content'] as String? ?? '';
+    final imageUrls = (post['imageUrls'] as List<dynamic>?) ?? [];
+    // Same shape-handling as _PostCardState._videoUrlsFor -- videoUrls
+    // is the current field (a list); older posts made before multi-
+    // video support only had a single videoUrl string.
+    final videoUrls = (post['videoUrls'] as List<dynamic>?)?.cast<String>()
+        ?? (post['videoUrl'] != null ? [post['videoUrl'] as String] : <String>[]);
+    final commentCount = post['commentCount'] as int? ?? 0;
+    final repostCount = post['repostCount'] as int? ?? 0;
+    final views = post['views'] as int? ?? 0;
+    final uid = post['uid'] as String? ?? '';
+    final initials = displayName.trim().isEmpty ? '?' :
+      displayName.trim().split(RegExp(r'\s+')).take(2).map((s) => s[0]).join().toUpperCase();
+
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 24, offset: const Offset(0, 8))],
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Container(
+              width: 36, height: 36,
+              decoration: BoxDecoration(color: _avatarColorFor(uid), shape: BoxShape.circle),
+              child: Center(child: Text(initials, style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white))),
+            ),
+            const SizedBox(width: 10),
+            Text(displayName, style: GoogleFonts.dmSans(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+          ]),
+          if (content.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(content, style: GoogleFonts.dmSans(fontSize: 15, height: 1.4, color: AppColors.textPrimary)),
+          ],
+          if (imageUrls.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.network(imageUrls[0] as String, fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const SizedBox()),
+            ),
+          ] else if (videoUrls.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            // A static placeholder, not a live video player -- this
+            // overlay exists for a quick, screenshot-friendly snapshot
+            // of the post, not for actually watching the video here.
+            // Missing this case entirely was the actual bug: with no
+            // media block at all for video-only posts, the snapshot
+            // came out shorter than the real post, leaving a gap where
+            // the blurred background showed through instead.
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                height: 180, width: double.infinity,
+                color: Colors.black,
+                child: Center(child: Icon(Icons.play_circle_fill_rounded, size: 44, color: Colors.white.withOpacity(0.9))),
+              ),
+            ),
+          ],
+          const SizedBox(height: 14),
+          // The activity row -- live like count, real comment/repost/
+          // view counts -- this is the part that had to be included
+          // alongside the post itself, not just the bare content.
+          Row(children: [
+            StreamBuilder<int>(
+              stream: PostInteractionService.likeCount(postId),
+              builder: (context, snap) => Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.favorite_rounded, size: 16, color: AppColors.error),
+                const SizedBox(width: 4),
+                Text(_fmtStatic(snap.data ?? 0), style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.textSecondary)),
+              ]),
+            ),
+            const SizedBox(width: 16),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.chat_bubble_outline_rounded, size: 15, color: AppColors.textTertiary),
+              const SizedBox(width: 4),
+              Text(_fmtStatic(commentCount), style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.textSecondary)),
+            ]),
+            const SizedBox(width: 16),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.repeat_rounded, size: 15, color: AppColors.textTertiary),
+              const SizedBox(width: 4),
+              Text(_fmtStatic(repostCount), style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.textSecondary)),
+            ]),
+            const SizedBox(width: 16),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.bar_chart_rounded, size: 15, color: AppColors.textTertiary),
+              const SizedBox(width: 4),
+              Text(_fmtStatic(views), style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.textSecondary)),
+            ]),
+          ]),
+        ]),
+      ),
+    );
+  }
+
+  static String _fmtStatic(int n) {
+    if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
+    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}K';
+    return '$n';
+  }
+}
+
+
 // A palette of 40 distinct hues, evenly spaced — so across many voice
 // notes you see real color variety (not a random color per note, which
 // would look noisy) while still only cycling through ~40 total colors.
@@ -974,6 +1192,31 @@ class _CommentsSheetState extends State<_CommentsSheet> {
   bool _uploadingVoice = false;
   int _recordingSeconds = 0;
   Timer? _recordTimer;
+
+  void _confirmDeleteComment(BuildContext context, String postId, String commentId) {
+    HapticFeedback.mediumImpact();
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: Text('Delete comment?', style: GoogleFonts.dmSans(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+        content: Text('This can\'t be undone.', style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textSecondary)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text('Cancel', style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              PostInteractionService.deleteComment(postId, commentId);
+            },
+            child: Text('Delete', style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.error)),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   void dispose() {
@@ -1118,7 +1361,10 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                     final audioUrl = c['audioUrl'] as String?;
                     final isVoice = audioUrl != null && audioUrl.isNotEmpty;
 
-                    return Padding(
+                    final isMyComment = UserService.uid != null && UserService.uid == (c['uid'] as String? ?? '');
+                    return GestureDetector(
+                      onLongPress: isMyComment ? () => _confirmDeleteComment(context, widget.postId, commentId) : null,
+                      child: Padding(
                       padding: const EdgeInsets.only(bottom: 14),
                       child: Row(crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -1194,6 +1440,7 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                           ),
                         ])),
                       ]),
+                      ),
                     );
                   },
                 );
@@ -1595,23 +1842,102 @@ class _VoiceNoteBubbleState extends State<_VoiceNoteBubble> {
 // ─────────────────────────────────────────────────────────────────────────────
 // Action button
 // ─────────────────────────────────────────────────────────────────────────────
+class _PollDisplay extends StatelessWidget {
+  final String postId;
+  final List<String> options;
+  const _PollDisplay({required this.postId, required this.options});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<int?>(
+      stream: PostInteractionService.myPollVote(postId),
+      builder: (context, myVoteSnap) {
+        final myVote = myVoteSnap.data;
+        return StreamBuilder<List<int>>(
+          stream: PostInteractionService.pollVoteCounts(postId),
+          builder: (context, countsSnap) {
+            final counts = countsSnap.data ?? List.filled(options.length, 0);
+            final total = counts.fold(0, (a, b) => a + b);
+
+            return Column(children: List.generate(options.length, (i) {
+              final count = i < counts.length ? counts[i] : 0;
+              final pct = total == 0 ? 0.0 : count / total;
+              final isMine = myVote == i;
+
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: GestureDetector(
+                  onTap: () => PostInteractionService.voteOnPoll(postId, i),
+                  child: Stack(children: [
+                    Container(
+                      width: double.infinity,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: isMine ? AppColors.accent : AppColors.border),
+                      ),
+                    ),
+                    // Fill bar, only meaningful once someone has voted --
+                    // before that it's just an empty, unfilled option row.
+                    if (total > 0)
+                      FractionallySizedBox(
+                        widthFactor: pct,
+                        child: Container(
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: AppColors.accentSurface,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                    Positioned.fill(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                          Expanded(
+                            child: Text(options[i],
+                              style: GoogleFonts.dmSans(fontSize: 13,
+                                fontWeight: isMine ? FontWeight.w600 : FontWeight.w400,
+                                color: AppColors.textPrimary),
+                              maxLines: 1, overflow: TextOverflow.ellipsis),
+                          ),
+                          if (total > 0)
+                            Text('${(pct * 100).round()}%',
+                              style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.textSecondary)),
+                        ]),
+                      ),
+                    ),
+                  ]),
+                ),
+              );
+            }));
+          },
+        );
+      },
+    );
+  }
+}
+
 class _ActionBtn extends StatelessWidget {
-  final IconData icon;
+  final IconData? icon;
+  final String? emoji;
   final String label;
   final Color color;
   final VoidCallback onTap;
 
   const _ActionBtn({
-    required this.icon, required this.label,
+    this.icon, this.emoji, required this.label,
     required this.color, required this.onTap,
-  });
+  }) : assert(icon != null || emoji != null, 'Must provide either an icon or an emoji');
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 17, color: color),
+        if (icon != null) Icon(icon, size: 17, color: color)
+        else Text(emoji!, style: const TextStyle(fontSize: 15)),
         const SizedBox(width: 4),
         Text(label, style: GoogleFonts.dmSans(fontSize: 12, color: color)),
       ]),
@@ -1767,6 +2093,64 @@ class _SocialSearchPageState extends State<SocialSearchPage> {
     );
   }
 }
+class _FeedMediaCarousel extends StatefulWidget {
+  final List<String> imageUrls;
+  final List<String> videoUrls;
+  const _FeedMediaCarousel({this.imageUrls = const [], this.videoUrls = const []});
+
+  @override
+  State<_FeedMediaCarousel> createState() => _FeedMediaCarouselState();
+}
+
+class _FeedMediaCarouselState extends State<_FeedMediaCarousel> {
+  int _index = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final isVideo = widget.videoUrls.isNotEmpty;
+    final items = isVideo ? widget.videoUrls : widget.imageUrls;
+    if (items.isEmpty) return const SizedBox.shrink();
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: SizedBox(
+        height: 200,
+        child: Stack(children: [
+          PageView.builder(
+            onPageChanged: (i) => setState(() => _index = i),
+            itemCount: items.length,
+            // Each video page reuses _FeedVideoPlayer directly, which
+            // already lazy-loads on tap rather than preloading -- that
+            // behavior doesn't need to change just because there can
+            // now be several videos in one post instead of one.
+            itemBuilder: (_, i) => isVideo
+                ? _FeedVideoPlayer(videoUrl: items[i])
+                : Image.network(items[i], width: double.infinity, height: 200,
+                    fit: BoxFit.cover, errorBuilder: (_, __, ___) => const SizedBox()),
+          ),
+          if (items.length > 1)
+            Positioned(bottom: 8, left: 0, right: 0,
+              child: Row(mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(items.length, (i) => Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 2),
+                  width: i == _index ? 16 : 6, height: 6,
+                  decoration: BoxDecoration(
+                    color: i == _index ? Colors.white : Colors.white38,
+                    borderRadius: BorderRadius.circular(3)),
+                )))),
+          if (items.length > 1)
+            Positioned(top: 8, right: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(color: Colors.black.withOpacity(0.55), borderRadius: BorderRadius.circular(10)),
+                child: Text('${_index + 1}/${items.length}',
+                  style: GoogleFonts.dmSans(fontSize: 11, color: Colors.white)))),
+        ]),
+      ),
+    );
+  }
+}
+
 class _FeedVideoPlayer extends StatefulWidget {
   final String videoUrl;
   const _FeedVideoPlayer({required this.videoUrl});

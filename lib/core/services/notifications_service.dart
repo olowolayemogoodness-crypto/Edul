@@ -461,4 +461,73 @@ class NotificationService {
       await batch.commit();
     } catch (_) {}
   }
+
+  /// Notifies every member of [groupId] (except the poster) that a new
+  /// post went up in their group. [isAlert] switches to the siren-
+  /// prefixed, "URGENT" title for admin-tagged important posts -- the
+  /// only reliable cross-platform way to visually distinguish a push at
+  /// the OS level, since neither iOS nor Android lets an app control a
+  /// system notification's background color. A real, fully-styled red
+  /// banner for alerts still happens once the person opens the app --
+  /// this only covers the push itself.
+  ///
+  /// Capped at 500 members per fan-out for the same reason as
+  /// _notifyFollowers in post_composer_page.dart -- a larger group would
+  /// be a case for moving this to a Cloud Function instead of a
+  /// client-side batch.
+  static Future<void> notifyGroupMembers({
+    required String groupId,
+    required String postId,
+    required bool isAlert,
+  }) async {
+    final posterUid = UserService.uid;
+    if (posterUid == null) return;
+    try {
+      final groupDoc = await _db.collection('groups').doc(groupId).get();
+      final groupName = groupDoc.data()?['name'] as String? ?? 'your class';
+      final profile = await UserService.getProfile();
+      final posterName = profile?['displayName'] as String? ?? 'Someone';
+
+      final members = await _db.collection('groups').doc(groupId)
+          .collection('members').where('status', isEqualTo: 'approved').limit(500).get();
+
+      final title = isAlert ? '🚨 URGENT: $groupName' : '$posterName posted in $groupName';
+      final body = isAlert ? '$posterName marked this important — tap to view' : 'Tap to view the post';
+
+      final batch = _db.batch();
+      final targetUids = <String>[];
+      for (final doc in members.docs) {
+        final memberUid = doc.id;
+        if (memberUid == posterUid) continue;
+        targetUids.add(memberUid);
+        final notifRef = _col.doc();
+        batch.set(notifRef, {
+          'uid': memberUid,
+          'fromUid': posterUid,
+          'fromDisplayName': posterName,
+          'type': isAlert ? 'group_alert' : 'group_post',
+          'postId': postId,
+          'groupId': groupId,
+          'title': title,
+          'body': body,
+          'read': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+      if (targetUids.isNotEmpty) await batch.commit();
+
+      // _sendPush is per-target, so the actual OS push still goes out
+      // one at a time -- the batch above only covers the in-app record.
+      for (final uid in targetUids) {
+        await _sendPush(
+          targetUid: uid,
+          title: title,
+          body: body,
+          data: {'type': isAlert ? 'group_alert' : 'group_post', 'postId': postId, 'groupId': groupId},
+        );
+      }
+    } catch (_) {
+      // Best-effort -- never block or fail the post itself over notifications.
+    }
+  }
 }

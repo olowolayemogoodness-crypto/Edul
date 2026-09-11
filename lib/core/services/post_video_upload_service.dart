@@ -59,10 +59,14 @@ class PostVideoUploadService {
         '${dir.path}/post_video_${DateTime.now().millisecondsSinceEpoch}.mp4';
 
     // Same settings as the admin upload tool's Insights pipeline, for
-    // consistent quality/size across every video in the app.
+    // consistent quality/size across every video in the app -- except
+    // preset, bumped from 'fast' to 'veryfast' for meaningfully quicker
+    // compression. Trade-off: slightly larger output for the same CRF,
+    // but compression speed was the actual complaint, and this is a
+    // real, direct lever for it without dropping resolution/quality.
     final cmd = '-i "${input.path}" '
         '-vf "scale=720:-2" '
-        '-c:v libx264 -crf 28 -preset fast '
+        '-c:v libx264 -crf 28 -preset veryfast '
         '-c:a aac -b:a 96k '
         '-movflags +faststart '
         '-t $maxDurationSeconds ' // hard-trims anything longer, belt-and-braces
@@ -110,16 +114,43 @@ class PostVideoUploadService {
       throw Exception('Worker response missing uploadUrl/publicUrl');
     }
 
-    final bytes = await file.readAsBytes();
-    final putRes = await http.put(
-      Uri.parse(uploadUrl),
-      headers: {'Content-Type': contentType},
-      body: bytes,
-    );
-    if (putRes.statusCode != 200) {
-      throw Exception('Video upload failed (${putRes.statusCode})');
-    }
+    // Streamed, not http.put(body: bytes) -- the previous version read
+    // the entire compressed file into memory first, then sent it as a
+    // single, non-streamed block. For a multi-MB video on an unstable
+    // mobile connection, that's a real, direct cause of the
+    // "ClientException: Read failed" error -- the server side timing
+    // out or dropping the connection partway through a large,
+    // all-at-once body. StreamedRequest sends the file straight from
+    // disk in chunks instead.
+    //
+    // One retry on failure -- a single dropped connection on mobile
+    // data is common enough to be worth one automatic second attempt
+    // before actually failing the post.
+    Object? lastError;
+    for (var attempt = 0; attempt < 2; attempt++) {
+      try {
+        final length = await file.length();
+        final request = http.StreamedRequest('PUT', Uri.parse(uploadUrl))
+          ..headers['Content-Type'] = contentType
+          ..contentLength = length;
+        file.openRead().listen(
+          request.sink.add,
+          onDone: request.sink.close,
+          onError: request.sink.addError,
+        );
 
-    return publicUrl;
+        final streamedRes = await request.send();
+        if (streamedRes.statusCode != 200) {
+          throw Exception('Video upload failed (${streamedRes.statusCode})');
+        }
+        return publicUrl;
+      } catch (e) {
+        lastError = e;
+        if (attempt == 0) {
+          await Future.delayed(const Duration(seconds: 2));
+        }
+      }
+    }
+    throw lastError ?? Exception('Video upload failed after retry');
   }
 }

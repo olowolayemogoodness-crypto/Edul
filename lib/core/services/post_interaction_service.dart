@@ -411,4 +411,103 @@ class PostInteractionService {
   static Future<void> deletePost(String postId) async {
     await _posts().doc(postId).delete();
   }
+
+  // ── Reactions ──────────────────────────────────────────────────────────
+  // A separate system from likes, not a replacement -- likes keep their
+  // own scoring/notification behavior untouched. One reaction per user
+  // per post; picking a different emoji replaces the previous one,
+  // tapping the same one again clears it.
+  static const List<String> reactionOptions = ['❤️', '👍', '😂', '😮', '😢'];
+
+  static Stream<String?> myReaction(String postId) {
+    final uid = UserService.uid;
+    if (uid == null) return Stream.value(null);
+    return _posts().doc(postId).collection('reactions').doc(uid)
+        .snapshots().map((d) => d.data()?['emoji'] as String?);
+  }
+
+  static Stream<Map<String, int>> reactionCounts(String postId) {
+    return _posts().doc(postId).snapshots().map((d) {
+      final raw = (d.data() as Map<String, dynamic>?)?['reactionCounts'] as Map<String, dynamic>?;
+      if (raw == null) return <String, int>{};
+      return raw.map((k, v) => MapEntry(k, v as int));
+    });
+  }
+
+  static Future<void> setReaction(String postId, String postOwnerUid, String emoji) async {
+    final uid = UserService.uid;
+    if (uid == null) return;
+    final reactionRef = _posts().doc(postId).collection('reactions').doc(uid);
+    final postRef = _posts().doc(postId);
+
+    await _db.runTransaction((tx) async {
+      final existing = await tx.get(reactionRef);
+      final postSnap = await tx.get(postRef);
+      final counts = Map<String, int>.from(
+        (postSnap.data() as Map<String, dynamic>?)?['reactionCounts'] as Map<String, dynamic>? ?? {});
+
+      final previousEmoji = existing.data()?['emoji'] as String?;
+      if (previousEmoji == emoji) {
+        // Tapping the same emoji again clears the reaction entirely.
+        tx.delete(reactionRef);
+        counts[emoji] = (counts[emoji] ?? 1) - 1;
+        if (counts[emoji]! <= 0) counts.remove(emoji);
+      } else {
+        if (previousEmoji != null) {
+          counts[previousEmoji] = (counts[previousEmoji] ?? 1) - 1;
+          if (counts[previousEmoji]! <= 0) counts.remove(previousEmoji);
+        }
+        counts[emoji] = (counts[emoji] ?? 0) + 1;
+        tx.set(reactionRef, {'emoji': emoji, 'createdAt': FieldValue.serverTimestamp()});
+      }
+      tx.update(postRef, {'reactionCounts': counts});
+    });
+
+    if (uid != postOwnerUid) await UserTierService.adjustScore(postOwnerUid, 1);
+  }
+
+  // ── Polls ──────────────────────────────────────────────────────────────
+  // Options live directly on the post doc (set once, at creation --
+  // not editable after, same as post content itself). Votes are a
+  // subcollection matching the likes/reactions pattern; voteCounts is
+  // the denormalized array kept in sync via transaction, parallel to
+  // the options list by index.
+  static Stream<int?> myPollVote(String postId) {
+    final uid = UserService.uid;
+    if (uid == null) return Stream.value(null);
+    return _posts().doc(postId).collection('pollVotes').doc(uid)
+        .snapshots().map((d) => d.data()?['optionIndex'] as int?);
+  }
+
+  static Stream<List<int>> pollVoteCounts(String postId) {
+    return _posts().doc(postId).snapshots().map((d) {
+      final raw = (d.data() as Map<String, dynamic>?)?['pollVoteCounts'] as List<dynamic>?;
+      if (raw == null) return <int>[];
+      return raw.map((v) => v as int).toList();
+    });
+  }
+
+  static Future<void> voteOnPoll(String postId, int optionIndex) async {
+    final uid = UserService.uid;
+    if (uid == null) return;
+    final voteRef = _posts().doc(postId).collection('pollVotes').doc(uid);
+    final postRef = _posts().doc(postId);
+
+    await _db.runTransaction((tx) async {
+      final existing = await tx.get(voteRef);
+      final postSnap = await tx.get(postRef);
+      final options = (postSnap.data() as Map<String, dynamic>?)?['pollOptions'] as List<dynamic>? ?? [];
+      final counts = List<int>.from(
+        (postSnap.data() as Map<String, dynamic>?)?['pollVoteCounts'] as List<dynamic>? ?? List.filled(options.length, 0));
+      while (counts.length < options.length) counts.add(0); // defensive, in case options grew somehow
+
+      final previousIndex = existing.data()?['optionIndex'] as int?;
+      if (previousIndex == optionIndex) return; // tapping your own current vote again does nothing -- polls aren't retractable like reactions
+      if (previousIndex != null && previousIndex < counts.length) counts[previousIndex] -= 1;
+      if (optionIndex < counts.length) counts[optionIndex] += 1;
+
+      tx.set(voteRef, {'optionIndex': optionIndex, 'createdAt': FieldValue.serverTimestamp()});
+      tx.update(postRef, {'pollVoteCounts': counts});
+    });
+  }
 }

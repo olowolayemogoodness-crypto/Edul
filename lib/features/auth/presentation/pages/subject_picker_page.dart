@@ -480,7 +480,7 @@ class _SubjectPickerPageState extends State<SubjectPickerPage> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList('unlocked_courses', catalogCodes);
 
-    await UserService.updateProfile(course: subjectNames.join(', '));
+    await UserService.updateProfile(examSubjects: subjectNames.join(', '));
     if (mounted) context.go('/home');
   }
 
