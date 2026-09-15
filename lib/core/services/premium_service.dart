@@ -18,6 +18,7 @@
 
 import 'package:purchases_flutter/purchases_flutter.dart';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 
 enum PremiumTier { free, plus, pro }
 
@@ -111,7 +112,9 @@ class PremiumService {
 
   // ── Init ──────────────────────────────────────────────────────────────────
   static Future<void> initialize() async {
-    final apiKey = Platform.isIOS
+    if (kIsWeb) return;
+
+    final apiKey = defaultTargetPlatform == TargetPlatform.iOS
         ? 'appl_test_wpFQGsnATmYwLcPqZcSSUpIxgZG' // TODO: still a placeholder -- swap when you have a real iOS key
         : 'goog_HQIERDHTYxErhXQEYQWLtUoNWBl';
 

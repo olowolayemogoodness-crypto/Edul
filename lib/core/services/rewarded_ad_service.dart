@@ -11,6 +11,7 @@
 // they reliably fill and pay out — a low or empty fill rate right after
 // setup is expected AdMob behavior, not a bug.
 
+import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 class RewardedAdService {
@@ -37,7 +38,7 @@ class RewardedAdService {
   /// likely already loaded by the time the user actually wants one —
   /// avoids a loading spinner right at the moment they tap "watch ad".
   static void preload() {
-    if (_ad != null || _loading) return;
+    if (kIsWeb || _ad != null || _loading) return;
     _loading = true;
     RewardedAd.load(
       adUnitId: _rewardedAdUnitId,
@@ -59,6 +60,7 @@ class RewardedAdService {
 
   /// Call once, right after MobileAds.instance.initialize() in main.dart.
   static Future<void> configureTestDevices() async {
+    if (kIsWeb) return;
     await MobileAds.instance.updateRequestConfiguration(
       RequestConfiguration(testDeviceIds: _testDeviceIds),
     );
@@ -73,6 +75,10 @@ class RewardedAdService {
     void Function()? onNotReady,
     void Function()? onFailed,
   }) async {
+    if (kIsWeb) {
+      onNotReady?.call();
+      return;
+    }
     final ad = _ad;
     if (ad == null) {
       onNotReady?.call();

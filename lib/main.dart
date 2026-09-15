@@ -3,6 +3,7 @@ import 'core/services/premium_service.dart';
 import 'core/services/theme_override_service.dart';
 import 'core/services/study_reminder_service.dart';
 import 'core/services/rewarded_ad_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -52,14 +53,17 @@ void main() async {
     await StudyReminderService.init();
     await StudyReminderService.scheduleAll();
   } catch (_) {}
-  // Currently using Google's official TEST ad unit IDs everywhere ads
-  // are shown (see AdService) -- safe to initialize unconditionally.
-  // Swap to real ad unit IDs before release.
-  MobileAds.instance.initialize();
-  try {
-    await RewardedAdService.configureTestDevices();
-  } catch (_) {}
-  await PremiumService.initialize();
+  // Native ads and in-app purchases are unavailable on the web runtime.
+  // Guarding them here avoids the MissingPluginException / Platform.isIOS
+  // crashes that happen when the Chrome target boots without the native
+  // plugin implementations.
+  if (!kIsWeb) {
+    MobileAds.instance.initialize();
+    try {
+      await RewardedAdService.configureTestDevices();
+    } catch (_) {}
+    await PremiumService.initialize();
+  }
   await ThemeOverrideService.init();
   await initDependencies();
   await _migrateCompulsoryCourses();
