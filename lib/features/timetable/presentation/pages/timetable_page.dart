@@ -9,9 +9,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../../../../../core/services/timetable_service.dart';
-import '../../../../../../core/services/user_service.dart';
-import '../../add_timetable_entry_page.dart';
+import '../../../../core/services/timetable_service.dart';
+import '../../../../core/services/user_service.dart';
+import 'add_timetable_entry_page.dart';
 
 const _bg = Color(0xFF150F2E);
 const _cardBg = Color(0xFF1F1840);
