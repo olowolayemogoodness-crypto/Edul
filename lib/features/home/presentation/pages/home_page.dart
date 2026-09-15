@@ -1,28 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../core/constants/app_colors.dart';
-import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/app_text_styles.dart';
-import '../widgets/home_top_bar.dart';
-import '../widgets/daily_goal_card.dart';
-import '../widgets/activity_grid.dart';
-
-import '../widgets/continue_button.dart';
 import '../../../profile/presentation/pages/profile_page.dart';
-import '../../../insights/presentation/pages/insights_feed_page.dart';
 import '../../../social/presentation/pages/social_feed_page.dart';
+import '../../../courses/presentation/pages/courses_page.dart';
+import '../../../timetable/presentation/pages/timetable_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-//import '../../../leaderboard/presentation/pages/leaderboard_page.dart';
-import '../../../study_rooms/presentation/pages/study_rooms_page.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import '../../../auth/presentation/bloc/auth_bloc.dart';
-import '../../../auth/presentation/bloc/auth_state.dart';
 import '../../../../core/services/user_service.dart';
 import '../../../../core/services/social_streak_service.dart';
-import '../../../../core/services/home_study_feature_service.dart';
 import '../../../../core/services/push_notification_service.dart';
-import '../widgets/live_rooms_coming_soon_widget.dart';
 
+// Final, confirmed nav: Social, Classes, Timetable, Profile. Home and
+// Study (quiz/AI-tutor/flashcards/library, and the study rooms page)
+// are removed entirely, not just hidden -- Classes replaces Home's
+// old slot with the subjects board, matching how the original app
+// laid out its four tabs. Discover (InsightsFeedPage) is also fully
+// removed, not folded in anywhere.
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -33,14 +27,12 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   int _activeIndex = 0;
   int _unreadSocial = 0;
-  bool _homeStudyEnabled = false; // fail-closed default, matches the service
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _listenUnread();
-    _loadHomeStudyFlag();
     // Requests permission and saves this device's FCM token to the
     // user's profile -- without this call, no user ever has a token
     // saved to send a push to at all, regardless of how correctly the
@@ -54,32 +46,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     ));
   }
 
-  Future<void> _loadHomeStudyFlag() async {
-    final enabled = await HomeStudyFeatureService.isEnabled();
-    if (mounted) setState(() {
-      _homeStudyEnabled = enabled;
-      // If Home/Study were hidden and _activeIndex was still pointing
-      // at one of their old positions (0 or 1) from before this async
-      // check resolved, land on the new first tab instead of an
-      // index that no longer means what it used to.
-      if (!enabled && _activeIndex < 2) _activeIndex = 0;
-    });
-  }
-
-  // Full, unfiltered tab definitions -- Home and Study only get
-  // included when the backend flag is on. Their widgets and all
-  // their code stay fully intact regardless; this only controls
-  // whether they're reachable from navigation.
   List<_TabDef> get _tabs => [
-    if (_homeStudyEnabled) _TabDef(icon: Icons.home_rounded, label: 'Home', builder: () => const _HomeContent()),
-    if (_homeStudyEnabled) _TabDef(icon: Icons.groups_rounded, label: 'Study', builder: () => const StudyRoomsPage()),
     _TabDef(icon: Icons.dynamic_feed_rounded, label: 'Social', builder: () => const SocialFeedPage(), isSocial: true),
-    _TabDef(icon: Icons.explore_rounded, label: 'Discover', builder: () => InsightsFeedPage(isVisible: _activeIndex == _discoverIndex), isDiscover: true),
+    _TabDef(icon: Icons.grid_view_rounded, label: 'Classes', builder: () => const CoursesPage()),
+    _TabDef(icon: Icons.calendar_month_rounded, label: 'Timetable', builder: () => const TimetablePage()),
     _TabDef(icon: Icons.person_rounded, label: 'Profile', builder: () => const ProfilePage()),
   ];
 
   int get _socialIndex => _tabs.indexWhere((t) => t.isSocial);
-  int get _discoverIndex => _tabs.indexWhere((t) => t.isDiscover);
 
   @override
   void dispose() {
@@ -162,97 +136,7 @@ class _TabDef {
   final String label;
   final Widget Function() builder;
   final bool isSocial;
-  final bool isDiscover;
-  _TabDef({required this.icon, required this.label, required this.builder, this.isSocial = false, this.isDiscover = false});
-}
-
-class _HomeContent extends StatelessWidget {
-  const _HomeContent();
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<Map<String, dynamic>?>(
-      stream: UserService.profileStream(),
-      builder: (context, snapshot) {
-        final profile = snapshot.data;
-    return SafeArea(
-      bottom: false,
-      child: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            HomeTopBar(streakCount: (profile?['streak'] as int?) ?? 0, xpCount: (profile?['xp'] as int?) ?? 0),
-            _GreetingBlock(name: context.read<AuthBloc>().state is AuthAuthenticated
-             ? ((context.read<AuthBloc>().state as AuthAuthenticated).user.displayName).split(' ').first
-              : 'there'),
-            DailyGoalCard(
-              percent: ((profile?['xpToday'] as int?) ?? 0) / 180.0 > 1.0 ? 1.0 : ((profile?['xpToday'] as int?) ?? 0) / 180.0,
-              xpToday: (profile?['xpToday'] as int?) ?? 0,
-              xpTotal: (profile?['xp'] as int?) ?? 0,
-              rank: (profile?['rank'] as int?) ?? 0,
-            ),
-            const SizedBox(height: AppSpacing.xxl),
-            const ContinueButton(),
-            const SizedBox(height: AppSpacing.lg),
-            const SizedBox(height: AppSpacing.lg),
-            _SectionHeader(title: 'Continue learning', linkText: 'See all', onTap: () {}),
-            const SizedBox(height: AppSpacing.md),
-            const ActivityGrid(),
-            const SizedBox(height: AppSpacing.lg),
-          const LiveRoomsComingSoon(),
-            
-          ],
-        ),
-      ),
-    );
-  },
-  );
-  }
-}
-
-
-
-class _GreetingBlock extends StatelessWidget {
-  final String name;
-  const _GreetingBlock({required this.name});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 2, AppSpacing.lg, AppSpacing.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Good morning,',
-              style: AppTextStyles.bodySmall.copyWith(color: AppColors.textTertiary)),
-          Text(name, style: AppTextStyles.headlineLarge),
-        ],
-      ),
-    );
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  final String title, linkText;
-  final VoidCallback onTap;
-  const _SectionHeader({required this.title, required this.linkText, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(title, style: AppTextStyles.titleLarge),
-          GestureDetector(onTap: onTap,
-              child: Text(linkText,
-                  style: AppTextStyles.labelMedium.copyWith(color: AppColors.accentLight))),
-        ],
-      ),
-    );
-  }
+  _TabDef({required this.icon, required this.label, required this.builder, this.isSocial = false});
 }
 
 class _BottomNav extends StatelessWidget {
