@@ -105,4 +105,16 @@ class GroupService {
     final memberDoc = await _groups().doc(groupId).collection('members').doc(uid).get();
     return memberDoc.data()?['role'] == 'admin';
   }
+
+  /// Convenience for the common case: "is the signed-in user the class
+  /// rep of their OWN group" -- combines myOfficialGroupId() +
+  /// isClassRep() so every admin-gated screen (course editing, recap/
+  /// material creation, timetable status) doesn't repeat the same
+  /// two-step lookup. Returns false, not an error, if the user isn't
+  /// in an official group at all.
+  static Future<bool> amIClassRepOfMyGroup() async {
+    final groupId = await myOfficialGroupId();
+    if (groupId == null) return false;
+    return isClassRep(groupId);
+  }
 }
