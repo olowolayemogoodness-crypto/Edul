@@ -14,7 +14,8 @@ const _red = Color(0xFFE24B4A);
 
 class AddTimetableEntryPage extends StatefulWidget {
   final String groupId;
-  const AddTimetableEntryPage({super.key, required this.groupId});
+  final String? initialDay;
+  const AddTimetableEntryPage({super.key, required this.groupId, this.initialDay});
 
   @override
   State<AddTimetableEntryPage> createState() => _AddTimetableEntryPageState();
@@ -25,7 +26,7 @@ class _AddTimetableEntryPageState extends State<AddTimetableEntryPage> {
   final _subjectCtrl = TextEditingController();
   final _titleCtrl = TextEditingController();
   final _roomCtrl = TextEditingController();
-  String _day = 'Mon';
+  late String _day = widget.initialDay ?? 'Mon';
   TimeOfDay _startTime = const TimeOfDay(hour: 9, minute: 0);
   TimeOfDay _endTime = const TimeOfDay(hour: 10, minute: 0);
   DateTime _dueAt = DateTime.now().add(const Duration(days: 1));
@@ -87,7 +88,7 @@ class _AddTimetableEntryPageState extends State<AddTimetableEntryPage> {
           if (_isClassMode) ...[
             Text('Day', style: GoogleFonts.dmSans(fontSize: 12, color: _textSecondary)),
             const SizedBox(height: 6),
-            Wrap(spacing: 8, children: ['Mon','Tue','Wed','Thu','Fri'].map((d) => GestureDetector(
+           Wrap(spacing: 8, children: ['Mon','Tue','Wed','Thu','Fri','Sat'].map((d) => GestureDetector(
               onTap: () => setState(() => _day = d),
               child: Container(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(color: _day == d ? _amber : _cardBg, borderRadius: BorderRadius.circular(10)),
