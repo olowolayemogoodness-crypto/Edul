@@ -162,8 +162,8 @@ class TimetableService {
   ///
   /// Best-effort: one member's missing/invalid token, or one failed
   /// HTTP call, doesn't stop the rest of the group from being
-  /// notified. Does nothing for status 'holding' (a class going back
-  /// to normal isn't worth a push).
+  /// /// coming back on after being cancelled/delayed).
+/// notified. Fires for every status, including 'holding' (a class  /// to normal isn't worth a push).
   static const _pushWorkerUrl = 'https://edulink-push-send.edulinkore.workers.dev/';
 
     static Future<String> deleteEntry({
@@ -177,7 +177,7 @@ class TimetableService {
     await _db.collection('groups').doc(groupId).collection('timetable_entries').doc(entryId).delete();
     return TimetableEntryResult.success;
   }
-  
+
   static Future<void> notifyClassStatusChange({
     required String groupId,
     required String subject,
@@ -185,7 +185,7 @@ class TimetableService {
     String? room,
     String? startTime,
   }) async {
-    if (status != 'cancelled' && status != 'delayed') return;
+    // No early-return here now -- 'holding' is worth a push too.
 
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) return;
@@ -197,12 +197,14 @@ class TimetableService {
       return; // can't authenticate to the worker -- best-effort, fail quietly
     }
 
-    final title = status == 'cancelled' ? '$subject cancelled' : '$subject delayed';
+        final title = status == 'cancelled' ? '$subject cancelled' : status == 'delayed' ? '$subject delayed' : '$subject is back on';
     final where = room != null && room.isNotEmpty ? ' ($room)' : '';
     final when = startTime != null && startTime.isNotEmpty ? ' at $startTime' : '';
     final body = status == 'cancelled'
         ? '$subject$when$where has been cancelled.'
-        : '$subject$when$where has been delayed -- check the timetable for the new time.';
+        : status == 'delayed'
+            ? '$subject$when$where has been delayed -- check the timetable for the new time.'
+            : '$subject$when$where is holding as scheduled.';
 
     final membersSnap = await _db.collection('groups').doc(groupId).collection('members').get();
 

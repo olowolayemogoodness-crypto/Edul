@@ -88,7 +88,7 @@ class _AddTimetableEntryPageState extends State<AddTimetableEntryPage> {
           if (_isClassMode) ...[
             Text('Day', style: GoogleFonts.dmSans(fontSize: 12, color: _textSecondary)),
             const SizedBox(height: 6),
-           Wrap(spacing: 8, children: ['Mon','Tue','Wed','Thu','Fri','Sat'].map((d) => GestureDetector(
+           Wrap(spacing: 8, children: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((d) => GestureDetector(
               onTap: () => setState(() => _day = d),
               child: Container(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(color: _day == d ? _amber : _cardBg, borderRadius: BorderRadius.circular(10)),

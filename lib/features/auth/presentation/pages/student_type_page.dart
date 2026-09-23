@@ -183,7 +183,13 @@ class _UniversityStep extends StatefulWidget {
 
 class _UniversityStepState extends State<_UniversityStep> {
   final _searchCtrl = TextEditingController();
-  List<NigerianUniversity> _filtered = nigerianUniversities;
+  // Only FUTA is available for now -- filtered from the shared
+  // nigerianUniversities list rather than editing that file directly,
+  // so reopening to more universities later is a one-line change here,
+  // not a data-file change that could affect anything else using it.
+  static final List<NigerianUniversity> _availableUniversities =
+      nigerianUniversities.where((u) => u.acronym == 'FUTA').toList();
+  List<NigerianUniversity> _filtered = _availableUniversities;
 
   @override
   void dispose() {
@@ -195,8 +201,8 @@ class _UniversityStepState extends State<_UniversityStep> {
     final q = query.trim().toLowerCase();
     setState(() {
       _filtered = q.isEmpty
-          ? nigerianUniversities
-          : nigerianUniversities.where((u) =>
+          ? _availableUniversities
+          : _availableUniversities.where((u) =>
               u.name.toLowerCase().contains(q) ||
               u.acronym.toLowerCase().contains(q)).toList();
     });

@@ -26,7 +26,16 @@ import '../../../../core/services/timetable_service.dart';
 import '../../../../core/services/user_service.dart';
 import 'add_timetable_entry_page.dart';
 
-const _days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const _days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+int _endMinutes(Map<String, dynamic> entry) {
+  final endTime = entry['endTime'] as String? ?? '';
+  final parts = endTime.split(':');
+  if (parts.length != 2) return entry['startMinutes'] as int? ?? 0;
+  final hour = int.tryParse(parts[0]) ?? 0;
+  final minute = int.tryParse(parts[1]) ?? 0;
+  return hour * 60 + minute;
+}
 
 // Light-theme equivalents of TimetableService's dark subject palette
 // -- same hue families (physics blue, math purple, etc.), kept local
@@ -66,19 +75,10 @@ class _TimetablePageState extends State<TimetablePage> {
   Stream<List<Map<String, dynamic>>>? _entriesStream;
   Stream<List<Map<String, dynamic>>>? _assignmentsStream;
 
-  @override
+    @override
   void initState() {
     super.initState();
-    final todayWeekday = DateTime.now().weekday; // 1=Mon..7=Sun
-    if (todayWeekday <= 6) {
-      _selectedDayIndex = todayWeekday - 1;
-    } else {
-      // Sunday -- no class days modeled past Saturday, so default
-      // forward to next week's Monday rather than falsely
-      // highlighting Saturday as if it were today.
-      _weekOffset = 1;
-      _selectedDayIndex = 0;
-    }
+    _selectedDayIndex = DateTime.now().weekday - 1;
     _load();
   }
 
@@ -129,7 +129,7 @@ class _TimetablePageState extends State<TimetablePage> {
     final now = DateTime.now();
     final thisMonday = now.subtract(Duration(days: now.weekday - 1));
     final monday = thisMonday.add(Duration(days: _weekOffset * 7));
-    return List.generate(6, (i) => monday.add(Duration(days: i)));
+    return List.generate(7, (i) => monday.add(Duration(days: i)));
   }
 
   @override
@@ -139,9 +139,12 @@ class _TimetablePageState extends State<TimetablePage> {
         child: Text('Join your official class group to see its timetable',
           style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textSecondary))));
     }
-    final groupId = _groupId!;
+        final groupId = _groupId!;
     final entriesStream = _entriesStream!;
     final assignmentsStream = _assignmentsStream!;
+    final today = DateTime.now();
+    final selectedDate = _weekDates[_selectedDayIndex];
+    final isSelectedDayToday = selectedDate.year == today.year && selectedDate.month == today.month && selectedDate.day == today.day;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -153,11 +156,11 @@ class _TimetablePageState extends State<TimetablePage> {
             const SizedBox(height: 20),
             _DaySelector(selectedIndex: _selectedDayIndex, weekDates: _weekDates, weekOffset: _weekOffset, onSelect: _selectDay, onShiftWeek: _shiftWeek),
             const SizedBox(height: 20),
-            _NextUpCard(entriesStream: entriesStream, groupId: groupId, isToday: _weekDates[_selectedDayIndex].year == DateTime.now().year && _weekDates[_selectedDayIndex].month == DateTime.now().month && _weekDates[_selectedDayIndex].day == DateTime.now().day),
+            _NextUpCard(entriesStream: entriesStream, groupId: groupId, isToday: isSelectedDayToday),
             const SizedBox(height: 20),
             Text('Today\'s classes', style: GoogleFonts.dmSans(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
             const SizedBox(height: 10),
-            _TodayList(entriesStream: entriesStream, groupId: groupId, isClassRep: _isClassRep),
+            _TodayList(entriesStream: entriesStream, groupId: groupId, isClassRep: _isClassRep, isToday: isSelectedDayToday),
             const SizedBox(height: 20),
             Text('Assignments', style: GoogleFonts.dmSans(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
             const SizedBox(height: 10),
@@ -394,14 +397,22 @@ class _TodayList extends StatelessWidget {
   final Stream<List<Map<String, dynamic>>> entriesStream;
   final String groupId;
   final bool isClassRep;
-  const _TodayList({required this.entriesStream, required this.groupId, required this.isClassRep});
+  final bool isToday;
+  const _TodayList({required this.entriesStream, required this.groupId, required this.isClassRep, required this.isToday});
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: entriesStream,
       builder: (context, snap) {
-        final entries = snap.data ?? [];
+        var entries = List<Map<String, dynamic>>.from(snap.data ?? []);
+        entries.sort((a, b) => (a['startMinutes'] as int? ?? 0).compareTo(b['startMinutes'] as int? ?? 0));
+        if (isToday) {
+          final nowMinutes = DateTime.now().hour * 60 + DateTime.now().minute;
+          final upcoming = entries.where((e) => _endMinutes(e) >= nowMinutes).toList();
+          final finished = entries.where((e) => _endMinutes(e) < nowMinutes).toList();
+          entries = [...upcoming, ...finished];
+        }
         if (entries.isEmpty) {
           return Text('No classes scheduled', style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.textTertiary));
         }
