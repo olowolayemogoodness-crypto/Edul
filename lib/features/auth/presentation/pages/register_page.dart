@@ -123,7 +123,7 @@ class _RegisterPageState extends State<RegisterPage> {
             await UserService.updateProfile(course: department, set: _mySet!);
             await GroupService.autoJoinOfficialDepartment(department, set: _mySet!);
           }
-          if (ctx.mounted) ctx.go('/subject-picker');
+          if (ctx.mounted) ctx.go('/home');
         }
         if (state is AuthError) _showError(state.message);
       },
