@@ -100,6 +100,16 @@ class UserService {
     if (set != null) data['set'] = set;
     if (data.isNotEmpty) await _db.collection('users').doc(uid).update(data);
   }
+    static Future<void> saveInterests({
+    required List<String> interests,
+    List<String> footballClubs = const [],
+  }) async {
+    if (uid == null) return;
+    await _db.collection('users').doc(uid).update({
+      'interests': interests,
+      if (footballClubs.isNotEmpty) 'footballClubs': footballClubs,
+    });
+  }
 
   // ── Award XP ──
   static Future<void> awardXP(int amount, {String reason = ''}) async {

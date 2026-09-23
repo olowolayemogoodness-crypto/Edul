@@ -13,6 +13,7 @@ import '../../features/exam_prep/presentation/pages/exam_prep_page.dart';
 import '../../features/library/presentation/pages/library_page.dart';
 import '../../features/auth/presentation/pages/subject_picker_page.dart';
 import '../../features/flashcards/presentation/pages/flashcards_page.dart';
+import '../../features/auth/presentation/pages/interest_picker_page.dart';
 import '../../features/study_rooms/presentation/pages/study_rooms_page.dart';
 import '../../features/scholarship/presentation/pages/scholarship_page.dart';
 import '../../features/masterclass/presentation/pages/masterclass_page.dart';
@@ -44,6 +45,7 @@ class AppRouter {
       GoRoute(path: AppRoutes.library,       name: 'library',       builder: (c, s) => const LibraryPage()),
       GoRoute(path: AppRoutes.subjectPicker, name: 'subjectPicker', builder: (c, s) => const SubjectPickerPage()),
       GoRoute(path: AppRoutes.flashcards,  name: 'flashcards',  builder: (c, s) => const FlashcardsPage()),
+      GoRoute(path: '/interests', name: 'interests', builder: (c, s) => const InterestPickerPage()),
       GoRoute(path: AppRoutes.studyRoom,   name: 'studyRoom',   builder: (c, s) => const StudyRoomsPage()),
       GoRoute(
   path: '/discover',
