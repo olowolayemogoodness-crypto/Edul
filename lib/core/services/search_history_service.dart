@@ -20,6 +20,7 @@
 
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'user_service.dart';
 
 class SearchHistoryEntry {
   final String type; // 'query' or 'profile'
@@ -52,8 +53,8 @@ class SearchHistoryEntry {
 class SearchHistoryService {
   SearchHistoryService._();
 
-  static const _prefsKey = 'social_search_history';
-  static const _maxEntries = 20;
+    static const _maxEntries = 20;
+  static String get _prefsKey => 'social_search_history_${UserService.uid ?? "anon"}';
 
   static Future<List<SearchHistoryEntry>> getHistory() async {
     final prefs = await SharedPreferences.getInstance();

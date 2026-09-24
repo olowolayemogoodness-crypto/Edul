@@ -147,7 +147,7 @@ class _CourseEditPageState extends State<CourseEditPage> {
             Row(children: [
               Expanded(child: Text('Visible to everyone in this set', style: GoogleFonts.dmSans(
                 fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary))),
-              Switch(value: _visibleToAll, onChanged: (v) => setState(() => _visibleToAll = v), activeColor: AppColors.accent),
+              Switch(value: _visibleToAll, onChanged: (v) => setState(() => _visibleToAll = v), activeThumbColor: AppColors.accent),
             ]),
             if (!_visibleToAll) ...[
               const SizedBox(height: 8),

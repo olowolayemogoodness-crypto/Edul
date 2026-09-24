@@ -370,6 +370,53 @@ class NotificationService {
       );
     } catch (_) {}
   }
+    /// Notifies the CURRENT user's own followers that they just reposted
+  /// something -- different from createRepostNotification above, which
+  /// tells the ORIGINAL POST'S OWNER "someone reposted your post". This
+  /// tells YOUR followers "someone you follow reposted something",
+  /// same "new_post" fan-out shape used in post_composer_page.dart, but
+  /// with real push added (the new_post fan-out only ever wrote the
+  /// in-app doc, never called _sendPush -- this one does both).
+  static Future<void> notifyFollowersOfRepost({
+    required String postId,
+  }) async {
+    final reposterUid = UserService.uid;
+    if (reposterUid == null) return;
+    try {
+      final profile = await UserService.getProfile();
+      final reposterName = profile?['displayName'] as String? ?? 'Someone';
+
+      final followers = await _db.collection('users').doc(reposterUid)
+          .collection('followers').limit(500).get();
+      if (followers.docs.isEmpty) return;
+
+      final batch = _db.batch();
+      for (final doc in followers.docs) {
+        final notifRef = _col.doc();
+        batch.set(notifRef, {
+          'uid': doc.id,
+          'fromUid': reposterUid,
+          'fromDisplayName': reposterName,
+          'type': 'follow_repost',
+          'title': '$reposterName reposted something',
+          'body': 'Tap to see what they shared',
+          'postId': postId,
+          'read': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+      await batch.commit();
+
+      await Future.wait(followers.docs.map((doc) => _sendPush(
+        targetUid: doc.id,
+        title: '$reposterName reposted something',
+        body: 'Tap to see what they shared',
+        data: {'type': 'follow_repost', 'postId': postId},
+      )));
+    } catch (_) {
+      // Best-effort -- never block the repost action itself.
+    }
+  }
 
   /// Notifies [targetUid] they've been challenged to a duel. Includes
   /// the challenger's score so the opponent knows what they're up

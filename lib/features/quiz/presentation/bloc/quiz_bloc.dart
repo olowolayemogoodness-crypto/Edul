@@ -230,7 +230,7 @@ class QuizBloc extends Bloc<QuizEvent, QuizState> {
     if (!isCorrect) {
       await LivesService.recordWrongAnswer();
       newLives = await LivesService.getCurrentLives();
-      if (newLives <= 0);
+      if (newLives <= 0) {}
     }
 
     _answers.add(QuizAnswerRecord(
@@ -265,7 +265,7 @@ class QuizBloc extends Bloc<QuizEvent, QuizState> {
     QuizSoundService.playWrong();
     await LivesService.recordWrongAnswer();
     final newLives = await LivesService.getCurrentLives();
-    if (newLives <= 0) ;
+    if (newLives <= 0) {}
     _answers.add(QuizAnswerRecord(question: s.currentQuestion.question, correct: false, secondsTaken: 30));
     _times.add(30);
     emit(s.copyWith(

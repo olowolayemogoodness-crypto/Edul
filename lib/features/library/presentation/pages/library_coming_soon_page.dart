@@ -108,7 +108,7 @@ class _LibraryComingSoonPageState extends State<LibraryComingSoonPage>
                             boxShadow: [
                               BoxShadow(
                                 color: const Color(0xFFEA580C)
-                                    .withOpacity(_glowAnimation.value * 0.6),
+                                    .withValues(alpha: _glowAnimation.value * 0.6),
                                 blurRadius: 40,
                                 spreadRadius: 20,
                               ),

@@ -236,7 +236,7 @@ class _LibraryPageState extends State<LibraryPage> {
                       color: AppColors.accentSurface,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: AppColors.accent.withOpacity(0.4)),
+                        color: AppColors.accent.withValues(alpha: 0.4)),
                     ),
                     child: Text('$_monthlyOpened/$limit this month',
                       style: GoogleFonts.dmSans(

@@ -34,7 +34,7 @@ class ClubPickerPage extends StatefulWidget {
 }
 
 class _ClubPickerPageState extends State<ClubPickerPage> {
-  late Set<String> _selected = widget.initiallySelected.toSet();
+  late final Set<String> _selected = widget.initiallySelected.toSet();
 
   void _toggle(String clubId) {
     setState(() {

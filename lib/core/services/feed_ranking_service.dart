@@ -65,7 +65,8 @@ class FeedRankingService {
             .limit(10)
             .get();
         final name = userDoc.data()?['displayName'] as String? ?? 'Someone';
-        return (uid: uid, name: name, likes: likesSnap);
+        final photoUrl = userDoc.data()?['photoUrl'] as String?;
+        return (uid: uid, name: name, photoUrl: photoUrl, likes: likesSnap);
       }));
 
       final likers = <String, List<Map<String, String>>>{};
@@ -77,7 +78,11 @@ class FeedRankingService {
           if (postId == null) continue;
           likers.putIfAbsent(postId, () => []);
           if (!likers[postId]!.any((l) => l['uid'] == entry.uid)) {
-            likers[postId]!.add({'uid': entry.uid, 'name': entry.name});
+            likers[postId]!.add({
+              'uid': entry.uid,
+              'name': entry.name,
+              if (entry.photoUrl != null) 'photoUrl': entry.photoUrl!,
+            });
           }
         }
       }
@@ -94,6 +99,7 @@ class FeedRankingService {
     List<Map<String, dynamic>> posts, {
     required Set<String> myFollowing,
     required Set<String> likedByFollowingPostIds,
+    Set<String> recentlySearchedUids = const {},
   }) {
     final now = DateTime.now();
     final scored = posts.map((post) {
@@ -117,6 +123,10 @@ class FeedRankingService {
       final postId = (post['id'] as String?) ?? (post['originalPostId'] as String?);
       if (postId != null && likedByFollowingPostIds.contains(postId)) score += 25;
 
+
+      final authorUid = post['uid'] as String?;
+      if (authorUid != null && recentlySearchedUids.contains(authorUid)) score += 30;
+      
       return MapEntry(post, score);
     }).toList();
 

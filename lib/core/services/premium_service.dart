@@ -172,7 +172,7 @@ class PremiumService {
       final matching = packages.where((p) => p.storeProduct.identifier == productId);
       final package = matching.isNotEmpty ? matching.first : packages.first;
 
-      final info = (await Purchases.purchasePackage(package)).customerInfo;
+      final info = (await Purchases.purchase(PurchaseParams.package(package))).customerInfo;
       if (info.entitlements.active.containsKey(_proEntitlement)) {
         _cachedTier = PremiumTier.pro;
       } else if (info.entitlements.active.containsKey(_plusEntitlement)) {

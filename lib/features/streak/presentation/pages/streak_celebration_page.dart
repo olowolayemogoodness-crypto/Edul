@@ -58,7 +58,7 @@ class _StreakCelebrationPageState extends State<StreakCelebrationPage> {
               const SizedBox(height: 4),
               Text('day streak',
                 style: GoogleFonts.dmSans(
-                  fontSize: 15, color: Colors.white.withOpacity(0.85))),
+                  fontSize: 15, color: Colors.white.withValues(alpha: 0.85))),
             ]),
           ),
         ),

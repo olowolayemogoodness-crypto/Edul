@@ -542,9 +542,13 @@ class _PracticeTestPageState extends State<PracticeTestPage> with TickerProvider
             String cls;
             if (i == _qi) {
               cls = 'curr';
-            } else if (_flagged[i]) cls = 'flag';
-            else if (_answers[i] != null) cls = 'done';
-            else cls = 'todo';
+            } else if (_flagged[i]) {
+              cls = 'flag';
+            } else if (_answers[i] != null) {
+              cls = 'done';
+            } else {
+              cls = 'todo';
+            }
             return GestureDetector(
               onTap: () { HapticFeedback.selectionClick(); setState(() => _qi = i); },
               child: Container(

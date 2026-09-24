@@ -133,12 +133,12 @@ class NotificationsPage extends StatelessWidget {
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
                           color: isUnread
-                              ? AppColors.accentSurface.withOpacity(0.35)
+                              ? AppColors.accentSurface.withValues(alpha: 0.35)
                               : AppColors.surface,
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(
                             color: isUnread
-                                ? AppColors.accent.withOpacity(0.4)
+                                ? AppColors.accent.withValues(alpha: 0.4)
                                 : AppColors.border,
                           ),
                         ),

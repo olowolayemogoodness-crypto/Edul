@@ -25,19 +25,19 @@ class LessonGateService {
 
   static Future<int> _completedToday() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getInt('lessons_completed_${_todayKey}') ?? 0;
+    return prefs.getInt('lessons_completed_$_todayKey') ?? 0;
   }
 
   static Future<int> _extraUnlockedToday() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getInt('lessons_extra_unlocked_${_todayKey}') ?? 0;
+    return prefs.getInt('lessons_extra_unlocked_$_todayKey') ?? 0;
   }
 
   /// Call this once, right when a lesson is actually completed.
   static Future<void> recordLessonCompleted() async {
     final prefs = await SharedPreferences.getInstance();
     final current = await _completedToday();
-    await prefs.setInt('lessons_completed_${_todayKey}', current + 1);
+    await prefs.setInt('lessons_completed_$_todayKey', current + 1);
   }
 
   /// Whether the next lesson can be started right now.
@@ -52,6 +52,6 @@ class LessonGateService {
   static Future<void> grantExtraUnlock() async {
     final prefs = await SharedPreferences.getInstance();
     final current = await _extraUnlockedToday();
-    await prefs.setInt('lessons_extra_unlocked_${_todayKey}', current + 1);
+    await prefs.setInt('lessons_extra_unlocked_$_todayKey', current + 1);
   }
 }

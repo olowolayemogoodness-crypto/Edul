@@ -137,7 +137,7 @@ class _InterestPickerPageState extends State<InterestPickerPage> {
           ),
           Container(
             padding: const EdgeInsets.fromLTRB(24, 14, 24, 24),
-            decoration: BoxDecoration(color: AppColors.background, border: Border(top: BorderSide(color: AppColors.border.withOpacity(0.5)))),
+            decoration: BoxDecoration(color: AppColors.background, border: Border(top: BorderSide(color: AppColors.border.withValues(alpha: 0.5)))),
             child: Column(children: [
               Text(
                 canContinue ? '${_selected.length} selected' : '${_selected.length} selected — pick at least 3 to continue',
@@ -150,7 +150,7 @@ class _InterestPickerPageState extends State<InterestPickerPage> {
                   onPressed: (canContinue && !_saving) ? _continue : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.accent, foregroundColor: Colors.white,
-                    disabledBackgroundColor: AppColors.accent.withOpacity(0.4),
+                    disabledBackgroundColor: AppColors.accent.withValues(alpha: 0.4),
                     padding: const EdgeInsets.symmetric(vertical: 15),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   ),

@@ -81,13 +81,14 @@ class UserService {
   }
 
   // ── Update profile fields ──
-  static Future<void> updateProfile({String? bio, String? school, String? course, String? country, String? examSubjects, int? set}) async {
+  static Future<void> updateProfile({String? bio, String? school, String? course, String? country, String? examSubjects, int? set, String? photoUrl}) async {
     if (uid == null) return;
     final data = <String, dynamic>{};
     if (bio != null) data['bio'] = bio;
     if (school != null) data['school'] = school;
     if (course != null) data['course'] = course;
     if (country != null) data['country'] = country;
+    if (photoUrl != null) data['photoUrl'] = photoUrl;
     // Deliberately its own field, not reusing 'course' -- that field
     // is the user's department (set at registration, used to scope
     // the Social feed's department tab and stamp new posts). Exam-prep

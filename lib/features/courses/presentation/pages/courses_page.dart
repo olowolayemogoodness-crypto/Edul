@@ -332,7 +332,7 @@ class _CourseRow extends StatelessWidget {
             width: 44, height: 44,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: course.accentColor.withOpacity(0.16),
+              color: course.accentColor.withValues(alpha: 0.16),
               borderRadius: BorderRadius.circular(12)),
             child: Text(course.code, style: GoogleFonts.dmSans(
               fontSize: 11, fontWeight: FontWeight.w700, color: course.accentColor)),

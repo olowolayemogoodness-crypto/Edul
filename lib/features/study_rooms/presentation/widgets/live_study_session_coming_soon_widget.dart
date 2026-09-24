@@ -108,7 +108,7 @@ class LiveStudySessionComingSoon extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 11),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF0EA472).withOpacity(0.2),
+                  color: const Color(0xFF0EA472).withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Center(

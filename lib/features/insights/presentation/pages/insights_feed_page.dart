@@ -436,7 +436,7 @@ class _VideoCardState extends State<_VideoCard> {
               gradient: LinearGradient(
                 begin: Alignment.bottomCenter,
                 end: Alignment.topCenter,
-                colors: [Colors.black.withOpacity(0.85), Colors.transparent],
+                colors: [Colors.black.withValues(alpha: 0.85), Colors.transparent],
               ),
             ),
           ),
@@ -447,7 +447,7 @@ class _VideoCardState extends State<_VideoCard> {
             child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.6),
+                color: Colors.black.withValues(alpha: 0.6),
                 shape: BoxShape.circle,
               ),
               child: Icon(
@@ -496,7 +496,7 @@ class _VideoCardState extends State<_VideoCard> {
                 decoration: BoxDecoration(
                   color: AppColors.accentSurface,
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppColors.accent.withOpacity(0.5)),
+                  border: Border.all(color: AppColors.accent.withValues(alpha: 0.5)),
                 ),
                 child: Text(channel,
                   style: GoogleFonts.dmSans(

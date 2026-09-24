@@ -140,26 +140,28 @@ class _LibrarySubjectSelectorPageState extends State<LibrarySubjectSelectorPage>
   }
 
   Future<void> _loadSubjects() async {
-  try {
-    final profile = await UserService.getProfile();
-    print('🔍 DEBUG Profile: $profile');
-    
-    final subjectsRaw = profile?['examSubjects'] as String? ?? '';
-    print('🔍 DEBUG Subjects raw: "$subjectsRaw"');
-    print('🔍 DEBUG Subjects raw isEmpty: ${subjectsRaw.isEmpty}');
-    
-    final subjects = subjectsRaw.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
-    print('🔍 DEBUG Subjects parsed: $subjects');
-    
-    setState(() {
-      _subjects = subjects;
-      _loading = false;
-    });
-  } catch (e) {
-    print('❌ ERROR: $e');
-    setState(() => _loading = false);
+    try {
+      final profile = await UserService.getProfile();
+      debugPrint('🔍 DEBUG Profile: $profile');
+
+      final subjectsRaw = profile?['examSubjects'] as String? ?? '';
+      debugPrint('🔍 DEBUG Subjects raw: "$subjectsRaw"');
+      debugPrint('🔍 DEBUG Subjects raw isEmpty: ${subjectsRaw.isEmpty}');
+
+      final subjects = subjectsRaw.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+      debugPrint('🔍 DEBUG Subjects parsed: $subjects');
+
+      if (!mounted) return;
+      setState(() {
+        _subjects = subjects;
+        _loading = false;
+      });
+    } catch (e) {
+      debugPrint('❌ ERROR: $e');
+      if (!mounted) return;
+      setState(() => _loading = false);
+    }
   }
-}
 
   SubjectDisplay? _getDisplay(String subject) {
     return _subjectDisplayMap[subject];

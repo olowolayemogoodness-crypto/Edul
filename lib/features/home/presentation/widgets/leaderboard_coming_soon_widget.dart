@@ -72,7 +72,7 @@ class LeaderboardComingSoon extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: AppColors.accentLight.withOpacity(0.1),
+                    color: AppColors.accentLight.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(

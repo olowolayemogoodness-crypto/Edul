@@ -47,7 +47,7 @@ class StudyRoomsPage extends StatefulWidget {
 
 class _StudyRoomsPageState extends State<StudyRoomsPage> with TickerProviderStateMixin {
   _StudyTab _tab = _StudyTab.hub;
-  String _selectedSubject = 'math';
+  final String _selectedSubject = 'math';
   int _focusMins = 25;
   bool _customTimer = false;
   bool _togBreath = true, _togBlock = true, _togSound = false;
@@ -1225,7 +1225,7 @@ class _VoiceMessageBubbleState extends State<_VoiceMessageBubble> {
       SizedBox(
         width: 90, height: 24,
         child: Row(children: widget.waveform.isEmpty
-          ? [Expanded(child: Container(height: 2, color: color.withOpacity(0.3)))]
+          ? [Expanded(child: Container(height: 2, color: color.withValues(alpha: 0.3)))]
           : List.generate(widget.waveform.length, (i) {
               final barActive = (i / widget.waveform.length) <= progress;
               return Expanded(
@@ -1234,7 +1234,7 @@ class _VoiceMessageBubbleState extends State<_VoiceMessageBubble> {
                   child: Container(
                     height: (widget.waveform[i] * 20).clamp(3.0, 20.0),
                     decoration: BoxDecoration(
-                      color: barActive ? color : color.withOpacity(0.3),
+                      color: barActive ? color : color.withValues(alpha: 0.3),
                       borderRadius: BorderRadius.circular(2)),
                   ),
                 ),

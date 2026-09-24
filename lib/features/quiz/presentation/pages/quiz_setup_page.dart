@@ -195,7 +195,7 @@ class _QuizSetupPageState extends State<QuizSetupPage> {
                                         decoration: BoxDecoration(
                                           color: !available
                                               ? AppColors.surfaceVariant
-                                                  .withOpacity(0.4)
+                                                  .withValues(alpha: 0.4)
                                               : isCourseSelected
                                                   ? AppColors.accentSurface
                                                   : AppColors.surfaceVariant,

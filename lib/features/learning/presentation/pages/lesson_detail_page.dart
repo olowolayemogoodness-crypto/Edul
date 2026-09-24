@@ -196,8 +196,8 @@ class _LessonDetailPageState extends State<LessonDetailPage> {
           padding: const EdgeInsets.all(12),
           margin: const EdgeInsets.only(bottom: 12),
           decoration: BoxDecoration(
-            color: AppColors.accent.withOpacity(0.1),
-            border: Border.all(color: AppColors.accent.withOpacity(0.3)),
+            color: AppColors.accent.withValues(alpha: 0.1),
+            border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Text(line, style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textPrimary, height: 1.5)),
@@ -271,13 +271,13 @@ class _LessonDetailPageState extends State<LessonDetailPage> {
                     Color bgColor = AppColors.background;
                     if (showResult && isCorrectOption) {
                       borderColor = AppColors.success;
-                      bgColor = AppColors.success.withOpacity(0.1);
+                      bgColor = AppColors.success.withValues(alpha: 0.1);
                     } else if (showResult && isSelected && !isCorrect) {
                       borderColor = const Color(0xFFEF4444);
-                      bgColor = const Color(0xFFEF4444).withOpacity(0.1);
+                      bgColor = const Color(0xFFEF4444).withValues(alpha: 0.1);
                     } else if (isSelected) {
                       borderColor = AppColors.accent;
-                      bgColor = AppColors.accent.withOpacity(0.1);
+                      bgColor = AppColors.accent.withValues(alpha: 0.1);
                     }
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 12),
@@ -426,8 +426,10 @@ class _LessonDetailPageState extends State<LessonDetailPage> {
                         InterstitialAdService.showIfReady();
                         if (!mounted) return;
                         if (newStreak != null) {
+                          if (!context.mounted) return;
                           context.push(AppRoutes.streakCelebration, extra: {'streakCount': newStreak});
                         } else {
+                          if (!context.mounted) return;
                           Navigator.pop(context);
                         }
                       },

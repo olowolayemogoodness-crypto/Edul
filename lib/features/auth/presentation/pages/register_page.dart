@@ -87,11 +87,13 @@ class _RegisterPageState extends State<RegisterPage> {
     if (_selectedDepartmentGroup == null) { _showError('Please select your course.'); return; }
 
     final department = _selectedDepartmentGroup!['department'] as String;
+    final authBloc = context.read<AuthBloc>();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('user_course', department);
 
     HapticFeedback.lightImpact();
-    context.read<AuthBloc>().add(AuthRegister(
+    if (!mounted) return;
+    authBloc.add(AuthRegister(
       name: '$first $last',
       email: email,
       password: pass,

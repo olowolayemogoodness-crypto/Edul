@@ -214,8 +214,9 @@ class PostInteractionService {
         'verified': false,
         'createdAt': FieldValue.serverTimestamp(),
       });
-      await _posts().doc(postId).update({'repostCount': FieldValue.increment(1)});
+            await _posts().doc(postId).update({'repostCount': FieldValue.increment(1)});
       await _notifyPostOwnerOfRepost(postId);
+      await NotificationService.notifyFollowersOfRepost(postId: postId);
     }
   }
 
@@ -505,7 +506,9 @@ class PostInteractionService {
       final options = (postSnap.data() as Map<String, dynamic>?)?['pollOptions'] as List<dynamic>? ?? [];
       final counts = List<int>.from(
         (postSnap.data() as Map<String, dynamic>?)?['pollVoteCounts'] as List<dynamic>? ?? List.filled(options.length, 0));
-      while (counts.length < options.length) counts.add(0); // defensive, in case options grew somehow
+      while (counts.length < options.length) {
+        counts.add(0); // defensive, in case options grew somehow
+      }
 
       final previousIndex = existing.data()?['optionIndex'] as int?;
       if (previousIndex == optionIndex) return; // tapping your own current vote again does nothing -- polls aren't retractable like reactions

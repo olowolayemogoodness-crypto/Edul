@@ -99,7 +99,7 @@ class MasterclassPage extends StatelessWidget {
                                     decoration: BoxDecoration(
                                       gradient: LinearGradient(
                                         begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                                        colors: [Colors.transparent, Colors.black.withOpacity(0.5)])),
+                                        colors: [Colors.transparent, Colors.black.withValues(alpha: 0.5)])),
                                   ),
                                   const Center(child: Icon(Icons.play_circle_fill_rounded,
                                     color: Colors.white, size: 48)),
@@ -107,7 +107,7 @@ class MasterclassPage extends StatelessWidget {
                                     Positioned(top: 10, right: 10, child: Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                       decoration: BoxDecoration(
-                                        color: Colors.black.withOpacity(0.6),
+                                        color: Colors.black.withValues(alpha: 0.6),
                                         borderRadius: BorderRadius.circular(20)),
                                       child: Text('3 min preview', style: GoogleFonts.dmSans(
                                         fontSize: 10, color: Colors.white)))),

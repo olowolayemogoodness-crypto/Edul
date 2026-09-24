@@ -145,7 +145,7 @@ class StudyRoomService {
   // deployed. Leaving it null is deliberate -- calling an attachment method
   // before then should fail loudly, not point at a placeholder domain that
   // looks real but silently 404s.
-  static const String? studyChatWorkerUrl = 'https://edul-study-chat.edulinkore.workers.dev';
+  static const String studyChatWorkerUrl = 'https://edul-study-chat.edulinkore.workers.dev';
 
   String get _uid {
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -343,12 +343,6 @@ class StudyRoomService {
   /// study-chat/{roomId}/{uuid}, then PUT the file bytes straight to R2.
   /// The file never passes through our own server.
   Future<String> _uploadAttachment(String roomId, File file, {required String contentType}) async {
-    if (studyChatWorkerUrl == null) {
-      throw StateError(
-        'Study chat attachment uploads are not configured yet -- '
-        'set StudyRoomService.studyChatWorkerUrl once the Cloudflare Worker is deployed.',
-      );
-    }
     final key = 'study-chat/$roomId/${_uuid.v4()}';
     final idToken = await FirebaseAuth.instance.currentUser?.getIdToken();
     if (idToken == null) {

@@ -269,18 +269,18 @@ class _OverviewTab extends StatelessWidget {
               borderRadius: BorderRadius.circular(18),
               gradient: LinearGradient(
                 begin: Alignment.topLeft, end: Alignment.bottomRight,
-                colors: [course.accentColor, course.accentColor.withOpacity(0.75)],
+                colors: [course.accentColor, course.accentColor.withValues(alpha: 0.75)],
               ),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
                 Text('NEXT CLASS', style: GoogleFonts.dmSans(
-                  fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white.withOpacity(0.85), letterSpacing: 0.5)),
+                  fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white.withValues(alpha: 0.85), letterSpacing: 0.5)),
                 const Spacer(),
                 if (next.isHappeningNow)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(999)),
+                    decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(999)),
                     child: Text('● LIVE NOW', style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white)),
                   ),
               ]),
@@ -288,7 +288,7 @@ class _OverviewTab extends StatelessWidget {
               Text(next.subject, style: GoogleFonts.dmSans(
                 fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white)),
               const SizedBox(height: 4),
-              Text(_dayTimeLabel(next), style: GoogleFonts.dmSans(fontSize: 13, color: Colors.white.withOpacity(0.9))),
+              Text(_dayTimeLabel(next), style: GoogleFonts.dmSans(fontSize: 13, color: Colors.white.withValues(alpha: 0.9))),
               const SizedBox(height: 16),
               Row(children: [
                 Expanded(
@@ -340,7 +340,7 @@ class _OverviewTab extends StatelessWidget {
               child: Row(children: [
                 Container(
                   width: 40, height: 40, alignment: Alignment.center,
-                  decoration: BoxDecoration(color: course.accentColor.withOpacity(0.14), borderRadius: BorderRadius.circular(10)),
+                  decoration: BoxDecoration(color: course.accentColor.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(10)),
                   child: Text(s.day.length >= 3 ? s.day.substring(0, 3) : s.day, style: GoogleFonts.dmSans(
                     fontSize: 12, fontWeight: FontWeight.w700, color: course.accentColor)),
                 ),
@@ -697,7 +697,7 @@ class _MaterialsTab extends StatelessWidget {
               child: Row(children: [
                 Container(
                   width: 40, height: 40, alignment: Alignment.center,
-                  decoration: BoxDecoration(color: accent.withOpacity(0.14), borderRadius: BorderRadius.circular(10)),
+                  decoration: BoxDecoration(color: accent.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(10)),
                   child: Icon(Icons.folder_rounded, color: accent, size: 20),
                 ),
                 const SizedBox(width: 12),
@@ -858,7 +858,7 @@ class _BooksTabState extends State<_BooksTab> {
                         child: Row(children: [
                           Container(
                             width: 44, height: 58,
-                            decoration: BoxDecoration(color: widget.course.accentColor.withOpacity(0.18), borderRadius: BorderRadius.circular(6)),
+                            decoration: BoxDecoration(color: widget.course.accentColor.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(6)),
                             child: Icon(Icons.menu_book_rounded, size: 20, color: widget.course.accentColor),
                           ),
                           const SizedBox(width: 12),
@@ -996,10 +996,10 @@ class _BookDetailPageState extends State<BookDetailPage> {
                       borderRadius: BorderRadius.circular(10),
                       gradient: LinearGradient(
                         begin: Alignment.topLeft, end: Alignment.bottomRight,
-                        colors: [widget.accentColor, widget.accentColor.withOpacity(0.6)],
+                        colors: [widget.accentColor, widget.accentColor.withValues(alpha: 0.6)],
                       ),
                     ),
-                    child: Icon(Icons.menu_book_rounded, color: Colors.white.withOpacity(0.8), size: 30),
+                    child: Icon(Icons.menu_book_rounded, color: Colors.white.withValues(alpha: 0.8), size: 30),
                   ),
                   const SizedBox(width: 16),
                   Expanded(

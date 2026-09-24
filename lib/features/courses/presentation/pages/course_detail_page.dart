@@ -35,7 +35,7 @@ class CourseDetailPage extends StatelessWidget {
                     borderRadius: BorderRadius.circular(18),
                     gradient: LinearGradient(
                       begin: Alignment.topLeft, end: Alignment.bottomRight,
-                      colors: [course.accentColor.withOpacity(0.25), AppColors.card],
+                      colors: [course.accentColor.withValues(alpha: 0.25), AppColors.card],
                     ),
                     border: Border.all(color: AppColors.border),
                   ),
@@ -71,7 +71,7 @@ class CourseDetailPage extends StatelessWidget {
                           width: 26, height: 26,
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
-                            color: course.accentColor.withOpacity(0.2),
+                            color: course.accentColor.withValues(alpha: 0.2),
                             shape: BoxShape.circle),
                           child: Text('${i + 1}', style: GoogleFonts.dmSans(
                             fontSize: 12, fontWeight: FontWeight.w700, color: course.accentColor)),
@@ -113,7 +113,7 @@ class CourseDetailPage extends StatelessWidget {
                         Container(
                           width: 40, height: 52,
                           decoration: BoxDecoration(
-                            color: course.accentColor.withOpacity(0.18),
+                            color: course.accentColor.withValues(alpha: 0.18),
                             borderRadius: BorderRadius.circular(6)),
                           child: Icon(Icons.menu_book_rounded, size: 18, color: course.accentColor),
                         ),

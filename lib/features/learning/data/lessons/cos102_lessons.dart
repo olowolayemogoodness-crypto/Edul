@@ -25,7 +25,7 @@ Example: Sorting a list of numbers.
 **Ill-defined problems** have vague goals, unclear starting conditions, or ambiguous rules.
 Example: "Make this company more innovative."
 
-## Pólya\'s Four-Step Framework
+## Pólya's Four-Step Framework
 
 1. **Understand the Problem** — identify given data, unknowns, and conditions
 2. **Devise a Plan** — select a strategy
@@ -205,7 +205,7 @@ Example: The Halting Problem.
 
 **Question**: Can we write program H that determines whether any program P halts or loops forever on input I?
 
-**Turing\'s proof (1936)**: No. Using proof by contradiction — if H existed, you could construct a program that contradicts H\'s own output.
+**Turing's proof (1936)**: No. Using proof by contradiction — if H existed, you could construct a program that contradicts H's own output.
 
 **Significance**: There are inherent limits to what computers can compute.''',
         'questions': [
@@ -379,12 +379,12 @@ Solving a new problem by mapping it to a previously solved one.
 
 | Target | Analogy | Insight |
 |---|---|---|
-| Floyd\'s cycle detection | Fast/slow runner on circular track | Fast catches slow in a cycle |
+| Floyd's cycle detection | Fast/slow runner on circular track | Fast catches slow in a cycle |
 | Memory hierarchy | Desk, filing cabinet, library | Frequently used items closest |
 
 ## False Analogy
 
-A false analogy applies a source solution where the mapping doesn\'t hold — leads to wrong results.''',
+A false analogy applies a source solution where the mapping doesn't hold — leads to wrong results.''',
         'questions': [
           {
             'question': 'Abstraction in problem solving means:',
@@ -864,12 +864,12 @@ Flowchart/Pseudocode → Code → Test → Reflect''',
 ## Sub vs Function
 
 ```vba
-\' Sub: performs actions, no return value
+' Sub: performs actions, no return value
 Sub GreetUser()
     MsgBox "Welcome!"
 End Sub
 
-\' Function: returns a value
+' Function: returns a value
 Function Square(n As Integer) As Integer
     Square = n * n
 End Function
@@ -878,26 +878,26 @@ End Function
 ## Control Structures
 
 ```vba
-\' If...Then...Else
+' If...Then...Else
 If score >= 50 Then
     MsgBox "Pass"
 Else
     MsgBox "Fail"
 End If
 
-\' Select Case
+' Select Case
 Select Case grade
     Case "A": MsgBox "Excellent"
     Case "B": MsgBox "Good"
     Case Else: MsgBox "Below Average"
 End Select
 
-\' For...Next
+' For...Next
 For i = 1 To 10
     total = total + Cells(i, 1).Value
 Next i
 
-\' Do While...Loop
+' Do While...Loop
 Do While count < 100
     count = count + 1
 Loop

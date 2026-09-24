@@ -424,7 +424,7 @@ class _LearningMapPageState extends State<LearningMapPage> {
                                     ),
                                     decoration: BoxDecoration(
                                       color: isSelected
-                                          ? color.withOpacity(0.15)
+                                          ? color.withValues(alpha: 0.15)
                                           : AppColors.background,
                                       borderRadius: BorderRadius.circular(12),
                                       border: Border.all(
@@ -502,7 +502,7 @@ class _LearningMapPageState extends State<LearningMapPage> {
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
+              color: color.withValues(alpha: 0.15),
               border: Border.all(color: color, width: 2),
               borderRadius: BorderRadius.circular(16),
             ),
@@ -575,7 +575,7 @@ class _LearningMapPageState extends State<LearningMapPage> {
         widgets.add(
           CustomPaint(
             painter: DiagonalDashedLinePainter(
-              color: unitColor.withOpacity(0.3),
+              color: unitColor.withValues(alpha: 0.3),
               isLeft: isLeft,
             ),
             size: const Size(double.infinity, 60),
@@ -598,7 +598,7 @@ class _LearningMapPageState extends State<LearningMapPage> {
                       extra: {
                         'lessonId': lesson['id'],
                         'lessonName': lesson['name'],
-                        'colorValue': unitColor.value,
+                        'colorValue': unitColor.toARGB32(),
                       },
                     );
                   },
@@ -610,7 +610,7 @@ class _LearningMapPageState extends State<LearningMapPage> {
                 color: isLocked ? Colors.grey[700] : unitColor,
                 boxShadow: [
                   BoxShadow(
-                    color: unitColor.withOpacity(0.3),
+                    color: unitColor.withValues(alpha: 0.3),
                     blurRadius: 15,
                     spreadRadius: 2,
                   ),

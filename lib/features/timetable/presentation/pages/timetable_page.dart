@@ -440,7 +440,7 @@ class _TodayList extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: isCancelled ? AppColors.error.withOpacity(0.25) : AppColors.border),
+                        border: Border.all(color: isCancelled ? AppColors.error.withValues(alpha: 0.25) : AppColors.border),
                       ),
                       child: Row(children: [
                         Container(width: 9, height: 9, decoration: BoxDecoration(shape: BoxShape.circle, color: color['dot'])),
@@ -450,7 +450,7 @@ class _TodayList extends StatelessWidget {
                             Row(children: [
                               Text(subject, style: GoogleFonts.dmSans(
                                 fontSize: 13, fontWeight: FontWeight.w600,
-                                color: isCancelled ? AppColors.error.withOpacity(0.75) : AppColors.textPrimary,
+                                color: isCancelled ? AppColors.error.withValues(alpha: 0.75) : AppColors.textPrimary,
                                 decoration: isCancelled ? TextDecoration.lineThrough : null,
                                 decorationColor: AppColors.error,
                               )),
@@ -461,11 +461,11 @@ class _TodayList extends StatelessWidget {
                             ]),
                             const SizedBox(height: 1),
                             Text([startTime.isNotEmpty ? '$startTime – $endTime' : '', room].where((s) => s.isNotEmpty).join(' · '),
-                              style: GoogleFonts.dmSans(fontSize: 11, color: isCancelled ? AppColors.error.withOpacity(0.6) : AppColors.textTertiary)),
+                              style: GoogleFonts.dmSans(fontSize: 11, color: isCancelled ? AppColors.error.withValues(alpha: 0.6) : AppColors.textTertiary)),
                           ]),
                         ),
                         if (isClassRep)
-                          Icon(Icons.edit_outlined, size: 15, color: isCancelled ? AppColors.error.withOpacity(0.6) : AppColors.textTertiary),
+                          Icon(Icons.edit_outlined, size: 15, color: isCancelled ? AppColors.error.withValues(alpha: 0.6) : AppColors.textTertiary),
                       ]),
                     ),
                   ),

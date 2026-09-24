@@ -702,7 +702,7 @@ class _TutorPageState extends State<TutorPage> {
 
 class AnimatedDot extends StatefulWidget {
   final Duration delay;
-  const AnimatedDot({required this.delay});
+  const AnimatedDot({super.key, required this.delay});
 
   @override
   State<AnimatedDot> createState() => AnimatedDotState();

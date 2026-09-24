@@ -67,8 +67,10 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
           Navigator.pop(ctx);
           final prefs = await SharedPreferences.getInstance();
           await prefs.setBool('has_onboarded', false);
-          if (context.mounted) context.read<AuthBloc>().add(const AuthSignOut());
-          if (context.mounted) context.go('/onboarding');
+          if (!mounted) return;
+          context.read<AuthBloc>().add(const AuthSignOut());
+          if (!context.mounted) return;
+          context.go('/onboarding');
         }, child: Text('Sign out', style: GoogleFonts.dmSans(color: const Color(0xFFE8960F), fontWeight: FontWeight.w500))),
       ],
     ));

@@ -190,16 +190,16 @@ class _ComingSoonOverlay extends StatelessWidget {
           ),
         ),
         Positioned.fill(
-          child: Container(color: Colors.black.withOpacity(0.25)),
+          child: Container(color: Colors.black.withValues(alpha: 0.25)),
         ),
         Positioned.fill(
           child: Center(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.6),
+                color: Colors.black.withValues(alpha: 0.6),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.accentLight.withOpacity(0.4)),
+                border: Border.all(color: AppColors.accentLight.withValues(alpha: 0.4)),
               ),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 const Text('🔥', style: TextStyle(fontSize: 14)),

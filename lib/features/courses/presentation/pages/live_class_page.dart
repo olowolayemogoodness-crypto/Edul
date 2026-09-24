@@ -106,11 +106,11 @@ class _LiveClassPageState extends State<LiveClassPage> {
                     borderRadius: BorderRadius.circular(16),
                     gradient: LinearGradient(
                       begin: Alignment.topLeft, end: Alignment.bottomRight,
-                      colors: [course.accentColor.withOpacity(0.55), _tileBg],
+                      colors: [course.accentColor.withValues(alpha: 0.55), _tileBg],
                     ),
                   ),
                   child: Center(
-                    child: Icon(Icons.screen_share_outlined, size: 40, color: Colors.white.withOpacity(0.5)),
+                    child: Icon(Icons.screen_share_outlined, size: 40, color: Colors.white.withValues(alpha: 0.5)),
                   ),
                 ),
                 Positioned(
@@ -150,7 +150,7 @@ class _LiveClassPageState extends State<LiveClassPage> {
                   width: 56,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: p.speaking ? course.accentColor.withOpacity(0.35) : _tileBg,
+                    color: p.speaking ? course.accentColor.withValues(alpha: 0.35) : _tileBg,
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(color: p.speaking ? course.accentColor : _border),
                   ),

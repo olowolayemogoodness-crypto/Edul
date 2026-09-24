@@ -298,6 +298,7 @@ class _PostComposerPageState extends State<PostComposerPage> {
 
       final profile = await UserService.getProfile();
       final displayName = profile?['displayName'] as String? ?? 'User';
+      final photoUrl = profile?['photoUrl'] as String?;
       final uni = profile?['university'] as String? ?? _university;
       final course = profile?['course'] as String? ?? '';
       final set = profile?['set'] as int?;
@@ -305,6 +306,7 @@ class _PostComposerPageState extends State<PostComposerPage> {
       final postRef = await FirebaseFirestore.instance.collection('posts').add({
         'uid': uid,
         'displayName': displayName,
+        if (photoUrl != null) 'photoUrl': photoUrl,
         'university': uni,
         'course': course,
         if (set != null) 'set': set,

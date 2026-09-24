@@ -11,6 +11,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/services/search_history_service.dart';
+import '../../../../core/services/feed_ranking_service.dart';
+import '../../../../core/widgets/user_avatar.dart';
 import '../../../../core/services/post_interaction_service.dart';
 import '../../../../core/services/user_follow_service.dart';
 import '../../../../core/services/user_tier_service.dart';
@@ -33,6 +36,12 @@ class _SocialFeedPageState extends State<SocialFeedPage> {
   int? _mySet; // the user's own cohort number, e.g. 30 for 100L — powers the "Class 30" tab across every department
   String _department = ''; // the user's own department, e.g. "Software Engineering" — from profile.course
   Set<String> _myFollowing = {}; // who I follow — scopes repost visibility
+  // Ranking signal, loaded once (not re-fetched on every live post
+  // update) -- see feed_ranking_service.dart for the cost reasoning
+  // behind why this is capped rather than exhaustive.
+  Set<String> _likedByFollowingPostIds = {};
+  Map<String, List<Map<String, String>>> _likedByFollowingNames = {};
+  Set<String> _recentlySearchedUids = {};
   // Genuinely loading, not just "empty" -- _mySet/_department start as
   // null/empty either way, so without this flag the tabs would briefly
   // render fallback labels ("My Class"/"My Group") and an empty feed
@@ -75,6 +84,18 @@ class _SocialFeedPageState extends State<SocialFeedPage> {
   Future<void> _loadFollowing() async {
     final following = await UserFollowService.myFollowingUids();
     if (mounted) setState(() => _myFollowing = following);
+    // Ranking signal load, deliberately separate from the full
+    // following set above and kept capped -- see
+    // feed_ranking_service.dart for why.
+    final capped = await FeedRankingService.myFollowingCapped();
+    final liked = await FeedRankingService.postsLikedByFollowing(capped);
+        if (mounted) setState(() {
+      _likedByFollowingPostIds = liked.postIds;
+      _likedByFollowingNames = liked.likers;
+    });
+    final history = await SearchHistoryService.getHistory();
+    final searchedUids = history.where((e) => e.type == 'profile').map((e) => e.value).toSet();
+    if (mounted) setState(() => _recentlySearchedUids = searchedUids);
   }
 
   Stream<List<Map<String, dynamic>>> _postsStream() {
@@ -109,12 +130,18 @@ class _SocialFeedPageState extends State<SocialFeedPage> {
         // My department: every post whose course field matches this
         // user's own department -- stamped automatically at post time
         // from the same profile.course value set at registration.
-        return all.where((p) => p['course'] == _department).toList();
+        final filtered = all.where((p) => p['course'] == _department).toList();
+        return FeedRankingService.rank(filtered,
+                    myFollowing: _myFollowing, likedByFollowingPostIds: _likedByFollowingPostIds,
+          recentlySearchedUids: _recentlySearchedUids);
       } else {
         // Class {set}: every post from someone in the same cohort,
         // regardless of department -- e.g. every 100L student at FUTA,
         // whether they're in Software Engineering or Data Science.
-        return all.where((p) => p['set'] == _mySet).toList();
+        final filtered = all.where((p) => p['set'] == _mySet).toList();
+        return FeedRankingService.rank(filtered,
+                    myFollowing: _myFollowing, likedByFollowingPostIds: _likedByFollowingPostIds,
+          recentlySearchedUids: _recentlySearchedUids);
       }
     });
   }
@@ -285,6 +312,7 @@ class _SocialFeedPageState extends State<SocialFeedPage> {
                       return _PostCard(
                         key: ValueKey(posts[postIndex]['id']),
                         post: posts[postIndex],
+                        likedByFollowing: _likedByFollowingNames[posts[postIndex]['id']] ?? const [],
                       );
                     },
                   );
@@ -502,7 +530,8 @@ class _QuotedPostPreview extends StatelessWidget {
 
 class _PostCard extends StatefulWidget {
   final Map<String, dynamic> post;
-  const _PostCard({super.key, required this.post});
+  final List<Map<String, String>> likedByFollowing;
+  const _PostCard({super.key, required this.post, this.likedByFollowing = const []});
 
   @override
   State<_PostCard> createState() => _PostCardState();
@@ -690,25 +719,6 @@ class _PostCardState extends State<_PostCard> {
     return '${diff.inDays}d';
   }
 
-  String _initials(String name) {
-    // Guard against empty segments from double spaces or odd formatting
-    // (e.g. "John  Doe") which would otherwise index into an empty
-    // string and crash with a RangeError.
-    final parts = name.trim().split(' ').where((p) => p.isNotEmpty).toList();
-    if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-    if (parts.isNotEmpty) return parts[0][0].toUpperCase();
-    return 'U';
-  }
-
-  Color _avatarColor(String uid) {
-    final colors = [
-      const Color(0xFF7C3AED), const Color(0xFF0891B2),
-      const Color(0xFF16A34A), const Color(0xFFD97706),
-      const Color(0xFFBE185D), const Color(0xFF9333EA),
-    ];
-    return colors[uid.hashCode.abs() % colors.length];
-  }
-
   void _showPostMenu(BuildContext context, String postId, bool isOwner) {
     showModalBottomSheet(
       context: context,
@@ -859,14 +869,11 @@ class _PostCardState extends State<_PostCard> {
         // Avatar
         GestureDetector(
           onTap: () => _openUserProfile(context, post),
-          child: Container(
-            width: 42, height: 42,
-            decoration: BoxDecoration(
-              color: _avatarColor(uid), shape: BoxShape.circle),
-            child: Center(child: Text(_initials(displayName),
-              style: GoogleFonts.dmSans(
-                fontSize: 14, fontWeight: FontWeight.w700,
-                color: Colors.white))),
+          child: UserAvatar(
+            uid: uid,
+            displayName: displayName,
+            photoUrl: post['photoUrl'] as String?,
+            size: 42,
           ),
         ),
         const SizedBox(width: 12),
@@ -1020,6 +1027,10 @@ class _PostCardState extends State<_PostCard> {
               child: Icon(Icons.bookmark_border_rounded,
                 size: 18, color: AppColors.textTertiary)),
           ]),
+          if (widget.likedByFollowing.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _LikedByRow(likers: widget.likedByFollowing),
+          ],
         ])),
       ]),
       ),
@@ -1034,18 +1045,6 @@ class _PostCardState extends State<_PostCard> {
 class _InPlacePostSnapshot extends StatelessWidget {
   final Map<String, dynamic> post;
   const _InPlacePostSnapshot({required this.post});
-
-  // Same palette/logic as _PostCardState._avatarColor -- duplicated
-  // here as a top-level function since this widget lives outside that
-  // class and can't call its instance method directly.
-  static Color _avatarColorFor(String uid) {
-    final colors = [
-      const Color(0xFF7C3AED), const Color(0xFF0891B2),
-      const Color(0xFF16A34A), const Color(0xFFD97706),
-      const Color(0xFFBE185D), const Color(0xFF9333EA),
-    ];
-    return colors[uid.hashCode.abs() % colors.length];
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -1062,8 +1061,6 @@ class _InPlacePostSnapshot extends StatelessWidget {
     final repostCount = post['repostCount'] as int? ?? 0;
     final views = post['views'] as int? ?? 0;
     final uid = post['uid'] as String? ?? '';
-    final initials = displayName.trim().isEmpty ? '?' :
-      displayName.trim().split(RegExp(r'\s+')).take(2).map((s) => s[0]).join().toUpperCase();
 
     return Material(
       color: Colors.transparent,
@@ -1076,10 +1073,11 @@ class _InPlacePostSnapshot extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Container(
-              width: 36, height: 36,
-              decoration: BoxDecoration(color: _avatarColorFor(uid), shape: BoxShape.circle),
-              child: Center(child: Text(initials, style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white))),
+            UserAvatar(
+              uid: uid,
+              displayName: displayName,
+              photoUrl: post['photoUrl'] as String?,
+              size: 36,
             ),
             const SizedBox(width: 10),
             Text(displayName, style: GoogleFonts.dmSans(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
@@ -1169,6 +1167,63 @@ final List<Color> _voiceNoteColorPalette = List.generate(40, (i) {
 
 Color _voiceNoteColor(String seed) =>
     _voiceNoteColorPalette[seed.hashCode.abs() % _voiceNoteColorPalette.length];
+
+// Instagram-style overlapping avatar stack + "Liked by X and Y" text.
+// Takes an avatarColorFor callback rather than looking up colors
+// itself, so it reuses whichever avatar-color palette the calling
+// card already uses (_PostCardState._avatarColor), keeping a given
+// person's color consistent with their own post-author avatar
+// elsewhere on screen.
+class _LikedByRow extends StatelessWidget {
+  final List<Map<String, String>> likers;
+  const _LikedByRow({required this.likers});
+
+  static const double _size = 20;
+  static const double _overlap = 12; // how far each next circle shifts right
+
+  @override
+  Widget build(BuildContext context) {
+    final shown = likers.take(3).toList();
+    final names = likers.map((l) => l['name'] ?? 'Someone').toList();
+
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      SizedBox(
+        width: _size + (shown.length - 1) * _overlap,
+        height: _size,
+        child: Stack(
+          children: [
+            for (var i = 0; i < shown.length; i++)
+              Positioned(
+                left: i * _overlap,
+                child: Container(
+                  decoration: BoxDecoration(shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.card, width: 1.5)),
+                  child: UserAvatar(
+                    uid: shown[i]['uid'] ?? '',
+                    displayName: shown[i]['name'] ?? 'Someone',
+                    photoUrl: shown[i]['photoUrl'],
+                    size: _size,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+      const SizedBox(width: 6),
+      Text(_likedByFollowingLabel(names),
+        style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.textTertiary)),
+    ]);
+  }
+}
+
+// "Liked by Adeola" / "Liked by Adeola and Samuel" / "Liked by Adeola
+// and 3 others" -- list is already capped to a small handful by
+// FeedRankingService, so no truncation needed here.
+String _likedByFollowingLabel(List<String> names) {
+  if (names.length == 1) return 'Liked by ${names[0]}';
+  if (names.length == 2) return 'Liked by ${names[0]} and ${names[1]}';
+  return 'Liked by ${names[0]} and ${names.length - 1} others';
+}
 
 String _fmtSeconds(int totalSeconds) {
   final m = totalSeconds ~/ 60;
@@ -1567,25 +1622,6 @@ class _UserProfileSheet extends StatelessWidget {
     required this.verified,
   });
 
-  String _initials(String name) {
-    // Guard against empty segments from double spaces or odd formatting
-    // (e.g. "John  Doe") which would otherwise index into an empty
-    // string and crash with a RangeError.
-    final parts = name.trim().split(' ').where((p) => p.isNotEmpty).toList();
-    if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-    if (parts.isNotEmpty) return parts[0][0].toUpperCase();
-    return 'U';
-  }
-
-  Color _avatarColor(String uid) {
-    final colors = [
-      const Color(0xFF7C3AED), const Color(0xFF0891B2),
-      const Color(0xFF16A34A), const Color(0xFFD97706),
-      const Color(0xFFBE185D), const Color(0xFF9333EA),
-    ];
-    return colors[uid.hashCode.abs() % colors.length];
-  }
-
   @override
   Widget build(BuildContext context) {
     final isSelf = UserService.uid != null && UserService.uid == uid;
@@ -1606,14 +1642,12 @@ class _UserProfileSheet extends StatelessWidget {
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
               child: Column(children: [
-                Container(
-                  width: 72, height: 72,
-                  decoration: BoxDecoration(
-                    color: _avatarColor(uid), shape: BoxShape.circle),
-                  child: Center(child: Text(_initials(displayName),
-                    style: GoogleFonts.dmSans(
-                      fontSize: 24, fontWeight: FontWeight.w700,
-                      color: Colors.white))),
+                FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                  future: FirebaseFirestore.instance.collection('users').doc(uid).get(),
+                  builder: (context, snap) {
+                    final photoUrl = snap.data?.data()?['photoUrl'] as String?;
+                    return UserAvatar(uid: uid, displayName: displayName, photoUrl: photoUrl, size: 72);
+                  },
                 ),
                 const SizedBox(height: 14),
                 Row(mainAxisSize: MainAxisSize.min, children: [
@@ -1956,6 +1990,18 @@ class _SocialSearchPageState extends State<SocialSearchPage> {
   final _searchCtrl = TextEditingController();
   String _query = '';
   Timer? _debounce;
+  List<SearchHistoryEntry> _history = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHistory();
+  }
+
+  Future<void> _loadHistory() async {
+    final history = await SearchHistoryService.getHistory();
+    if (mounted) setState(() => _history = history);
+  }
 
   @override
   void dispose() {
@@ -1967,8 +2013,30 @@ class _SocialSearchPageState extends State<SocialSearchPage> {
   void _onChanged(String value) {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 300), () {
-      if (mounted) setState(() => _query = value.trim().toLowerCase());
+      if (!mounted) return;
+      setState(() => _query = value.trim().toLowerCase());
+      // Only save meaningful queries -- skip single characters typed
+      // while someone's still mid-thought, matching the same debounce
+      // timing already used to avoid firing search on every keystroke.
+      if (_query.length >= 2) {
+        SearchHistoryService.addEntry(type: 'query', value: _query);
+      }
     });
+  }
+
+  void _rerunQuery(String query) {
+    _searchCtrl.text = query;
+    setState(() => _query = query);
+  }
+
+  Future<void> _clearHistory() async {
+    await SearchHistoryService.clearAll();
+    if (mounted) setState(() => _history = []);
+  }
+
+  Future<void> _removeHistoryEntry(SearchHistoryEntry entry) async {
+    await SearchHistoryService.removeEntry(entry.type, entry.value);
+    _loadHistory();
   }
 
   // Firestore has no native "contains" text search, so -- same pattern
@@ -2033,8 +2101,58 @@ class _SocialSearchPageState extends State<SocialSearchPage> {
         ),
         Expanded(
           child: _query.isEmpty
-            ? Center(child: Text('Search for people or posts', style: GoogleFonts.dmSans(
-                fontSize: 13, color: AppColors.textTertiary)))
+            ? _history.isEmpty
+              ? Center(child: Text('Search for people or posts', style: GoogleFonts.dmSans(
+                  fontSize: 13, color: AppColors.textTertiary)))
+              : ListView(padding: const EdgeInsets.only(top: 4, bottom: 40), children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 10, 8, 6),
+                    child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                      Text('Recent', style: GoogleFonts.dmSans(
+                        fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textTertiary)),
+                      GestureDetector(
+                        onTap: _clearHistory,
+                        child: Text('Clear all', style: GoogleFonts.dmSans(
+                          fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.accent)),
+                      ),
+                    ]),
+                  ),
+                  ..._history.map((entry) {
+                    final isProfile = entry.type == 'profile';
+                    return ListTile(
+                      leading: isProfile
+                        ? Container(width: 36, height: 36,
+                            decoration: BoxDecoration(color: AppColors.accentSurface, shape: BoxShape.circle),
+                            child: Center(child: Text(
+                              (entry.label ?? 'U').isNotEmpty ? entry.label![0].toUpperCase() : 'U',
+                              style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w700,
+                                color: AppColors.accentLight))))
+                        : Icon(Icons.history_rounded, size: 22, color: AppColors.textTertiary),
+                      title: Text(isProfile ? (entry.label ?? 'User') : entry.value,
+                        style: GoogleFonts.dmSans(fontSize: 14, color: AppColors.textPrimary)),
+                      trailing: GestureDetector(
+                        onTap: () => _removeHistoryEntry(entry),
+                        child: Icon(Icons.close_rounded, size: 18, color: AppColors.textTertiary),
+                      ),
+                      onTap: () {
+                        if (isProfile) {
+                          showModalBottomSheet(
+                            context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
+                            builder: (_) => _UserProfileSheet(
+                              uid: entry.value,
+                              displayName: entry.label ?? 'User',
+                              university: '',
+                              course: '',
+                              verified: false,
+                            ),
+                          );
+                        } else {
+                          _rerunQuery(entry.value);
+                        }
+                      },
+                    );
+                  }),
+                ])
             : FutureBuilder<List<List<Map<String, dynamic>>>>(
                 future: Future.wait([_searchUsers(_query), _searchPosts(_query)]),
                 builder: (context, snap) {
@@ -2064,16 +2182,23 @@ class _SocialSearchPageState extends State<SocialSearchPage> {
                           fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
                         subtitle: Text(u['university'] as String? ?? '', style: GoogleFonts.dmSans(
                           fontSize: 12, color: AppColors.textTertiary)),
-                        onTap: () => showModalBottomSheet(
-                          context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
-                          builder: (_) => _UserProfileSheet(
-                            uid: u['uid'] as String? ?? '',
-                            displayName: u['displayName'] as String? ?? 'User',
-                            university: u['university'] as String? ?? '',
-                            course: u['course'] as String? ?? '',
-                            verified: false,
-                          ),
-                        ),
+                        onTap: () {
+                          SearchHistoryService.addEntry(
+                            type: 'profile',
+                            value: u['uid'] as String? ?? '',
+                            label: u['displayName'] as String? ?? 'User',
+                          );
+                          showModalBottomSheet(
+                            context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
+                            builder: (_) => _UserProfileSheet(
+                              uid: u['uid'] as String? ?? '',
+                              displayName: u['displayName'] as String? ?? 'User',
+                              university: u['university'] as String? ?? '',
+                              course: u['course'] as String? ?? '',
+                              verified: false,
+                            ),
+                          );
+                        },
                       )),
                     ],
                     if (posts.isNotEmpty) ...[
