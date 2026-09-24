@@ -147,4 +147,44 @@ class UserTierService {
       // Best-effort — never block a comment on this.
     }
   }
+
+  static const Map<String, int> cloutTierThresholds = {
+    'regular': 10,
+    'top_voice': 50,
+    'legend': 200,
+  };
+
+  static String cloutTierLabel(int score) {
+    if (score >= cloutTierThresholds['legend']!) return 'Legend';
+    if (score >= cloutTierThresholds['top_voice']!) return 'Top Voice';
+    if (score >= cloutTierThresholds['regular']!) return 'Regular';
+    return 'Newcomer';
+  }
+
+  static Future<void> adjustCommunityClout({
+    required String postId,
+    required String targetUid,
+    required int delta,
+  }) async {
+    try {
+      final postSnap = await _db.collection('posts').doc(postId).get();
+      final groupId = postSnap.data()?['groupId'] as String?;
+      if (groupId == null) return;
+
+      final cloutRef = _db.collection('users').doc(targetUid).collection('clout').doc(groupId);
+      await _db.runTransaction((tx) async {
+        final snap = await tx.get(cloutRef);
+        final oldScore = (snap.data()?['score'] as num?)?.toInt() ?? 0;
+        final newScore = oldScore + delta;
+        tx.set(cloutRef, {
+          'score': newScore,
+          'tier': cloutTierLabel(newScore),
+        }, SetOptions(merge: true));
+      });
+        } catch (e) {
+      // ignore: avoid_print
+      print('[UserTierService] adjustCommunityClout failed: $e');
+    }
+  }
 }
+      // Best-effort, same reasoning as every other scoring call here.

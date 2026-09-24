@@ -333,6 +333,12 @@ class _PostComposerPageState extends State<PostComposerPage> {
         // unless _isClassRep is true, enforced in the UI below.
         if (_isClassRep && _isAlert) 'isAlert': true,
         'feedTarget': _feedTarget,
+        // Persisted so later features (Clout being the first) can
+        // attribute a post back to its community -- _myGroupId was
+        // already being fetched and used for the group-notification
+        // call below, but was never actually saved onto the post
+        // itself until now.
+        if (_myGroupId != null) 'groupId': _myGroupId,
         'likeCount': 0, 'commentCount': 0, 'repostCount': 0, 'views': 0,
         'verified': false,
         'createdAt': FieldValue.serverTimestamp(),

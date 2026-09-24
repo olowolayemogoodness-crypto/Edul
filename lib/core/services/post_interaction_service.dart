@@ -135,8 +135,9 @@ class PostInteractionService {
       // Unlike — no milestone check needed on the way down.
       await likeRef.delete();
       await postRef.update({'likeCount': FieldValue.increment(-1)});
-      if (uid != postOwnerUid) {
+            if (uid != postOwnerUid) {
         await UserTierService.adjustScore(postOwnerUid, -2);
+        await UserTierService.adjustCommunityClout(postId: postId, targetUid: postOwnerUid, delta: -2);
       }
       return;
     }
@@ -155,7 +156,8 @@ class PostInteractionService {
     });
 
     if (uid != postOwnerUid) {
-      await UserTierService.adjustScore(postOwnerUid, 2);
+            await UserTierService.adjustScore(postOwnerUid, 2);
+      await UserTierService.adjustCommunityClout(postId: postId, targetUid: postOwnerUid, delta: 2);
       if (_likeMilestones.contains(newCount)) {
         await NotificationService.createLikeMilestoneNotification(
           targetUid: postOwnerUid,
@@ -345,7 +347,8 @@ class PostInteractionService {
       // point (not the commenter) — guarded the same way likes/follows
       // are, so commenting on your own post farms nothing.
       if (targetUid != UserService.uid) {
-        UserTierService.bumpSocialScoreForComment(targetUid);
+                UserTierService.bumpSocialScoreForComment(targetUid);
+        UserTierService.adjustCommunityClout(postId: postId, targetUid: targetUid, delta: 1);
       }
       await NotificationService.createCommentNotification(
         targetUid: targetUid,
@@ -463,7 +466,10 @@ class PostInteractionService {
       tx.update(postRef, {'reactionCounts': counts});
     });
 
-    if (uid != postOwnerUid) await UserTierService.adjustScore(postOwnerUid, 1);
+        if (uid != postOwnerUid) {
+      await UserTierService.adjustScore(postOwnerUid, 1);
+      await UserTierService.adjustCommunityClout(postId: postId, targetUid: postOwnerUid, delta: 1);
+    }
   }
 
   // ── Polls ──────────────────────────────────────────────────────────────

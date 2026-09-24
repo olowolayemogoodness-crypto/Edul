@@ -16,6 +16,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/user_service.dart';
+import '../../../../core/services/affinity_service.dart';
 import 'club_picker_page.dart';
 
 const List<Map<String, String>> interestCategories = [
@@ -74,7 +75,13 @@ class _InterestPickerPageState extends State<InterestPickerPage> {
   Future<void> _continue() async {
     setState(() => _saving = true);
     try {
-      await UserService.saveInterests(interests: _selected.toList(), footballClubs: _footballClubs);
+            await UserService.saveInterests(interests: _selected.toList(), footballClubs: _footballClubs);
+
+      final labels = <String, String>{
+        for (final cat in interestCategories) cat['id']!: cat['label']!,
+        for (final club in footballClubs) club['id']!: club['label']!,
+      };
+      await AffinityService.recordInterestPicks([..._selected, ..._footballClubs], labels: labels);
     } catch (_) {
       // Best-effort -- don't block someone from entering the app over
       // a failed personalization write. They just get a less-tailored
