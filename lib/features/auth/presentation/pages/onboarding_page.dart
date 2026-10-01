@@ -42,7 +42,11 @@ class _OnboardingPageState extends State<OnboardingPage> {
       body: SafeArea(child: Column(children: [
         Align(alignment: Alignment.centerRight, child: Padding(
           padding: const EdgeInsets.fromLTRB(0, 12, 18, 0),
-          child: GestureDetector(onTap: () => context.go('/login'), child: Text('Skip', style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textTertiary))),
+          child: GestureDetector(onTap: () async {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setBool('has_onboarded', true);
+            if (mounted) context.go('/login');
+          }, child: Text('Skip', style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textTertiary))),
         )),
         Expanded(child: PageView.builder(
           controller: _ctrl,

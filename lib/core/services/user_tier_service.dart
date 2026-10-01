@@ -148,6 +148,22 @@ class UserTierService {
     }
   }
 
+  // ── Clout: per-community reputation ──────────────────────────────
+  // Separate from `score`/`socialScore` above by design -- those stay
+  // exactly as calibrated (they drive the existing badge-eligibility
+  // review flow, untouched). Clout is a different concept: not "how
+  // liked are you app-wide", but "how recognized are you in THIS
+  // specific community" -- a department, a class, an affinity group.
+  // Same validated-interaction philosophy though: only counts when
+  // someone ELSE engages with your content, never your own.
+  //
+  // Firestore rule required -- nest this inside your existing
+  // `match /users/{userId} { ... }` block, alongside followers/
+  // following/studyStats etc.:
+  //   match /clout/{communityId} {
+  //     allow read: if request.auth != null;
+  //     allow write: if request.auth != null;
+  //   }
   static const Map<String, int> cloutTierThresholds = {
     'regular': 10,
     'top_voice': 50,
@@ -161,17 +177,37 @@ class UserTierService {
     return 'Newcomer';
   }
 
-  static Future<void> adjustCommunityClout({
-    required String postId,
+  /// Credits (or debits) [targetUid]'s Clout in whichever community
+  /// [postId] belongs to. Looks up the post's own groupId itself --
+  /// callers (toggleLike, setReaction, comment notifications) don't
+  /// need their signatures changed, just one extra read per call,
+  /// which is a normal cost for a direct client Firestore call (not
+  /// the Cloudflare Worker subrequest-limited context from elsewhere
+  /// in this project).
+  /// Core Clout transaction, scoped directly (a community id, a
+  /// group id -- whatever the caller already knows) rather than
+  /// derived from a post. adjustCommunityClout below is the
+  /// post-derived entry point for likes/comments/reactions;
+  /// this is the direct one, e.g. for a chat message getting
+  /// marked as the accepted answer to a question -- there's no
+  /// post involved there at all.
+  // Automatic milestones a community unlocks on its own -- no admin
+  // action needed. Checked every time the relevant number changes
+  // (member joins, or here on total Clout crossing a threshold), and
+  // once unlocked an achievement id is never removed even if the
+  // number later drops back down (e.g. a member leaves).
+  static const Map<String, int> cloutMilestones = {
+    'clout_100': 100, 'clout_500': 500, 'clout_1000': 1000, 'clout_5000': 5000,
+  };
+
+  static Future<void> adjustCloutForScope({
+    required String scopeId,
     required String targetUid,
     required int delta,
   }) async {
     try {
-      final postSnap = await _db.collection('posts').doc(postId).get();
-      final groupId = postSnap.data()?['groupId'] as String?;
-      if (groupId == null) return;
-
-      final cloutRef = _db.collection('users').doc(targetUid).collection('clout').doc(groupId);
+      final cloutRef = _db.collection('users').doc(targetUid).collection('clout').doc(scopeId);
+      final communityRef = _db.collection('communities').doc(scopeId);
       await _db.runTransaction((tx) async {
         final snap = await tx.get(cloutRef);
         final oldScore = (snap.data()?['score'] as num?)?.toInt() ?? 0;
@@ -180,11 +216,55 @@ class UserTierService {
           'score': newScore,
           'tier': cloutTierLabel(newScore),
         }, SetOptions(merge: true));
+
+        // Room Clout: a running total on the community doc itself,
+        // summing every member's individual Clout in this community.
+        // Only written if scopeId is actually a community -- this
+        // same function is also used for old-style department groups
+        // sharing the identical Clout mechanism, which have no
+        // totalClout field of their own and must never get one
+        // fabricated for them.
+        final communitySnap = await tx.get(communityRef);
+        if (communitySnap.exists) {
+          final oldTotal = (communitySnap.data()?['totalClout'] as num?)?.toInt() ?? 0;
+          final newTotal = oldTotal + delta;
+          final achievements = ((communitySnap.data()?['achievements'] as List<dynamic>?) ?? []).cast<String>().toSet();
+          for (final entry in cloutMilestones.entries) {
+            if (newTotal >= entry.value) achievements.add(entry.key);
+          }
+          tx.set(communityRef, {
+            'totalClout': newTotal,
+            'achievements': achievements.toList(),
+          }, SetOptions(merge: true));
+        }
       });
-        } catch (e) {
+    } catch (e) {
+      // ignore: avoid_print
+      print('[UserTierService] adjustCloutForScope failed: $e');
+    }
+  }
+
+  static Future<void> adjustCommunityClout({
+    required String postId,
+    required String targetUid,
+    required int delta,
+  }) async {
+    try {
+      final postSnap = await _db.collection('posts').doc(postId).get();
+      // Community-tagged posts stamp communityId, not groupId -- this
+      // was only ever checking the old field, so likes/comments/
+      // reactions on a community post were silently crediting zero
+      // Clout until now.
+      final scopeId = (postSnap.data()?['groupId'] as String?) ?? (postSnap.data()?['communityId'] as String?);
+      if (scopeId == null) return; // post has no community scope -- nothing to credit
+
+      await adjustCloutForScope(scopeId: scopeId, targetUid: targetUid, delta: delta);
+    } catch (e) {
+      // Same reasoning as AffinityService's fix earlier -- printed,
+      // not silently swallowed, so a real problem doesn't hide behind
+      // "best-effort" the way it did before.
       // ignore: avoid_print
       print('[UserTierService] adjustCommunityClout failed: $e');
     }
   }
 }
-      // Best-effort, same reasoning as every other scoring call here.

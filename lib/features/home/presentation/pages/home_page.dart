@@ -10,7 +10,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../../core/services/user_service.dart';
 import '../../../../core/services/social_streak_service.dart';
 import '../../../../core/services/push_notification_service.dart';
-
+import '../../../social/presentation/pages/my_communities_page.dart';
 // Final, confirmed nav: Social, Classes, Timetable, Profile. Home and
 // Study (quiz/AI-tutor/flashcards/library, and the study rooms page)
 // are removed entirely, not just hidden -- Classes replaces Home's
@@ -48,6 +48,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   List<_TabDef> get _tabs => [
     _TabDef(icon: Icons.dynamic_feed_rounded, label: 'Social', builder: () => const SocialFeedPage(), isSocial: true),
+      _TabDef(icon: Icons.groups_rounded, label: 'Communities', builder: () => const MyCommunitiesPage()),
     _TabDef(icon: Icons.grid_view_rounded, label: 'Classes', builder: () => const CoursesPage()),
     _TabDef(icon: Icons.calendar_month_rounded, label: 'Timetable', builder: () => const TimetablePage()),
     _TabDef(icon: Icons.person_rounded, label: 'Profile', builder: () => const ProfilePage()),

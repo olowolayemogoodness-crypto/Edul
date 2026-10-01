@@ -20,6 +20,12 @@ import '../../../../core/services/user_tier_service.dart';
 import '../../../../core/services/premium_service.dart';
 import '../../../../core/services/social_streak_service.dart';
 import '../../../../core/services/user_service.dart';
+import '../../../../core/services/suggested_follows_service.dart';
+import '../../../../core/services/relationship_service.dart';
+import 'package:visibility_detector/visibility_detector.dart';
+import '../../../../core/services/post_visibility_service.dart';
+import 'community_page.dart';
+import '../../../../core/services/community_service.dart';
 import '../../../../core/services/voice_note_service.dart';
 import 'post_composer_page.dart';
 
@@ -32,9 +38,6 @@ class SocialFeedPage extends StatefulWidget {
 }
 
 class _SocialFeedPageState extends State<SocialFeedPage> {
-  int _selectedTab = 0;
-  int? _mySet; // the user's own cohort number, e.g. 30 for 100L — powers the "Class 30" tab across every department
-  String _department = ''; // the user's own department, e.g. "Software Engineering" — from profile.course
   Set<String> _myFollowing = {}; // who I follow — scopes repost visibility
   // Ranking signal, loaded once (not re-fetched on every live post
   // update) -- see feed_ranking_service.dart for the cost reasoning
@@ -42,42 +45,36 @@ class _SocialFeedPageState extends State<SocialFeedPage> {
   Set<String> _likedByFollowingPostIds = {};
   Map<String, List<Map<String, String>>> _likedByFollowingNames = {};
   Set<String> _recentlySearchedUids = {};
-  // Genuinely loading, not just "empty" -- _mySet/_department start as
-  // null/empty either way, so without this flag the tabs would briefly
-  // render fallback labels ("My Class"/"My Group") and an empty feed
-  // on every single launch before the real profile data arrives a
-  // moment later -- that flash was the actual bug.
+  Set<String> _myInterests = {};
+  Map<String, int> _relationshipStrength = {};
+  Set<String> _myJoinedCommunityIds = {};
+  // Genuinely loading, not just "empty" -- without this flag the feed
+  // would briefly show its empty state before the real profile data
+  // (and thus the actual post query) is ready, on every single
+  // launch -- that flash was the actual bug this guards against.
   bool _loadingContext = true;
 
   @override
   void initState() {
     super.initState();
-    _loadDepartmentAndSet();
-    _loadFollowing();
+    Future.wait([_loadDepartmentAndSet(), _loadFollowing()]).then((_) {
+      if (mounted) setState(() => _loadingContext = false);
+    });
   }
 
   Future<void> _loadDepartmentAndSet() async {
-    // Profile first, since that's what post_composer_page.dart also
-    // reads from when it stamps a new post's `course`/`set` fields —
-    // keeping this filter and that stamp in agreement is what makes
-    // both tabs actually work.
+    // Profile fetch kept as a real network round-trip, not because
+    // course/set are stored anymore (the tab filtering that used them
+    // is gone) -- this still confirms the profile actually loaded.
+    // The loading flag itself is now controlled externally, in
+    // initState, once this AND _loadFollowing both finish -- clearing
+    // it here alone was exactly what let the feed render on partial
+    // signals and visibly re-sort a moment later.
     try {
-      final profile = await UserService.getProfile();
-      final course = profile?['course'] as String?;
-      final set = profile?['set'] as int?;
-      if (mounted) {
-        setState(() {
-          if (course != null && course.isNotEmpty) _department = course;
-          if (set != null) _mySet = set;
-          _loadingContext = false;
-        });
-      }
+      await UserService.getProfile();
     } catch (_) {
-      // Offline or read failed — stop showing the loading state either
-      // way, rather than spin forever; the tabs will show their
-      // fallback labels ("My Class"/"My Group") in this specific case,
-      // which is honest since the real data genuinely couldn't load.
-      if (mounted) setState(() => _loadingContext = false);
+      // Offline or read failed -- swallow and let initState's
+      // Future.wait proceed either way, rather than hang forever.
     }
   }
 
@@ -89,13 +86,23 @@ class _SocialFeedPageState extends State<SocialFeedPage> {
     // feed_ranking_service.dart for why.
     final capped = await FeedRankingService.myFollowingCapped();
     final liked = await FeedRankingService.postsLikedByFollowing(capped);
-        if (mounted) setState(() {
+    if (mounted) setState(() {
       _likedByFollowingPostIds = liked.postIds;
       _likedByFollowingNames = liked.likers;
     });
+    // Free (local SharedPreferences, not a Firestore read) -- reuses
+    // the same search history already tracked for the search screen.
     final history = await SearchHistoryService.getHistory();
     final searchedUids = history.where((e) => e.type == 'profile').map((e) => e.value).toSet();
     if (mounted) setState(() => _recentlySearchedUids = searchedUids);
+    final myProfile = await UserService.getProfile();
+    final myInterests = (myProfile?['interests'] as List<dynamic>?)?.cast<String>().toSet() ?? <String>{};
+    if (mounted) setState(() => _myInterests = myInterests);
+    final relationshipStrength = await RelationshipService.myTopRelationships();
+    if (mounted) setState(() => _relationshipStrength = relationshipStrength);
+    await PostVisibilityService.getSeenPostIds(); // primes the sync cache used inside the feed stream below
+    final joinedCommunityIds = await CommunityService.myJoinedRoomIds();
+    if (mounted) setState(() => _myJoinedCommunityIds = joinedCommunityIds);
   }
 
   Stream<List<Map<String, dynamic>>> _postsStream() {
@@ -126,23 +133,18 @@ class _SocialFeedPageState extends State<SocialFeedPage> {
             return reposterUid == myUid || _myFollowing.contains(reposterUid);
           })
           .toList();
-      if (_selectedTab == 1) {
-        // My department: every post whose course field matches this
-        // user's own department -- stamped automatically at post time
-        // from the same profile.course value set at registration.
-        final filtered = all.where((p) => p['course'] == _department).toList();
-        return FeedRankingService.rank(filtered,
-                    myFollowing: _myFollowing, likedByFollowingPostIds: _likedByFollowingPostIds,
-          recentlySearchedUids: _recentlySearchedUids);
-      } else {
-        // Class {set}: every post from someone in the same cohort,
-        // regardless of department -- e.g. every 100L student at FUTA,
-        // whether they're in Software Engineering or Data Science.
-        final filtered = all.where((p) => p['set'] == _mySet).toList();
-        return FeedRankingService.rank(filtered,
-                    myFollowing: _myFollowing, likedByFollowingPostIds: _likedByFollowingPostIds,
-          recentlySearchedUids: _recentlySearchedUids);
-      }
+      // One unified pool, blended by ranking (repost/liked-by-following,
+      // interest-overlap, recency) rather than narrowed down to just a
+      // department or just a class beforehand. Department-specific
+      // discussion now lives in that department's own Community Room
+      // instead -- this feed's job is everyone, ranked, not everyone
+      // filtered down to a slice first.
+      return FeedRankingService.rank(all,
+        myFollowing: _myFollowing, likedByFollowingPostIds: _likedByFollowingPostIds,
+        recentlySearchedUids: _recentlySearchedUids, myInterests: _myInterests,
+        relationshipStrength: _relationshipStrength,
+        seenPostIds: PostVisibilityService.seenPostIdsSync,
+        myJoinedCommunityIds: _myJoinedCommunityIds);
     });
   }
 
@@ -201,32 +203,9 @@ class _SocialFeedPageState extends State<SocialFeedPage> {
 
             const SizedBox(height: 14),
 
-            // Tab pills
-            SizedBox(
-              height: 36,
-              child: _loadingContext
-                  ? Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Row(children: [
-                        Container(width: 90, height: 36,
-                          decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(18))),
-                        const SizedBox(width: 8),
-                        Container(width: 110, height: 36,
-                          decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(18))),
-                      ]),
-                    )
-                  : ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                children: [
-                  _Pill(label: _mySet != null ? 'Class $_mySet' : 'My Class', selected: _selectedTab == 0,
-                    onTap: () => setState(() => _selectedTab = 0)),
-                  const SizedBox(width: 8),
-                  _Pill(label: _department.isNotEmpty ? _department : 'My Group', selected: _selectedTab == 1,
-                    onTap: () => setState(() => _selectedTab = 1)),
-                ],
-              ),
-            ),
+            const SizedBox(height: 12),
+
+            _SuggestedFollowsRow(),
 
             const SizedBox(height: 12),
 
@@ -256,18 +235,15 @@ class _SocialFeedPageState extends State<SocialFeedPage> {
                   final posts = snapshot.data ?? [];
 
                   if (posts.isEmpty) {
-                    final isDepartment = _selectedTab == 1;
                     return Center(
                       child: Column(mainAxisSize: MainAxisSize.min, children: [
-                        Text(isDepartment ? '🎓' : '💬', style: const TextStyle(fontSize: 48)),
+                        Text('💬', style: const TextStyle(fontSize: 48)),
                         const SizedBox(height: 16),
-                        Text(isDepartment ? 'No posts in your group yet' : 'No posts yet', style: GoogleFonts.dmSans(
+                        Text('No posts yet', style: GoogleFonts.dmSans(
                           fontSize: 16, fontWeight: FontWeight.w600,
                           color: AppColors.textPrimary)),
                         const SizedBox(height: 8),
-                        Text(isDepartment
-                            ? 'Be the first to post in your group!'
-                            : 'Be the first to post something!',
+                        Text('Be the first to post something!',
                           style: GoogleFonts.dmSans(
                             fontSize: 13, color: AppColors.textTertiary)),
                         // Both remaining tabs (My Uni, Department) allow
@@ -309,8 +285,7 @@ class _SocialFeedPageState extends State<SocialFeedPage> {
                         return _FeedNativeAdCard(key: ValueKey('ad_$i'));
                       }
                       final postIndex = showAds ? i - (i ~/ blockSize) : i;
-                      return _PostCard(
-                        key: ValueKey(posts[postIndex]['id']),
+                      return _TrackedPostCard(
                         post: posts[postIndex],
                         likedByFollowing: _likedByFollowingNames[posts[postIndex]['id']] ?? const [],
                       );
@@ -329,30 +304,87 @@ class _SocialFeedPageState extends State<SocialFeedPage> {
 // ─────────────────────────────────────────────────────────────────────────────
 // Pill tab
 // ─────────────────────────────────────────────────────────────────────────────
-class _Pill extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
+// A horizontally-scrolling row of suggested accounts to follow,
+// based on shared interests from onboarding -- reuses that data
+// rather than needing any new tagging system. Rebuilds itself once
+// per screen visit (not a live stream), since suggestions changing
+// mid-scroll would be disorienting; a pull-to-refresh or reopening
+// the tab naturally refreshes it.
+class _SuggestedFollowsRow extends StatefulWidget {
+  @override
+  State<_SuggestedFollowsRow> createState() => _SuggestedFollowsRowState();
+}
 
-  const _Pill({required this.label, required this.selected, required this.onTap});
+class _SuggestedFollowsRowState extends State<_SuggestedFollowsRow> {
+  List<Map<String, dynamic>>? _suggestions;
+  final Set<String> _dismissed = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final suggestions = await SuggestedFollowsService.suggestedFollows();
+      if (mounted) setState(() => _suggestions = suggestions);
+    } catch (e) {
+      // ignore: avoid_print
+      print('[SuggestedFollowsRow] suggestedFollows failed: $e');
+      if (mounted) setState(() => _suggestions = []);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.accent : AppColors.surfaceVariant,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selected ? AppColors.accent : AppColors.border),
-        ),
-        child: Text(label, style: GoogleFonts.dmSans(
-          fontSize: 12,
-          fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-          color: selected ? Colors.white : AppColors.textSecondary)),
+    final suggestions = _suggestions;
+    if (suggestions == null || suggestions.isEmpty) return const SizedBox.shrink();
+    final visible = suggestions.where((s) => !_dismissed.contains(s['uid'])).toList();
+    if (visible.isEmpty) return const SizedBox.shrink();
+
+    return SizedBox(
+      height: 154,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: visible.length,
+        itemBuilder: (context, i) {
+          final s = visible[i];
+          final uid = s['uid'] as String;
+          final name = s['displayName'] as String? ?? 'User';
+          final overlap = s['overlapCount'] as int? ?? 0;
+
+          return Container(
+            width: 118,
+            margin: const EdgeInsets.only(right: 10),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(14)),
+            child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              UserAvatar(uid: uid, displayName: name, photoUrl: s['photoUrl'] as String?, size: 44),
+              const SizedBox(height: 6),
+              Text(name, maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.dmSans(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+              Text('$overlap shared interest${overlap == 1 ? '' : 's'}',
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.dmSans(fontSize: 10.5, color: AppColors.textTertiary)),
+              const SizedBox(height: 6),
+              GestureDetector(
+                onTap: () {
+                  UserFollowService.toggleFollow(uid);
+                  setState(() => _dismissed.add(uid));
+                },
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  decoration: BoxDecoration(color: AppColors.accent, borderRadius: BorderRadius.circular(999)),
+                  child: Text('Follow', textAlign: TextAlign.center,
+                    style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white)),
+                ),
+              ),
+            ]),
+          );
+        },
       ),
     );
   }
@@ -528,16 +560,96 @@ class _QuotedPostPreview extends StatelessWidget {
   }
 }
 
-class _PostCard extends StatefulWidget {
+// Wraps PostCard with visibility tracking, without touching PostCard
+// itself at all -- keeps this addition low-risk against an already
+// large, established widget. Two very different bars from the same
+// underlying signal:
+//   - "seen" fires almost immediately (a fraction of a second) --
+//     feeds PostVisibilityService, which heavily deprioritizes
+//     repeats in ranking so the feed doesn't feel stale on refresh.
+//   - "lingered" needs a real ~2 seconds of continuous dwell time --
+//     feeds RelationshipService instead, since brief visibility alone
+//     says nothing about genuine interest, only a deliberate pause
+//     does.
+class _TrackedPostCard extends StatefulWidget {
   final Map<String, dynamic> post;
   final List<Map<String, String>> likedByFollowing;
-  const _PostCard({super.key, required this.post, this.likedByFollowing = const []});
+  const _TrackedPostCard({required this.post, required this.likedByFollowing});
 
   @override
-  State<_PostCard> createState() => _PostCardState();
+  State<_TrackedPostCard> createState() => _TrackedPostCardState();
 }
 
-class _PostCardState extends State<_PostCard> {
+class _TrackedPostCardState extends State<_TrackedPostCard> {
+  static const _lingerThreshold = Duration(seconds: 2);
+  DateTime? _becameVisibleAt;
+  bool _lingerRecorded = false;
+
+  void _checkLingerAndReset() {
+    if (_becameVisibleAt != null && !_lingerRecorded) {
+      final dwell = DateTime.now().difference(_becameVisibleAt!);
+      if (dwell >= _lingerThreshold) {
+        final authorUid = widget.post['uid'] as String?;
+        if (authorUid != null) {
+          RelationshipService.recordInteraction(authorUid, weight: 1);
+        }
+        _lingerRecorded = true;
+      }
+    }
+    _becameVisibleAt = null;
+  }
+
+  void _onVisibilityChanged(VisibilityInfo info) {
+    // For a repost, track against the ORIGINAL post's id, not the
+    // repost pointer's own id -- matches how ranking already treats
+    // "liked by following" for reposts, so seeing the same original
+    // content via two different reposts still correctly counts as
+    // a repeat.
+    final postId = (widget.post['id'] as String?) ?? (widget.post['originalPostId'] as String?);
+    if (postId == null || postId.isEmpty) return;
+
+    if (info.visibleFraction > 0.1) {
+      PostVisibilityService.markSeen(postId);
+      _becameVisibleAt ??= DateTime.now();
+    } else {
+      _checkLingerAndReset();
+    }
+  }
+
+  @override
+  void dispose() {
+    // Covers the case where the list recycles this widget away while
+    // it's still on screen and dwelling -- onVisibilityChanged's final
+    // "now invisible" event isn't guaranteed to fire before disposal.
+    _checkLingerAndReset();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final postId = widget.post['id'] as String? ?? '';
+    return VisibilityDetector(
+      key: Key('visibility_$postId'),
+      onVisibilityChanged: _onVisibilityChanged,
+      child: PostCard(
+        key: ValueKey(postId),
+        post: widget.post,
+        likedByFollowing: widget.likedByFollowing,
+      ),
+    );
+  }
+}
+
+class PostCard extends StatefulWidget {
+  final Map<String, dynamic> post;
+  final List<Map<String, String>> likedByFollowing;
+  const PostCard({super.key, required this.post, this.likedByFollowing = const []});
+
+  @override
+  State<PostCard> createState() => _PostCardState();
+}
+
+class _PostCardState extends State<PostCard> {
   // Tracks which posts have already been counted this app session, so a
   // ListView rebuild (e.g. from a new comment arriving) doesn't inflate
   // the view count every time this widget remounts.
@@ -801,16 +913,18 @@ class _PostCardState extends State<_PostCard> {
   }
 
   void _openUserProfile(BuildContext context, Map<String, dynamic> post) {
+    final tappedUid = post['uid'] as String? ?? '';
+    if (tappedUid.isNotEmpty) RelationshipService.recordInteraction(tappedUid, weight: 1);
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _UserProfileSheet(
-        uid: post['uid'] as String? ?? '',
+        uid: tappedUid,
         displayName: post['displayName'] as String? ?? 'User',
         university: post['university'] as String? ?? '',
         course: post['course'] as String? ?? '',
-        verified: post['verified'] as bool? ?? false,
+        verified: post['authorVerified'] == true,
       ),
     );
   }
@@ -842,7 +956,7 @@ class _PostCardState extends State<_PostCard> {
                   fontSize: 12, color: AppColors.textTertiary)),
               ]),
             ),
-            _PostCard(post: originalData),
+            PostCard(post: originalData),
           ]);
         },
       );
@@ -853,14 +967,45 @@ class _PostCardState extends State<_PostCard> {
     final uid = post['uid'] as String? ?? '';
     final content = post['content'] as String? ?? '';
     final views = post['views'] as int? ?? 0;
-    final verified = post['verified'] as bool? ?? false;
+    final verified = post['authorVerified'] == true;
     final imageUrls = (post['imageUrls'] as List<dynamic>?) ?? [];
     final audioUrl = post['audioUrl'] as String?;
     final quotedPostId = post['quotedPostId'] as String?;
     final timeAgo = _timeAgo(post['createdAt']);
     final isOwner = UserService.uid != null && UserService.uid == uid;
+    final communityId = post['communityId'] as String?;
+    final communityName = post['communityName'] as String?;
+    final communityColorHex = post['communityColor'] as String?;
+    Color communityColor = AppColors.accent;
+    if (communityColorHex != null) {
+      try { communityColor = Color(int.parse(communityColorHex.replaceFirst('#', '0xFF'))); } catch (_) {}
+    }
 
-    return GestureDetector(
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      if (communityId != null && communityName != null)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: GestureDetector(
+            onTap: () => Navigator.push(context, MaterialPageRoute(
+              builder: (_) => CommunityPage(communityId: communityId))),
+            child: Row(children: [
+              Container(
+                width: 20, height: 20,
+                decoration: BoxDecoration(color: communityColor, borderRadius: BorderRadius.circular(6)),
+                child: Center(child: Text(
+                  communityName.isNotEmpty ? communityName[0].toUpperCase() : '?',
+                  style: GoogleFonts.dmSans(fontSize: 9, fontWeight: FontWeight.w800, color: Colors.white))),
+              ),
+              const SizedBox(width: 7),
+              Text('Posted in', style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.textTertiary)),
+              const SizedBox(width: 4),
+              Text(communityName, style: GoogleFonts.dmSans(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.accent)),
+              const SizedBox(width: 4),
+              Icon(Icons.chevron_right_rounded, size: 14, color: AppColors.textTertiary),
+            ]),
+          ),
+        ),
+      GestureDetector(
       onLongPress: () => _showInPlaceBlur(context, post),
       child: Padding(
       key: _cardKey,
@@ -1034,7 +1179,8 @@ class _PostCardState extends State<_PostCard> {
         ])),
       ]),
       ),
-    );
+    ),
+    ]);
   }
 }
 
@@ -1247,6 +1393,11 @@ class _CommentsSheetState extends State<_CommentsSheet> {
   bool _uploadingVoice = false;
   int _recordingSeconds = 0;
   Timer? _recordTimer;
+  Map<String, dynamic>? _replyingToComment;
+
+  void _startReplyToComment(Map<String, dynamic> comment) {
+    setState(() => _replyingToComment = comment);
+  }
 
   void _confirmDeleteComment(BuildContext context, String postId, String commentId) {
     HapticFeedback.mediumImpact();
@@ -1294,9 +1445,11 @@ class _CommentsSheetState extends State<_CommentsSheet> {
     final text = _ctrl.text.trim();
     if (text.isEmpty || _sending) return;
     setState(() => _sending = true);
+    final replyToId = _replyingToComment?['id'] as String?;
     try {
-      await PostInteractionService.addComment(widget.postId, text);
+      await PostInteractionService.addComment(widget.postId, text, parentCommentId: replyToId);
       _ctrl.clear();
+      if (mounted) setState(() => _replyingToComment = null);
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -1447,6 +1600,20 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                               fontSize: 11, color: AppColors.textTertiary)),
                           ]),
                           const SizedBox(height: 4),
+                          if (c['replyToAuthorName'] != null && c['replyToPreview'] != null)
+                            Container(
+                              margin: const EdgeInsets.only(bottom: 5),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: AppColors.surface,
+                                border: Border(left: BorderSide(color: AppColors.accent, width: 3)),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Text(c['replyToAuthorName'] as String, style: GoogleFonts.dmSans(fontSize: 10.5, fontWeight: FontWeight.w700, color: AppColors.accentLight)),
+                                Text(c['replyToPreview'] as String, maxLines: 1, overflow: TextOverflow.ellipsis, style: GoogleFonts.dmSans(fontSize: 11, color: AppColors.textTertiary)),
+                              ]),
+                            ),
                           if (isVoice)
                             _VoiceNoteBubble(
                               commentId: commentId,
@@ -1461,38 +1628,46 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                               style: GoogleFonts.dmSans(
                                 fontSize: 13, color: AppColors.textSecondary, height: 1.4)),
                           const SizedBox(height: 4),
-                          StreamBuilder<bool>(
-                            stream: PostInteractionService.isCommentLikedByMe(
-                              widget.postId, commentId),
-                            builder: (context, likedSnap) {
-                              final liked = likedSnap.data ?? false;
-                              return StreamBuilder<int>(
-                                stream: PostInteractionService.commentLikeCount(
-                                  widget.postId, commentId),
-                                builder: (context, countSnap) => GestureDetector(
-                                  onTap: () => PostInteractionService
-                                      .toggleCommentLike(widget.postId, commentId),
-                                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                    Icon(
-                                      liked ? Icons.favorite_rounded
-                                            : Icons.favorite_border_rounded,
-                                      size: 14,
-                                      color: liked
-                                          ? const Color(0xFFE24B4A)
-                                          : AppColors.textTertiary,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text('${countSnap.data ?? 0}',
-                                      style: GoogleFonts.dmSans(
-                                        fontSize: 11,
+                          Row(children: [
+                            StreamBuilder<bool>(
+                              stream: PostInteractionService.isCommentLikedByMe(
+                                widget.postId, commentId),
+                              builder: (context, likedSnap) {
+                                final liked = likedSnap.data ?? false;
+                                return StreamBuilder<int>(
+                                  stream: PostInteractionService.commentLikeCount(
+                                    widget.postId, commentId),
+                                  builder: (context, countSnap) => GestureDetector(
+                                    onTap: () => PostInteractionService
+                                        .toggleCommentLike(widget.postId, commentId),
+                                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                      Icon(
+                                        liked ? Icons.favorite_rounded
+                                              : Icons.favorite_border_rounded,
+                                        size: 14,
                                         color: liked
                                             ? const Color(0xFFE24B4A)
-                                            : AppColors.textTertiary)),
-                                  ]),
-                                ),
-                              );
-                            },
-                          ),
+                                            : AppColors.textTertiary,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text('${countSnap.data ?? 0}',
+                                        style: GoogleFonts.dmSans(
+                                          fontSize: 11,
+                                          color: liked
+                                              ? const Color(0xFFE24B4A)
+                                              : AppColors.textTertiary)),
+                                    ]),
+                                  ),
+                                );
+                              },
+                            ),
+                            const SizedBox(width: 16),
+                            GestureDetector(
+                              onTap: () => _startReplyToComment(c),
+                              child: Text('Reply', style: GoogleFonts.dmSans(
+                                fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textTertiary)),
+                            ),
+                          ]),
                         ])),
                       ]),
                       ),
@@ -1505,7 +1680,33 @@ class _CommentsSheetState extends State<_CommentsSheet> {
           Padding(
             padding: EdgeInsets.fromLTRB(16, 8, 16,
               MediaQuery.of(context).viewInsets.bottom + 12),
-            child: _isRecording
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              if (_replyingToComment != null)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    border: Border(left: BorderSide(color: AppColors.accent, width: 3)),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(children: [
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text('Replying to ${_replyingToComment!['displayName'] ?? 'Someone'}',
+                          style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.accentLight)),
+                        Text(_replyingToComment!['content'] as String? ?? '',
+                          maxLines: 1, overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.dmSans(fontSize: 11.5, color: AppColors.textTertiary)),
+                      ]),
+                    ),
+                    GestureDetector(
+                      onTap: () => setState(() => _replyingToComment = null),
+                      child: Icon(Icons.close_rounded, size: 16, color: AppColors.textTertiary),
+                    ),
+                  ]),
+                ),
+              _isRecording
                 ? Row(children: [
                     Icon(Icons.fiber_manual_record_rounded,
                       color: AppColors.error, size: 14),
@@ -1584,6 +1785,7 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                       ),
                     ),
                   ]),
+            ]),
           ),
         ]),
       ),
@@ -2207,7 +2409,7 @@ class _SocialSearchPageState extends State<SocialSearchPage> {
                           fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textTertiary))),
                       ...posts.map((p) => Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: _PostCard(post: p),
+                        child: PostCard(post: p),
                       )),
                     ],
                   ]);

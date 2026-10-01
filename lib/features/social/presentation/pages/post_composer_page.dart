@@ -39,7 +39,25 @@ bool _looksLikeVideo(String path) =>
 
 class PostComposerPage extends StatefulWidget {
   final Map<String, dynamic>? quotedPost;
-  const PostComposerPage({super.key, this.quotedPost});
+  // Community context -- when set, this post is scoped to a community
+  // instead of (or alongside) the usual department/class feeds. When
+  // isCommunityAdmin is true, the composer offers a toggle to post
+  // using the community's own identity (name/color, no personal
+  // avatar) -- matching the "OFFICIAL" badge distinction from the
+  // community page design: the community's own voice versus a member
+  // posting as themselves within it.
+  final String? communityId;
+  final String? communityName;
+  final String? communityColor;
+  final bool isCommunityAdmin;
+  const PostComposerPage({
+    super.key,
+    this.quotedPost,
+    this.communityId,
+    this.communityName,
+    this.communityColor,
+    this.isCommunityAdmin = false,
+  });
 
   @override
   State<PostComposerPage> createState() => _PostComposerPageState();
@@ -56,6 +74,32 @@ class _PostComposerPageState extends State<PostComposerPage> {
   bool _posting = false;
   double _uploadProgress = 0.0;
   String _university = 'My Uni';
+
+  // Only used when the composer was opened WITHOUT a pre-set
+  // community (i.e. from the main feed, not a Handle's own compose
+  // flow) -- lets any member tag a post to a community they belong
+  // to, without swapping their own identity the way "post as
+  // community" does for admins.
+  String? _taggedCommunityId;
+  String? _taggedCommunityName;
+  String? _taggedCommunityColor;
+
+  Future<void> _pickCommunityTag() async {
+    final result = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.background,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => const _CommunityTagPickerSheet(),
+    );
+    if (result != null) {
+      setState(() {
+        _taggedCommunityId = result['id'] as String?;
+        _taggedCommunityName = result['name'] as String?;
+        _taggedCommunityColor = result['color'] as String?;
+      });
+    }
+  }
 
   RecordingResult? _voiceNote;
   bool _isRecording = false;
@@ -100,9 +144,12 @@ class _PostComposerPageState extends State<PostComposerPage> {
     });
   }
 
+  bool _postAsCommunity = false;
+
   @override
   void initState() {
     super.initState();
+    _postAsCommunity = widget.communityId != null && widget.isCommunityAdmin;
     _loadUniversity();
     _loadGroupContext();
     _textCtrl.addListener(() => setState(() {}));
@@ -299,14 +346,30 @@ class _PostComposerPageState extends State<PostComposerPage> {
       final profile = await UserService.getProfile();
       final displayName = profile?['displayName'] as String? ?? 'User';
       final photoUrl = profile?['photoUrl'] as String?;
+      final authorInterests = (profile?['interests'] as List<dynamic>?)?.cast<String>() ?? [];
+      final authorVerified = profile?['verified'] == true;
       final uni = profile?['university'] as String? ?? _university;
       final course = profile?['course'] as String? ?? '';
       final set = profile?['set'] as int?;
       final studentType = profile?['studentType'] as String? ?? 'university';
       final postRef = await FirebaseFirestore.instance.collection('posts').add({
         'uid': uid,
-        'displayName': displayName,
+        // When posting as the community's own official voice, the
+        // DISPLAYED identity is the community's, not the poster's --
+        // matches the "OFFICIAL" badge distinction from the community
+        // page design. The underlying `uid` field stays the real
+        // person (for permissions/audit), but displayName/photoUrl
+        // shown in the feed become the community's.
+        'displayName': (_postAsCommunity && widget.communityName != null) ? widget.communityName! : displayName,
+        if (_postAsCommunity && widget.communityId != null) 'postedAsCommunity': true,
+        if (widget.communityId != null) 'communityId': widget.communityId,
+        if (widget.communityId != null) 'communityName': widget.communityName,
+        if (widget.communityId != null) 'communityColor': widget.communityColor,
+        if (widget.communityId == null && _taggedCommunityId != null) 'communityId': _taggedCommunityId,
+        if (widget.communityId == null && _taggedCommunityId != null) 'communityName': _taggedCommunityName,
+        if (widget.communityId == null && _taggedCommunityId != null) 'communityColor': _taggedCommunityColor,
         if (photoUrl != null) 'photoUrl': photoUrl,
+        if (authorInterests.isNotEmpty) 'authorInterests': authorInterests,
         'university': uni,
         'course': course,
         if (set != null) 'set': set,
@@ -343,6 +406,7 @@ class _PostComposerPageState extends State<PostComposerPage> {
         if (_myGroupId != null) 'groupId': _myGroupId,
         'likeCount': 0, 'commentCount': 0, 'repostCount': 0, 'views': 0,
         'verified': false,
+        'authorVerified': authorVerified,
         'createdAt': FieldValue.serverTimestamp(),
       });
       _notifyFollowers(uid, displayName, postRef.id);
@@ -706,6 +770,52 @@ class _PostComposerPageState extends State<PostComposerPage> {
                   icon: Icon(Icons.poll_outlined,
                     color: _showPollBuilder ? Colors.white : _iconColor),
                 ),
+                if (widget.communityId == null)
+                  GestureDetector(
+                    onTap: _taggedCommunityId == null
+                        ? _pickCommunityTag
+                        : () => setState(() {
+                            _taggedCommunityId = null;
+                            _taggedCommunityName = null;
+                            _taggedCommunityColor = null;
+                          }),
+                    child: Container(
+                      margin: const EdgeInsets.only(left: 2),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: _taggedCommunityId != null ? AppColors.accent.withOpacity(0.2) : Colors.transparent,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: _taggedCommunityId != null ? AppColors.accent : Colors.white24),
+                      ),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(_taggedCommunityId != null ? Icons.close_rounded : Icons.tag_rounded,
+                          size: 13, color: _taggedCommunityId != null ? AppColors.accent : Colors.white38),
+                        const SizedBox(width: 4),
+                        Text(_taggedCommunityId != null ? _taggedCommunityName ?? 'Tagged' : 'Tag a community',
+                          style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.w600,
+                            color: _taggedCommunityId != null ? AppColors.accent : Colors.white54)),
+                      ]),
+                    ),
+                  ),
+                if (widget.communityId != null && widget.isCommunityAdmin)
+                  GestureDetector(
+                    onTap: () => setState(() => _postAsCommunity = !_postAsCommunity),
+                    child: Container(
+                      margin: const EdgeInsets.only(left: 2),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: _postAsCommunity ? AppColors.accent.withOpacity(0.2) : Colors.transparent,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: _postAsCommunity ? AppColors.accent : Colors.white24),
+                      ),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(Icons.verified_rounded, size: 13, color: _postAsCommunity ? AppColors.accent : Colors.white38),
+                        const SizedBox(width: 4),
+                        Text('Post as ${widget.communityName ?? 'community'}', style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.w600,
+                          color: _postAsCommunity ? AppColors.accent : Colors.white54)),
+                      ]),
+                    ),
+                  ),
                 if (_isClassRep)
                   GestureDetector(
                     onTap: () => setState(() => _isAlert = !_isAlert),
@@ -733,6 +843,111 @@ class _PostComposerPageState extends State<PostComposerPage> {
                 ],
               ]),
             ),
+        ]),
+      ),
+    );
+  }
+}
+
+// Searchable picker for tagging a community while composing a post
+// from the main feed -- same client-side-filter pattern used for
+// every other search in this app (bounded query, filter locally).
+class _CommunityTagPickerSheet extends StatefulWidget {
+  const _CommunityTagPickerSheet();
+
+  @override
+  State<_CommunityTagPickerSheet> createState() => _CommunityTagPickerSheetState();
+}
+
+class _CommunityTagPickerSheetState extends State<_CommunityTagPickerSheet> {
+  final _searchCtrl = TextEditingController();
+  String _query = '';
+  List<Map<String, dynamic>>? _all;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final snap = await FirebaseFirestore.instance.collection('communities')
+          .where('status', isEqualTo: 'active').limit(500).get();
+      if (mounted) setState(() => _all = snap.docs.map((d) => {'id': d.id, ...d.data()}).toList());
+    } catch (e) {
+      // ignore: avoid_print
+      print('[CommunityTagPickerSheet] load failed: $e');
+      if (mounted) setState(() => _all = []);
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final all = _all;
+    final filtered = all == null ? <Map<String, dynamic>>[] : all.where((c) {
+      final name = (c['name'] as String? ?? '').toLowerCase();
+      final handle = (c['handle'] as String? ?? '').toLowerCase();
+      final q = _query.toLowerCase();
+      return q.isEmpty || name.contains(q) || handle.contains(q);
+    }).toList();
+
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Tag a community', style: GoogleFonts.dmSans(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _searchCtrl,
+                onChanged: (v) => setState(() => _query = v),
+                style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textPrimary),
+                decoration: InputDecoration(
+                  hintText: 'Search communities…', hintStyle: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textDisabled),
+                  prefixIcon: Icon(Icons.search_rounded, color: AppColors.textTertiary, size: 18),
+                  filled: true, fillColor: AppColors.surface,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.border)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.border)),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.accent)),
+                ),
+              ),
+            ]),
+          ),
+          Flexible(
+            child: all == null
+                ? const Padding(padding: EdgeInsets.all(32), child: Center(child: CircularProgressIndicator()))
+                : filtered.isEmpty
+                    ? Padding(padding: const EdgeInsets.all(32),
+                        child: Text('No communities found', style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textTertiary)))
+                    : ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: filtered.length,
+                        itemBuilder: (context, i) {
+                          final c = filtered[i];
+                          final name = c['name'] as String? ?? '';
+                          return ListTile(
+                            leading: Container(
+                              width: 36, height: 36,
+                              decoration: BoxDecoration(color: AppColors.accent, borderRadius: BorderRadius.circular(10)),
+                              child: Center(child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
+                                style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white))),
+                            ),
+                            title: Text(name, style: GoogleFonts.dmSans(fontSize: 14, color: AppColors.textPrimary)),
+                            onTap: () => Navigator.of(context).pop(c),
+                          );
+                        },
+                      ),
+          ),
+          const SizedBox(height: 12),
         ]),
       ),
     );

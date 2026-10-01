@@ -5,18 +5,14 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/feature_flags.dart';
 import '../widgets/profile_header_widget.dart';
-import '../widgets/profile_stats_row.dart';
-import '../widgets/activity_rings_card.dart';
-import '../widgets/this_week_grid.dart';
-import '../widgets/streak_card_widget.dart';
 import '../widgets/course_progress_widget.dart';
 import '../widgets/strengths_widget.dart';
 import '../widgets/learning_style_card.dart';
 import '../widgets/success_prediction_card.dart';
 import '../widgets/badges_scroll_widget.dart';
+import '../widgets/user_posts_stats_and_grid.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/services/user_service.dart';
-import '../../../../core/services/study_time_service.dart';
 
 
 class ProfilePage extends StatefulWidget {
@@ -89,43 +85,13 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
                 const SliverToBoxAdapter(
                   child: Padding(padding: EdgeInsets.fromLTRB(20, 12, 20, 0), child: ProfileHeaderWidget()),
                 ),
-                StreamBuilder<Map<String, dynamic>>(
-  stream: StudyTimeService.todayStatsStream(),
-  builder: (context, statsSnap) {
-    final stats = statsSnap.data ?? {};
-    return SliverToBoxAdapter(child: Column(children: [
-      if (!isLoading && !hasError) ProfileStatsRow(
-        streak: (profile?['streak'] as int?) ?? 0,
-        friends: (profile?['friends'] as int?) ?? 0,
-        tasksDone: (stats['tasksCompleted'] as int?) ?? 0,
-      ),
-      if (isLoading) Padding(
-        padding: const EdgeInsets.all(20),
-        child: Center(child: CircularProgressIndicator(color: AppColors.accent)),
-      ),
-      if (!isLoading && !hasError) _Section(
-        title: 'Study activity',
-        linkLabel: 'See history',
-        onLink: () {},
-        child: ActivityRingsCard(
-          studyMinutes: (stats['studyMinutes'] as int?) ?? 0,
-          tasksCompleted: (stats['tasksCompleted'] as int?) ?? 0,
-          quizCorrect: (stats['quizCorrect'] as int?) ?? 0,
-          quizTotal: (stats['quizTotal'] as int?) ?? 0,
-          peakHour: (stats['peakHour'] as int?) ?? 0,
-        ),
-      ),
-    ]));
-  },
-),
-                if (FeatureFlags.showThisWeek && !isLoading && !hasError) SliverToBoxAdapter(child: _Section(title: 'This week', child: _ComingSoonOverlay(child: ThisWeekGrid(
-                  xp: (profile?['xp'] as int?) ?? 0,
-                  rank: (profile?['rank'] as int?) ?? 0,
-                )))),
-                if (!isLoading && !hasError) SliverToBoxAdapter(child: _Section(title: 'Streak', child: StreakCardWidget(
-                  currentStreak: (profile?['streak'] as int?) ?? 0,
-                  longestStreak: (profile?['longestStreak'] as int?) ?? 0,
-                ))),
+                SliverToBoxAdapter(child: Column(children: [
+                  if (!isLoading && !hasError) UserPostsStatsAndGrid(uid: UserService.uid!),
+                  if (isLoading) Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Center(child: CircularProgressIndicator(color: AppColors.accent)),
+                  ),
+                ])),
                 if (FeatureFlags.showCourseProgress && !isLoading && !hasError) SliverToBoxAdapter(child: _Section(title: 'Course progress', linkLabel: 'All courses', onLink: () {}, child: const _ComingSoonOverlay(child: CourseProgressWidget()))),
                 if (FeatureFlags.showStrengths && !isLoading && !hasError) const SliverToBoxAdapter(child: _Section(title: 'Strengths & focus areas', child: _ComingSoonOverlay(child: StrengthsWidget()))),
                 if (FeatureFlags.showLearningStyle && !isLoading && !hasError) const SliverToBoxAdapter(child: _Section(title: 'Your learning style', child: _ComingSoonOverlay(child: LearningStyleCard()))),
@@ -190,16 +156,16 @@ class _ComingSoonOverlay extends StatelessWidget {
           ),
         ),
         Positioned.fill(
-          child: Container(color: Colors.black.withValues(alpha: 0.25)),
+          child: Container(color: Colors.black.withOpacity(0.25)),
         ),
         Positioned.fill(
           child: Center(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.6),
+                color: Colors.black.withOpacity(0.6),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.accentLight.withValues(alpha: 0.4)),
+                border: Border.all(color: AppColors.accentLight.withOpacity(0.4)),
               ),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 const Text('🔥', style: TextStyle(fontSize: 14)),

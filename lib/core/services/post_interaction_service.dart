@@ -100,6 +100,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'notifications_service.dart';
 import 'user_service.dart';
 import 'user_tier_service.dart';
+import 'relationship_service.dart';
 
 class PostInteractionService {
   PostInteractionService._();
@@ -130,12 +131,20 @@ class PostInteractionService {
     final likeRef = _posts().doc(postId).collection('likes').doc(uid);
     final postRef = _posts().doc(postId);
     final doc = await likeRef.get();
+    // TEMPORARY -- remove once the always-increments bug is confirmed
+    // fixed. Tells us definitively which branch actually fires on
+    // each tap, since the delta math in both branches is correct on
+    // paper -- if this prints "exists: false" every single time
+    // (even right after a like), that's the real bug: the read is
+    // never seeing the previous write.
+    // ignore: avoid_print
+    print('[toggleLike] postId=$postId exists=${doc.exists}');
 
     if (doc.exists) {
       // Unlike — no milestone check needed on the way down.
       await likeRef.delete();
       await postRef.update({'likeCount': FieldValue.increment(-1)});
-            if (uid != postOwnerUid) {
+      if (uid != postOwnerUid) {
         await UserTierService.adjustScore(postOwnerUid, -2);
         await UserTierService.adjustCommunityClout(postId: postId, targetUid: postOwnerUid, delta: -2);
       }
@@ -156,8 +165,9 @@ class PostInteractionService {
     });
 
     if (uid != postOwnerUid) {
-            await UserTierService.adjustScore(postOwnerUid, 2);
+      await UserTierService.adjustScore(postOwnerUid, 2);
       await UserTierService.adjustCommunityClout(postId: postId, targetUid: postOwnerUid, delta: 2);
+      await RelationshipService.recordInteraction(postOwnerUid, weight: 1);
       if (_likeMilestones.contains(newCount)) {
         await NotificationService.createLikeMilestoneNotification(
           targetUid: postOwnerUid,
@@ -214,9 +224,14 @@ class PostInteractionService {
         'verified': false,
         'createdAt': FieldValue.serverTimestamp(),
       });
-            await _posts().doc(postId).update({'repostCount': FieldValue.increment(1)});
+      await _posts().doc(postId).update({'repostCount': FieldValue.increment(1)});
       await _notifyPostOwnerOfRepost(postId);
       await NotificationService.notifyFollowersOfRepost(postId: postId);
+      final postSnap = await _posts().doc(postId).get();
+      final postOwnerUid = (postSnap.data() as Map<String, dynamic>?)?['uid'] as String?;
+      if (postOwnerUid != null) {
+        await RelationshipService.recordInteraction(postOwnerUid, weight: 3);
+      }
     }
   }
 
@@ -267,14 +282,31 @@ class PostInteractionService {
     final profile = await UserService.getProfile();
     final displayName = profile?['displayName'] as String? ?? 'User';
     final trimmed = text.trim();
+
+    String? replyToAuthorName;
+    String? replyToPreview;
+    if (parentCommentId != null) {
+      final parentSnap = await _posts().doc(postId).collection('comments').doc(parentCommentId).get();
+      final parentData = parentSnap.data();
+      replyToAuthorName = parentData?['displayName'] as String? ?? 'Someone';
+      replyToPreview = parentData?['content'] as String? ?? '';
+    }
+
     await _posts().doc(postId).collection('comments').add({
       'uid': uid,
       'displayName': displayName,
       'content': trimmed,
       'parentCommentId': parentCommentId,
+      if (replyToAuthorName != null) 'replyToAuthorName': replyToAuthorName,
+      if (replyToPreview != null) 'replyToPreview': replyToPreview,
       'createdAt': FieldValue.serverTimestamp(),
     });
     await _posts().doc(postId).update({'commentCount': FieldValue.increment(1)});
+    final postSnap = await _posts().doc(postId).get();
+    final postOwnerUid = (postSnap.data() as Map<String, dynamic>?)?['uid'] as String?;
+    if (postOwnerUid != null) {
+      await RelationshipService.recordInteraction(postOwnerUid, weight: 2);
+    }
     if (parentCommentId != null) {
       await _notifyParentCommentAuthor(
         postId: postId,
@@ -348,7 +380,7 @@ class PostInteractionService {
       // point (not the commenter) — guarded the same way likes/follows
       // are, so commenting on your own post farms nothing.
       if (targetUid != UserService.uid) {
-                UserTierService.bumpSocialScoreForComment(targetUid);
+        UserTierService.bumpSocialScoreForComment(targetUid);
         UserTierService.adjustCommunityClout(postId: postId, targetUid: targetUid, delta: 1);
       }
       await NotificationService.createCommentNotification(
@@ -467,7 +499,7 @@ class PostInteractionService {
       tx.update(postRef, {'reactionCounts': counts});
     });
 
-        if (uid != postOwnerUid) {
+    if (uid != postOwnerUid) {
       await UserTierService.adjustScore(postOwnerUid, 1);
       await UserTierService.adjustCommunityClout(postId: postId, targetUid: postOwnerUid, delta: 1);
     }
@@ -506,9 +538,7 @@ class PostInteractionService {
       final options = (postSnap.data() as Map<String, dynamic>?)?['pollOptions'] as List<dynamic>? ?? [];
       final counts = List<int>.from(
         (postSnap.data() as Map<String, dynamic>?)?['pollVoteCounts'] as List<dynamic>? ?? List.filled(options.length, 0));
-      while (counts.length < options.length) {
-        counts.add(0); // defensive, in case options grew somehow
-      }
+      while (counts.length < options.length) counts.add(0); // defensive, in case options grew somehow
 
       final previousIndex = existing.data()?['optionIndex'] as int?;
       if (previousIndex == optionIndex) return; // tapping your own current vote again does nothing -- polls aren't retractable like reactions
